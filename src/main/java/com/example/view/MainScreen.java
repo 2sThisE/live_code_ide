@@ -1,0 +1,754 @@
+package com.example.view;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Consumer;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import com.example.controller.MainController;
+import com.example.controller.ProjectController;
+import com.example.model.UserInfo;
+import com.example.model.UserProjectsInfo;
+
+import javafx.animation.FadeTransition;
+import javafx.animation.PauseTransition;
+import javafx.application.Platform;
+import javafx.geometry.Orientation;
+import javafx.geometry.Pos;
+import javafx.scene.Node;
+import javafx.scene.control.Button;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Label;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.control.SplitPane;
+import javafx.scene.control.TabPane;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
+import javafx.scene.control.TreeCell;
+import javafx.scene.control.TreeItem;
+import javafx.scene.control.TreeView;
+import javafx.scene.input.KeyCode;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.stage.Stage;
+import javafx.util.Duration;
+
+public class MainScreen {
+
+    private TreeView<Object> fileExplorer;
+    private TreeItem<Object> projectRoot;
+    private BorderPane fileExplorerContainer;
+    private final Set<String> expandedItemPaths = new HashSet<>();
+    private Label connectionStatusLabel;
+    private UserProjectsInfo currentProjectForFileTree;
+    private UserInfo currentUserInfo;
+    private boolean isTransitioning = false;
+
+    private double xOffset = 0;
+    private double yOffset = 0;
+
+    public class NodeType {
+        private final String name;
+        private final String type;
+        public NodeType(String name, String type) { this.name = name; this.type = type; }
+        public String getType() { return type; }
+        @Override public String toString() { return name; }
+    }
+
+    public BorderPane createMainScreen(Stage stage, TabPane editorTabs, Label statusLabel, MainController mainController) {
+        BorderPane mainLayout = new BorderPane();
+        
+        MenuBar menuBar = new MenuBar();
+        Menu fileMenu = new Menu("File");
+        MenuItem logoutItem = new MenuItem("로그아웃");
+        logoutItem.setOnAction(e -> mainController.performLogout());
+        MenuItem exitItem = new MenuItem("Exit");
+        exitItem.setOnAction(e -> Platform.exit());
+        fileMenu.getItems().addAll(logoutItem, new SeparatorMenuItem(), exitItem);
+        menuBar.getMenus().add(fileMenu);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button minimizeButton = new Button("—");
+        minimizeButton.getStyleClass().add("window-button");
+        minimizeButton.setOnAction(e -> stage.setIconified(true));
+
+        Button maximizeButton = new Button("◻");
+        maximizeButton.getStyleClass().add("window-button");
+        maximizeButton.setOnAction(e -> stage.setMaximized(!stage.isMaximized()));
+
+        Button closeButton = new Button("✕");
+        closeButton.getStyleClass().addAll("window-button", "close-button");
+        closeButton.setOnAction(e -> Platform.exit());
+
+        HBox titleBar = new HBox(menuBar, spacer, minimizeButton, maximizeButton, closeButton);
+        titleBar.setAlignment(Pos.CENTER);
+        titleBar.getStyleClass().add("custom-title-bar");
+
+        final int resizeBorder = 8; 
+        final boolean[] isDragging = {false};
+
+        titleBar.setOnMousePressed(event -> {
+            if (event.getY() > resizeBorder) {
+                isDragging[0] = true;
+                xOffset = event.getSceneX();
+                yOffset = event.getSceneY();
+            } else {
+                isDragging[0] = false;
+            }
+        });
+
+        titleBar.setOnMouseDragged(event -> {
+            if (isDragging[0]) {
+                stage.setX(event.getScreenX() - xOffset);
+                stage.setY(event.getScreenY() - yOffset);
+            }
+        });
+        
+        titleBar.setOnMouseReleased(event -> {
+            isDragging[0] = false;
+        });
+
+        mainLayout.getStyleClass().add("root-pane"); 
+        mainLayout.setTop(titleBar);
+
+        fileExplorer = new TreeView<>();
+        fileExplorer.setShowRoot(false);
+        
+        fileExplorerContainer = new BorderPane(fileExplorer);
+
+        TextArea outputArea = new TextArea();
+        outputArea.setEditable(false);
+        outputArea.setPromptText("Output will be shown here...");
+
+        TabPane safeEditorTabs = (editorTabs != null) ? editorTabs : new TabPane();
+        SplitPane centerSplit = new SplitPane(safeEditorTabs, outputArea);
+        
+        centerSplit.setOrientation(Orientation.VERTICAL);
+        centerSplit.setDividerPositions(0.75);
+
+        SplitPane mainSplit = new SplitPane(fileExplorerContainer, centerSplit);
+        mainSplit.setId("main-split-pane");
+        mainSplit.setDividerPositions(0.25);
+        SplitPane.setResizableWithParent(fileExplorerContainer, false);
+
+        mainLayout.setCenter(mainSplit);
+
+        Label safeStatusLabel = (statusLabel != null) ? statusLabel : new Label();
+        connectionStatusLabel = new Label();
+        Region statusBarSpacer = new Region();
+        HBox.setHgrow(statusBarSpacer, Priority.ALWAYS);
+        HBox statusBar = new HBox(safeStatusLabel, statusBarSpacer, connectionStatusLabel);
+
+        statusBar.getStyleClass().add("status-bar");
+        mainLayout.setBottom(statusBar);
+
+        return mainLayout;
+    }
+    
+    private void performTransition(Runnable viewUpdateLogic) {
+        if (isTransitioning) return;
+        isTransitioning = true;
+
+        viewUpdateLogic.run();
+
+        Node newHeader = fileExplorerContainer.getTop();
+        if (newHeader != null) {
+            fileExplorerContainer.setStyle("-fx-background-color: #252526;");
+            newHeader.setOpacity(0);
+            
+            FadeTransition fadeIn = new FadeTransition(Duration.millis(200), newHeader);
+            fadeIn.setToValue(1);
+            
+            fadeIn.setOnFinished(e -> {
+                fileExplorerContainer.setStyle(null);
+                isTransitioning = false;
+            });
+            fadeIn.play();
+        } else {
+            isTransitioning = false;
+        }
+    }
+
+    public void clearProjectView() {
+        fileExplorer.setRoot(null);
+        fileExplorerContainer.setTop(null);
+        currentProjectForFileTree = null;
+        currentUserInfo = null;
+    }
+
+    public void showReconnectingStatus(boolean isReconnecting) {
+        if (isReconnecting) {
+            connectionStatusLabel.setText("재연결 중...");
+            connectionStatusLabel.setStyle("-fx-text-fill: #ffa500;");
+        } else {
+            connectionStatusLabel.setText("");
+        }
+    }
+
+    public void showConnectedStatus() {
+        connectionStatusLabel.setText("연결됨");
+        connectionStatusLabel.setStyle("-fx-text-fill: #55ff55;");
+        PauseTransition delay = new PauseTransition(Duration.seconds(3));
+        delay.setOnFinished(e -> connectionStatusLabel.setText(""));
+        delay.play();
+    }
+
+    public void setProjectList(List<UserProjectsInfo> upiList, ProjectController projectController, MainController mainController, UserInfo userInfo) {
+        this.currentUserInfo = userInfo;
+        projectRoot = new TreeItem<>(new UserProjectsInfo("Project"));
+        projectRoot.setExpanded(true);
+        upiList.forEach(info -> projectRoot.getChildren().add(new TreeItem<>(info)));
+
+        updateFileExplorerHeader(ViewType.PROJECT_LIST, null, projectController, mainController);
+        setProjectListCellFactory(projectController, mainController);
+        fileExplorer.setRoot(projectRoot);
+        fileExplorer.setShowRoot(false);
+        fileExplorer.setOnMouseClicked(null); 
+    }
+
+    private void setFileTreeViewMouseHandler() {
+        fileExplorer.setOnMousePressed(event -> {
+            Node node = event.getPickResult().getIntersectedNode();
+            
+            while (node != null && !(node instanceof TreeCell)) {
+                node = node.getParent();
+            }
+
+            if (node == null || ((TreeCell<?>) node).isEmpty()) {
+                if (fileExplorer.getEditingItem() == null) {
+                    fileExplorer.getSelectionModel().clearSelection();
+                }
+            }
+        });
+    }
+
+    private void setProjectListCellFactory(ProjectController projectController, MainController mainController) {
+        fileExplorer.setEditable(true);
+        fileExplorer.setCellFactory(tv -> 
+            new EditableProjectCell(projectController, mainController, (UserProjectsInfo projectInfo) -> {
+                changeToProjectDirView(projectInfo, projectController, mainController);
+            })
+        );
+    }
+
+    private void setFileTreeCellFactory(ProjectController projectController, String projectId, UserProjectsInfo userProjectsInfo, MainController mainController) {
+        fileExplorer.setEditable(true);
+        fileExplorer.setCellFactory(tv -> new EditableFileTreeCell(projectController, userProjectsInfo, mainController));
+    }
+
+    private ContextMenu createProjectContextMenu(UserProjectsInfo projectInfo, ProjectController projectController, MainController mainController, UserInfo userInfo) {
+        ContextMenu contextMenu = new ContextMenu();
+        MenuItem sharedItem;
+        if (projectInfo.getIsShared() != null && projectInfo.getIsShared()) {
+            sharedItem = new MenuItem("공유 해제");
+            sharedItem.setOnAction(e -> projectController.shareDeleteRequest(projectInfo.getProjectID(), userInfo.getNickname(), userInfo.getTag()));
+        } else {
+            sharedItem = new MenuItem("공유 옵션");
+            sharedItem.setOnAction(e -> mainController.showSharedOptionView(projectInfo));
+        }
+
+        MenuItem propertiesItem = new MenuItem("속성");
+        propertiesItem.setOnAction(e -> mainController.showProjectPropertiesView(projectInfo));
+        MenuItem deleteItem = new MenuItem("삭제");
+        if (userInfo != null && !userInfo.getId().equals(projectInfo.getOwner())) {deleteItem.setDisable(true);}
+        deleteItem.setOnAction(e -> projectController.projectDeleteRequest(projectInfo.getProjectID()));
+        contextMenu.getItems().addAll(sharedItem, deleteItem, propertiesItem);
+        return contextMenu;
+    }
+
+    public void showProjectListView(ProjectController projectController, MainController mainController) {
+        performTransition(() -> {
+            if (projectRoot != null) {
+                currentProjectForFileTree = null;
+                setProjectListCellFactory(projectController, mainController);
+                fileExplorer.setRoot(projectRoot);
+                fileExplorer.setShowRoot(false);
+                updateFileExplorerHeader(ViewType.PROJECT_LIST, null, projectController, mainController);
+                fileExplorer.setOnMousePressed(null);
+            }
+        });
+    }
+
+    public void updateFileTree(JSONObject fileListJson) {
+        if (fileListJson != null && fileListJson.has("name") && fileListJson.has("children")) {
+            saveExpandedState();
+            String rootName = fileListJson.getString("name");
+            TreeItem<Object> root = new FileTreeItem(new NodeType(rootName, "folder")); // <-- 여기를 수정!
+            root.setExpanded(true);
+
+            JSONArray children = fileListJson.getJSONArray("children");
+            for (int i = 0; i < children.length(); i++) {
+                root.getChildren().add(buildTreeFromJson(children.getJSONObject(i)));
+            }
+
+            fileExplorer.setRoot(root);
+            fileExplorer.setShowRoot(false);
+            restoreExpandedState(root);
+        }
+    }
+
+    private void changeToProjectDirView(UserProjectsInfo userProjectsInfo, ProjectController projectController, MainController mainController) {
+        performTransition(() -> {
+            this.currentProjectForFileTree = userProjectsInfo;
+            setFileTreeCellFactory(projectController, userProjectsInfo.getProjectID(), userProjectsInfo, mainController);
+            updateFileExplorerHeader(ViewType.FILE_TREE, userProjectsInfo, projectController, mainController);
+            projectController.fileListRequest(userProjectsInfo);
+            setFileTreeViewMouseHandler();
+            fileExplorer.setOnKeyPressed(event -> {
+                if (event.getCode() == KeyCode.DELETE) {
+                    TreeItem<Object> selectedItem = fileExplorer.getSelectionModel().getSelectedItem();
+                    if (selectedItem != null && selectedItem.getValue() instanceof NodeType nodeType) {
+                        String pathString = getItemPath(selectedItem);
+                        if (pathString != null && !pathString.isEmpty()) {
+                            String path = pathString.replace('\\', '/');
+                            // TODO: Controller에서 실제 삭제 로직 구현 필요
+                            System.out.println("Delete action triggered for: " + path);
+                            // projectController.deleteItem(userProjectsInfo.getProjectID(), path, nodeType.getType());
+                            if(nodeType.getType().equals("file")){
+                                projectController.delFileRequest(userProjectsInfo.getProjectID(), path, userProjectsInfo.getOwner());
+                                projectController.fileListRequest(userProjectsInfo);
+                            }else if(nodeType.getType().equals("folder")){
+                                projectController.delDirRequest(userProjectsInfo.getProjectID(), path, userProjectsInfo.getOwner());
+                                projectController.fileListRequest(userProjectsInfo);
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    }
+
+    private enum ViewType { PROJECT_LIST, FILE_TREE }
+
+    private void updateFileExplorerHeader(ViewType viewType, UserProjectsInfo currentProject, ProjectController projectController, MainController mainController) {
+        HBox headerBox = new HBox();
+        headerBox.setAlignment(Pos.CENTER_LEFT);
+        headerBox.getStyleClass().add("file-explorer-header");
+        headerBox.setSpacing(5);
+
+        if (viewType == ViewType.PROJECT_LIST) {
+            Label label = new Label("  프로젝트 리스트");
+            Button addBtn = new Button("+");
+            addBtn.getStyleClass().add("add-project-button");
+            addBtn.setTooltip(new Tooltip("새 프로젝트 생성"));
+            addBtn.setOnAction(e -> handleAddProject());
+            
+            Button refreshBtn = new Button("↻");
+            refreshBtn.getStyleClass().add("add-project-button");
+            refreshBtn.setTooltip(new Tooltip("새로고침"));
+            refreshBtn.setOnAction(e -> projectController.projectListRequest());
+
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+            headerBox.getChildren().addAll(label, spacer, addBtn, refreshBtn);
+        } else if (viewType == ViewType.FILE_TREE && currentProject != null) {
+            Button backButton = new Button("←");
+            backButton.getStyleClass().add("add-project-button");
+            backButton.setTooltip(new Tooltip("프로젝트 목록으로 돌아가기"));
+            backButton.setOnAction(e -> showProjectListView(projectController, mainController));
+
+            Label label = new Label("  " + currentProject.getProjectName());
+            Button addFileBtn = new Button("+");
+            addFileBtn.getStyleClass().add("add-project-button");
+            addFileBtn.setTooltip(new Tooltip("파일 추가"));
+            addFileBtn.setOnAction(e -> handleAddItem("file"));
+
+            Button addFolderBtn = new Button("+F");
+            addFolderBtn.getStyleClass().add("add-project-button");
+            addFolderBtn.setTooltip(new Tooltip("폴더 추가"));
+            addFolderBtn.setOnAction(e -> handleAddItem("folder"));
+
+            Button refreshBtn = new Button("↻");
+            refreshBtn.getStyleClass().add("add-project-button");
+            refreshBtn.setTooltip(new Tooltip("새로고침"));
+            refreshBtn.setOnAction(e -> refreshCurrentFileTree(projectController));
+
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+            headerBox.getChildren().addAll(backButton, label, spacer, addFileBtn, addFolderBtn, refreshBtn);
+        }
+        fileExplorerContainer.setTop(headerBox);
+    }
+
+    private void handleAddProject() {
+        if (fileExplorer.getEditingItem() != null) return;
+        if (projectRoot == null) return;
+
+        TreeItem<Object> newItem = new TreeItem<>(new UserProjectsInfo(""));
+        projectRoot.getChildren().add(0, newItem);
+        
+        Platform.runLater(() -> {
+            fileExplorer.getSelectionModel().select(newItem);
+            fileExplorer.scrollTo(fileExplorer.getRow(newItem));
+            fileExplorer.edit(newItem); 
+        });
+    }
+
+    private void handleAddItem(String itemType) {
+        if (fileExplorer.getEditingItem() != null) return;
+        TreeItem<Object> selectedItem = fileExplorer.getSelectionModel().getSelectedItem();
+        TreeItem<Object> parentItem;
+
+        if (selectedItem == null) {
+            parentItem = fileExplorer.getRoot();
+        } else if (selectedItem.getValue() instanceof NodeType node && "file".equals(node.getType())) {
+            parentItem = selectedItem.getParent();
+        } else {
+            parentItem = selectedItem;
+        }
+        
+        if (parentItem == null) return;
+        
+        parentItem.setExpanded(true);
+
+        TreeItem<Object> newItem = new FileTreeItem(new NodeType("", itemType));
+        parentItem.getChildren().add(0, newItem);
+        
+        Platform.runLater(() -> {
+            fileExplorer.getSelectionModel().select(newItem);
+            fileExplorer.scrollTo(fileExplorer.getRow(newItem));
+            fileExplorer.edit(newItem); 
+        });
+    }
+
+    public void refreshCurrentFileTree(ProjectController projectController) {
+        if (currentProjectForFileTree != null) {
+            saveExpandedState();
+            projectController.fileListRequest(currentProjectForFileTree);
+        }
+    }
+
+    private TreeItem<Object> buildTreeFromJson(JSONObject jsonObject) {
+        String name = jsonObject.getString("name");
+        String type = jsonObject.has("children") ? "folder" : "file";
+        TreeItem<Object> node = new FileTreeItem(new NodeType(name, type));
+
+        if ("folder".equals(type)) {
+            JSONArray children = jsonObject.getJSONArray("children");
+            for (int i = 0; i < children.length(); i++) {
+                node.getChildren().add(buildTreeFromJson(children.getJSONObject(i)));
+            }
+        }
+        return node;
+    }
+
+    private String getItemPath(TreeItem<Object> item) {
+        if (item == null || item.getParent() == null) return "";
+        StringBuilder path = new StringBuilder();
+        TreeItem<Object> current = item;
+        while (current != null && current.getParent() != null) {
+            path.insert(0, current.getValue().toString());
+            current = current.getParent();
+            if (current != null && current.getParent() != null) {
+                path.insert(0, "/");
+            }
+        }
+        return path.toString();
+    }
+
+    private void saveExpandedState() {
+        expandedItemPaths.clear();
+        if (fileExplorer.getRoot() != null) {
+            findExpandedPathsRecursive(fileExplorer.getRoot());
+        }
+    }
+
+    private void findExpandedPathsRecursive(TreeItem<Object> item) {
+        if (item != null && item.isExpanded()) {
+            expandedItemPaths.add(getItemPath(item));
+            for (TreeItem<Object> child : item.getChildren()) {
+                findExpandedPathsRecursive(child);
+            }
+        }
+    }
+
+    private void restoreExpandedState(TreeItem<Object> item) {
+        if (item != null) {
+            if (expandedItemPaths.contains(getItemPath(item))) {
+                item.setExpanded(true);
+            }
+            for (TreeItem<Object> child : item.getChildren()) {
+                restoreExpandedState(child);
+            }
+        }
+    }
+
+    private class EditableProjectCell extends TreeCell<Object> {
+        private TextField textField;
+        private final ProjectController projectController;
+        private final MainController mainController;
+        private final Consumer<UserProjectsInfo> onDoubleClick;
+
+        public EditableProjectCell(ProjectController projectController, MainController mainController, Consumer<UserProjectsInfo> onDoubleClick) {
+            this.projectController = projectController;
+            this.mainController = mainController;
+            this.onDoubleClick = onDoubleClick;
+        }
+
+        @Override
+        public void startEdit() {
+            super.startEdit();
+            if (getItem() instanceof UserProjectsInfo projectInfo && projectInfo.getProjectName().isEmpty()) {
+                if (textField == null) {
+                    createTextField();
+                }
+                setText(null);
+                setGraphic(textField);
+                textField.requestFocus();
+                textField.selectAll();
+            }
+        }
+
+        @Override
+        public void cancelEdit() {
+            super.cancelEdit();
+            updateItem(getItem(), false);
+            if (getItem() instanceof UserProjectsInfo projectInfo && projectInfo.getProjectName().isEmpty()) {
+                Platform.runLater(() -> {
+                    if (getTreeItem() != null && getTreeItem().getParent() != null)
+                        getTreeItem().getParent().getChildren().remove(getTreeItem());
+                });
+            }
+        }
+
+        @Override
+        protected void updateItem(Object item, boolean empty) {
+            super.updateItem(item, empty);
+            if (empty || item == null) {
+                setText(null);
+                setGraphic(null);
+                setContextMenu(null);
+                setOnMouseClicked(null);
+            } else {
+                if (isEditing() && item instanceof UserProjectsInfo pi && pi.getProjectName().isEmpty()) {
+                    if (textField == null) createTextField();
+                    textField.setText("");
+                    textField.setPromptText("프로젝트명");
+                    setText(null);
+                    setGraphic(textField);
+                    setContextMenu(null);
+                } else if (item instanceof UserProjectsInfo projectInfo) {
+                    HBox hbox = new HBox();
+                    Label nameLabel = new Label(projectInfo.toString());
+                    hbox.getChildren().add(nameLabel);
+
+                    if (projectInfo.getIsShared() != null && projectInfo.getIsShared()) {
+                        Region spacer = new Region();
+                        HBox.setHgrow(spacer, Priority.ALWAYS);
+                        Label sharedLabel = new Label("(공유됨)");
+                        sharedLabel.getStyleClass().add("shared-label");
+                        hbox.getChildren().addAll(spacer, sharedLabel);
+                    }
+                    setGraphic(hbox);
+                    setText(null);
+                    if (!"Project".equals(projectInfo.getProjectName()) && !projectInfo.getProjectName().isEmpty()) {
+                        setContextMenu(createProjectContextMenu(projectInfo, projectController, mainController, currentUserInfo));
+                    } else {
+                        setContextMenu(null);
+                    }
+                } else {
+                    setText(item.toString());
+                    setGraphic(null);
+                    setContextMenu(null);
+                }
+
+                setOnMousePressed(event -> {
+                    if (!isEditing() && event.getClickCount() == 2) {
+                        if (getItem() instanceof UserProjectsInfo pInfo && !pInfo.getProjectName().isEmpty()) {
+                            onDoubleClick.accept(pInfo);
+                            event.consume();
+                        }
+                    }
+                });
+            }
+        }
+
+        private void createTextField() {
+            textField = new TextField();
+            textField.focusedProperty().addListener((obs, wasFocused, isNowFocused) -> {
+                if (!isNowFocused && isEditing()) {
+                    cancelEdit();
+                }
+            });
+            textField.setOnKeyPressed(event -> {
+                if (event.getCode() == KeyCode.ENTER) {
+                    String newName = textField.getText().trim();
+                    if (!newName.isEmpty()) {
+                        commitEdit(new UserProjectsInfo(newName));
+                        projectController.createProjectRequest(newName);
+                    } else {
+                        cancelEdit();
+                    }
+                } else if (event.getCode() == KeyCode.ESCAPE) {
+                    cancelEdit();
+                }
+            });
+        }
+    }
+
+    private class EditableFileTreeCell extends TreeCell<Object> {
+        private TextField textField;
+        private final ProjectController projectController;
+        private final MainController mainController;
+        private final String projectId;
+        private final String owner;
+        private UserProjectsInfo userProjectsInfo;
+
+        public EditableFileTreeCell(ProjectController projectController, UserProjectsInfo userProjectsInfo, MainController mainController) {
+            this.projectController = projectController;
+            this.projectId = userProjectsInfo.getProjectID();
+            this.owner=userProjectsInfo.getProjectID();
+            this.mainController = mainController;
+        }
+
+        @Override
+        public void startEdit() {
+            super.startEdit();
+            Object item = getItem();
+            if (item instanceof NodeType node && node.toString().isEmpty()) {
+                if (textField == null) {
+                    createTextField();
+                }
+                setText(null);
+                setGraphic(textField);
+                textField.requestFocus();
+                textField.selectAll();
+            }
+        }
+
+        @Override
+        public void cancelEdit() {
+            super.cancelEdit();
+            setText(getItem() != null ? getItem().toString() : null);
+            setGraphic(null);
+            if (getItem() instanceof NodeType node && node.toString().isEmpty()) {
+                Platform.runLater(() -> {
+                    if (getTreeItem() != null && getTreeItem().getParent() != null)
+                        getTreeItem().getParent().getChildren().remove(getTreeItem());
+                });
+            }
+        }
+
+        @Override
+        protected void updateItem(Object item, boolean empty) {
+            super.updateItem(item, empty);
+            if (empty || item == null) {
+                setText(null);
+                setGraphic(null);
+                setContextMenu(null);
+                setOnMousePressed(null);
+            } else {
+                if (isEditing() && item instanceof NodeType node && node.toString().isEmpty()) {
+                    if (textField == null) {
+                        createTextField();
+                    }
+                    textField.setText("");
+                    textField.setPromptText(node.getType().equals("file")?"파일명":"폴더명");
+                    setText(null);
+                    setGraphic(textField);
+                    setContextMenu(null);
+                } else {
+                    setText(item.toString());
+                    setGraphic(null);
+                    setContextMenu(createFileContextMenu());
+                }
+
+                setOnMousePressed(event -> {
+                    if (!isEditing() && event.getClickCount() == 2) {
+                        if (getItem() instanceof NodeType nodeType && "file".equals(nodeType.getType())) {
+                            String path = getItemPath(getTreeItem());
+                            mainController.openFileInEditor(path);
+                            event.consume();
+                        }
+                    }
+                });
+            }
+        }
+
+        private void createTextField() {
+            textField = new TextField();
+            textField.focusedProperty().addListener((obs, wasFocused, isNowFocused) -> {if (!isNowFocused && isEditing()) cancelEdit();});
+            textField.setOnKeyPressed(event -> {
+                switch (event.getCode()) {
+                    case ENTER -> {
+                        String newName = textField.getText().trim();
+                        if (!newName.isEmpty() && getItem() instanceof NodeType node) {
+                            NodeType newNode = new NodeType(newName, node.getType());
+                            commitEdit(newNode);
+                            
+                            Path parentPath = Paths.get(getItemPath(getTreeItem().getParent()));
+                            Path fullPath = parentPath.resolve(newName);
+                            String pathString = fullPath.toString().replace('\\', '/');
+
+                            if ("file".equals(node.getType())){
+                                projectController.addFileRequest(projectId, pathString, owner);
+                            }
+                            else if ("folder".equals(node.getType())){
+                                projectController.addFolderRequest(projectId, pathString, owner);
+                            }
+                        } else {
+                            cancelEdit();
+                        }
+                    }
+                    case ESCAPE -> {
+                        cancelEdit();
+                    }
+                    default -> {}
+                }
+            });
+        }
+
+        private ContextMenu createFileContextMenu() {
+            ContextMenu contextMenu = new ContextMenu();
+            MenuItem deleteItem = new MenuItem("삭제");
+            deleteItem.setOnAction(e -> {
+                TreeItem<Object> treeItem = getTreeItem();
+                if (treeItem != null && treeItem.getValue() instanceof NodeType nodeType) {
+                    String itemType = nodeType.getType(); // "file" or "folder"
+                    Path path = Paths.get(getItemPath(treeItem));
+                    String pathString = path.toString().replace('\\', '/');
+                    if(itemType.equals("file")){
+                        projectController.delFileRequest(projectId, pathString, owner);
+                        projectController.fileListRequest(userProjectsInfo);
+                    }else if(itemType.equals("folder")){
+                        projectController.delDirRequest(projectId, pathString, owner);
+                        projectController.fileListRequest(userProjectsInfo);
+                    }
+                }
+            });
+            contextMenu.getItems().add(deleteItem);
+            return contextMenu;
+        }
+    }
+    private static class FileTreeItem extends TreeItem<Object> {
+        public FileTreeItem(Object value) {
+            super(value);
+        }
+        @Override
+        public boolean isLeaf() {
+            Object value = getValue();
+            // 아이템의 값이 NodeType이고, 그 타입이 "folder" 라면,
+            // 자식이 있든 없든 절대 leaf가 아니라고 반환합니다. (항상 확장 버튼 표시)
+            if (value instanceof NodeType nodeType && "folder".equals(nodeType.getType())) {
+                return false;
+            }
+
+            // 폴더가 아닌 경우(파일 등)에는 기본 동작을 따릅니다.
+            // (자식이 없으면 leaf, 있으면 아님)
+            return super.isLeaf();
+        }
+    }
+}

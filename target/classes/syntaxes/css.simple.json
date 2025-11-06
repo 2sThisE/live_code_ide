@@ -1,0 +1,62 @@
+{
+  "scopeName": "source.css",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#at-rules" },
+    { "include": "#tags" },
+    { "include": "#ids" },
+    { "include": "#classes" },
+    { "include": "#pseudo-elements" },
+    { "include": "#properties" },
+    { "include": "#numeric-constants" },
+    { "include": "#color-constants" },
+    { "include": "#value-constants" }
+  ],
+  "repository": {
+    "comments": {
+        "name": "comment.block.css",
+        "match": "/\\*.*?\\*/"
+    },
+    "strings": {
+        "name": "string.quoted.double.css",
+        "match": "\"(\\\\\"|[^\"])*\""
+    },
+    "at-rules": {
+        "name": "keyword.control.at-rule.css",
+        "match": "@(media|import|charset|namespace|font-face|keyframes|supports|page|counter-style)\\b"
+    },
+    "tags": {
+        "name": "entity.name.tag.css",
+        "match": "\\b(a|abbr|address|area|article|aside|audio|b|base|bdi|bdo|blockquote|body|br|button|canvas|caption|cite|code|col|colgroup|data|datalist|dd|del|details|df|dialog|div|dl|dt|em|embed|fieldset|figcaption|figure|footer|form|h1|h2|h3|h4|h5|h6|head|header|hr|html|i|iframe|img|input|ins|kbd|label|legend|li|link|main|map|mark|meta|meter|nav|noscript|object|ol|optgroup|option|output|p|param|picture|pre|progress|q|rp|rt|ruby|s|samp|script|section|select|small|source|span|strong|style|sub|summary|sup|svg|table|tbody|td|template|textarea|tfoot|th|thead|time|title|tr|track|u|ul|var|video|wbr)\\b(?=[\\s\\.{#:])"
+    },
+    "ids": {
+        "name": "entity.other.attribute-name.id.css",
+        "match": "#[a-zA-Z0-9_-]+"
+    },
+    "classes": {
+        "name": "entity.other.attribute-name.class.css",
+        "match": "\\.[a-zA-Z0-9_-]+"
+    },
+    "pseudo-elements": {
+        "name": "entity.name.pseudo-element.css",
+        "match": "::?(before|after|first-line|first-letter|selection|backdrop|placeholder|marker|spelling-error|grammar-error)\\b"
+    },
+    "properties": {
+        "name": "support.type.property-name.css",
+        "match": "([a-zA-Z-]+)\\s*(?=:)"
+    },
+    "numeric-constants": {
+        "name": "constant.numeric.css",
+        "match": "-?[0-9]+(\\.[0-9]+)?(px|em|rem|%|vw|vh|s|deg|turn|rad|grad|ms|Hz|kHz|dpi|dpcm|dppx)?\\b"
+    },
+    "color-constants": {
+        "name": "constant.other.color.css",
+        "match": "#[0-9a-fA-F]{3,8}\\b"
+    },
+    "value-constants": {
+        "name": "support.constant.property-value.css",
+        "match": "\\b(absolute|relative|fixed|static|sticky|inherit|initial|unset|none|auto|block|inline|inline-block|flex|grid|bold|normal|italic|sans-serif|serif|monospace|uppercase|lowercase|capitalize|center|left|right|justify|solid|dotted|dashed|double|hidden|visible|scroll)\\b"
+    }
+  }
+}

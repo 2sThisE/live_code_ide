@@ -1,0 +1,37 @@
+{
+  "scopeName": "source.cpp",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#preprocessor" },
+    { "include": "#keywords" },
+    { "include": "#storage-types" },
+    { "include": "#constants-and-numbers" }
+  ],
+  "repository": {
+    "comments": {
+      "name": "comment.cpp",
+      "match": "//.*|/\\*.*?\\*/"
+    },
+    "strings": {
+      "name": "string.quoted.cpp",
+      "match": "(\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')"
+    },
+    "preprocessor": {
+      "name": "keyword.preprocessor.cpp",
+      "match": "^\\s*#\\s*(include|define|undef|if|ifdef|ifndef|else|elif|endif|error|pragma)\\b"
+    },
+    "keywords": {
+      "name": "keyword.control.cpp",
+      "match": "\\b(if|else|for|while|do|switch|case|default|break|continue|return|try|catch|throw|goto|namespace|using|template|typename|constexpr|const_cast|dynamic_cast|reinterpret_cast|static_cast|typeid)\\b"
+    },
+    "storage-types": {
+      "name": "storage.type.cpp",
+      "match": "\\b(class|struct|enum|union|public|protected|private|static|const|virtual|friend|new|delete|auto|void|bool|char|short|int|long|float|double|wchar_t|signed|unsigned|explicit|inline|extern|mutable|register|volatile)\\b"
+    },
+    "constants-and-numbers": {
+      "name": "constant.language.cpp",
+      "match": "\\b(true|false|nullptr|[0-9]+(\\.[0-9]+)?f?)\\b"
+    }
+  }
+}

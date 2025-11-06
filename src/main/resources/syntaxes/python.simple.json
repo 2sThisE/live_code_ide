@@ -1,0 +1,57 @@
+{
+  "scopeName": "source.python",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#docstrings" },
+    { "include": "#strings" },
+    { "include": "#decorators" },
+    { "include": "#keywords" },
+    { "include": "#storage-types" },
+    { "include": "#self-cls" },
+    { "include": "#builtins" },
+    { "include": "#constants" },
+    { "include": "#numbers" }
+  ],
+  "repository": {
+    "comments": {
+      "name": "comment.line.number-sign.python",
+      "match": "#.*"
+    },
+    "docstrings": {
+      "name": "string.quoted.docstring.python",
+      "match": "\"\"\"(.*?)\"\"\"|'''(.*?)'''"
+    },
+    "strings": {
+      "name": "string.quoted.python",
+      "match": "([furb]?)(\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')"
+    },
+    "decorators": {
+      "name": "entity.name.function.decorator.python",
+      "match": "^\\s*@\\w+"
+    },
+    "keywords": {
+      "name": "keyword.control.flow.python",
+      "match": "\\b(if|elif|else|for|while|break|continue|return|yield|try|except|finally|raise|assert|with|as|import|from|pass|in|is|not|and|or|lambda|del|global|nonlocal)\\b"
+    },
+    "storage-types": {
+      "name": "storage.type.python",
+      "match": "\\b(def|class)\\b"
+    },
+    "self-cls": {
+      "name": "variable.language.special.python",
+      "match": "\\b(self|cls)\\b"
+    },
+    "builtins": {
+      "name": "support.function.builtin.python",
+      "match": "\\b(print|len|range|int|str|list|dict|set|tuple|open|super|__init__)\\b"
+    },
+    "constants": {
+      "name": "constant.language.python",
+      "match": "\\b(True|False|None)\\b"
+    },
+    "numbers": {
+      "name": "constant.numeric.python",
+      "match": "\\b((0(x|X)[0-9a-fA-F]+)|(\\d*\\.?\\d+([eE][-+]?\\d+)?))\\b"
+    }
+  }
+}
