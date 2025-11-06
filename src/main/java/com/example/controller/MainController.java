@@ -62,6 +62,10 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         primaryStage.setTitle("Live Code IDE");
     }
 
+    public void shutdown() {
+        editorTabView.shutdownAllHighlighters();
+    }
+
     public void setSocketManager(ClientSocketManager socketManager) {
         this.socketManager = socketManager;
         this.projectController = new ProjectController(socketManager, mainScreen, this);

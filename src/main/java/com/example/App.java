@@ -11,6 +11,7 @@ import javafx.application.Platform;
 public class App extends Application {
 
     private ClientSocketManager socketManager;
+    private MainController mainController;
 
     @Override
     public void start(Stage primaryStage) {
@@ -18,7 +19,7 @@ public class App extends Application {
         // Remove default window decorations
         primaryStage.initStyle(StageStyle.TRANSPARENT);
 
-        MainController mainController = new MainController(primaryStage);
+        mainController = new MainController(primaryStage);
         
         // Pass the controller as the callback for socket events
         socketManager = new ClientSocketManager(mainController);
@@ -29,24 +30,22 @@ public class App extends Application {
         // Initialize the main UI
         mainController.initMainScreen();
         
-        
-
-        // Start the socket connection in a background thread
+        // Start the socket connection in a new thread to avoid blocking the UI
         new Thread(() -> {
             try {
                 socketManager.connect();
             } catch (Exception e) {
-                Platform.runLater(() -> {
-                    // Proper error handling, maybe show an alert
-                    System.err.println("Failed to connect to server: " + e.getMessage());
-                    e.printStackTrace();
-                });
+                // Handle connection error, e.g., show an error message
+                e.printStackTrace();
             }
         }).start();
     }
 
     @Override
     public void stop() throws Exception {
+        if (mainController != null) {
+            mainController.shutdown();
+        }
         if (socketManager != null) {
             socketManager.disconnect();
         }
@@ -54,6 +53,7 @@ public class App extends Application {
     }
 
     public static void main(String[] args) {
+        System.out.println("JavaFX Version: " + System.getProperty("javafx.version"));
         launch(args);
     }
 }

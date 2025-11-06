@@ -610,8 +610,9 @@ public class MainScreen {
         public EditableFileTreeCell(ProjectController projectController, UserProjectsInfo userProjectsInfo, MainController mainController) {
             this.projectController = projectController;
             this.projectId = userProjectsInfo.getProjectID();
-            this.owner=userProjectsInfo.getProjectID();
+            this.owner=userProjectsInfo.getOwner();
             this.mainController = mainController;
+            this.userProjectsInfo=userProjectsInfo;
         }
 
         @Override

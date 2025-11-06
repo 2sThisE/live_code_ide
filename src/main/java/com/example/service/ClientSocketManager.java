@@ -31,6 +31,8 @@ public class ClientSocketManager {
     private final SocketProtocol protocol;
     private final ClientSocketCallback callback;
     private volatile boolean isReconnecting = false;
+    private volatile boolean isRunning = true;
+    private Thread receivingThread;
 
     public ClientSocketManager(ClientSocketCallback callback) {
         this.callback = callback;
@@ -53,17 +55,33 @@ public class ClientSocketManager {
         in = new DataInputStream(sslSocket.getInputStream());
 
         if (callback != null) callback.onConnected();
-        new Thread(this::startReceiving).start();
+        receivingThread = new Thread(this::startReceiving);
+        receivingThread.start();
     }
 
     public void disconnect() {
+        System.out.println("DEBUG: ClientSocketManager.disconnect() called.");
+        isRunning = false; // Signal the loop to stop
         try {
             if (sslSocket != null && !sslSocket.isClosed()) {
-                sslSocket.close();
+                System.out.println("DEBUG: Closing socket.");
+                sslSocket.close(); // This will interrupt the blocking read() call
+            }
+            if (receivingThread != null && receivingThread.isAlive()) {
+                System.out.println("DEBUG: Waiting for receiving thread to join.");
+                receivingThread.join(1000); // Wait for the thread to die
+                if (receivingThread.isAlive()) {
+                    System.out.println("DEBUG: Thread is still alive, interrupting.");
+                    receivingThread.interrupt(); // Forcefully interrupt if it's stuck
+                }
             }
         } catch (IOException e) {
-            // Ignore
+            // Ignore errors on close
+        } catch (InterruptedException e) {
+            System.out.println("DEBUG: Interrupted while waiting for thread to join.");
+            Thread.currentThread().interrupt(); // Preserve interrupt status
         }
+        System.out.println("DEBUG: ClientSocketManager.disconnect() finished.");
     }
 
     public void sendPacket(byte[] payload, byte fragFlag, int userValue, byte payloadType) throws IOException {
@@ -74,8 +92,13 @@ public class ClientSocketManager {
     }
     
     private void startReceiving() {
+        System.out.println("DEBUG: startReceiving() thread started.");
         try {
-            while (sslSocket != null && !sslSocket.isClosed()) {
+            while (isRunning) {
+                if (sslSocket == null || sslSocket.isClosed()) {
+                    break; 
+                }
+                
                 byte[] headerBytes = new byte[4];
                 int bytesRead = in.read(headerBytes);
                 if (bytesRead < 4) {
@@ -93,31 +116,45 @@ public class ClientSocketManager {
                 handlePacket(fullPacketBytes);
             }
         } catch (IOException e) {
-            handleDisconnection();
+            System.out.println("DEBUG: IOException in startReceiving(): " + e.getMessage());
+            if (isRunning) {
+                handleDisconnection();
+            }
         }
+        System.out.println("DEBUG: startReceiving() thread finished.");
     }
 
     private void handleDisconnection() {
-        if (isReconnecting) return;
+        if (!isRunning || isReconnecting) {
+            return;
+        }
         isReconnecting = true;
-        disconnect();
+        
+        try {
+            if (sslSocket != null && !sslSocket.isClosed()) {
+                sslSocket.close();
+            }
+        } catch (IOException e) {
+            // Ignore
+        }
+
         if (callback != null) callback.onDisconnected();
 
         Thread reconnectThread = new Thread(() -> {
-            while (true) {
+            while (isRunning) {
                 try {
                     Thread.sleep(RECONNECT_INTERVAL);
                     System.out.println("Attempting to reconnect...");
                     connect();
                     isReconnecting = false;
                     if (callback != null) callback.onReconnected();
-                    break; // Exit loop on successful connection
+                    break;
                 } catch (Exception e) {
                     System.err.println("Reconnect failed: " + e.getMessage());
                 }
             }
         });
-        reconnectThread.setDaemon(true); // Set as a daemon thread
+        reconnectThread.setDaemon(true);
         reconnectThread.start();
     }
 

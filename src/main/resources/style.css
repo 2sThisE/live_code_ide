@@ -324,9 +324,16 @@
     -fx-fill: #d4d4d4;
     -fx-line-spacing: 4px; /* 기본 텍스트 색상 (밝은 회색) */
 }
-
+.text-flow {
+    -fx-tab-size: 1!important; /* 원하는 탭 길이로 설정 */
+}
+.code-area .text-flow {
+    -fx-tab-size: 1!important; /* 4칸 공백 크기로 설정 */
+}
 /* --- 3. 에디터 UI 요소 스타일 --- */
-
+#my-code-area .text-flow {
+    -fx-tab-size: 4; /* 원하는 탭 너비 (예: 4칸 공백) */
+}
 /* 라인 번호 영역 */
 .code-area .lineno {
     -fx-background-color: #1e1e1e; /* 에디터와 동일한 배경 */
@@ -490,3 +497,6 @@
 
 /* JSON: 속성 이름(키) */
 .text.support_type_property-name_json { -fx-fill: #9CDCFE; } /* 하늘색 */
+*{
+    -fx-tab-size: 4;
+}
