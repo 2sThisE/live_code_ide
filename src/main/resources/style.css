@@ -500,3 +500,40 @@
 *{
     -fx-tab-size: 4;
 }
+
+/* --- Auto-completion Popup --- */
+.suggestion-item-selected .label {
+    -fx-text-fill: white!important;
+}
+.context-menu .menu-item.suggestion-item-selected {
+    -fx-background-color: #007acc!important;
+}
+
+/* --- Specific style for our suggestion popup --- */
+#suggestion-list-view {
+    -fx-background-color: #151515; /* Darker than editor */
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-border-color: #333333; /* Faint, light border */
+    -fx-border-width: 1px;
+    -fx-padding: 0; /* No padding */
+}
+
+#suggestion-list-view .list-cell {
+    -fx-padding: 2px 12px; /* Further reduced vertical padding */
+    -fx-background-radius: 0;
+    -fx-font-size: 13px; /* Slightly smaller font */
+}
+
+#suggestion-list-view .list-cell:filled:hover {
+    -fx-background-color: #333333;
+}
+
+#suggestion-list-view .list-cell:selected {
+    -fx-background-color: #094771;
+    -fx-text-fill: white;
+}
+
+#suggestion-list-view:focused .list-cell:selected {
+    -fx-background-color: #007acc;
+}

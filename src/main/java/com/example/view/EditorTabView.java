@@ -109,7 +109,7 @@ public class EditorTabView {
 
         codeArea.replaceText(0, 0, content);
 
-        EditorEnhancer.enableAutoEnhancements(codeArea);
+        EditorEnhancer.enable(codeArea);
         
         Runnable onClose = () -> {
             highlighter.shutdown();
