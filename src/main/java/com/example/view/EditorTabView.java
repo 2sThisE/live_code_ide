@@ -12,6 +12,7 @@ import com.example.service.JavaCompletionService;
 import com.example.service.PythonCompletionService;
 import com.example.util.AntlrSyntaxHighlighter;
 import com.example.util.EditorEnhancer;
+import com.example.util.Tm4eSyntaxHighlighter;
 
 import javafx.scene.Node;
 import javafx.scene.control.Tab;
@@ -22,7 +23,7 @@ public class EditorTabView {
 
     private final TabPane editorTabs;
     private Tab welcomeTab;
-    private final List<AntlrSyntaxHighlighter> activeHighlighters = new ArrayList<>();
+    private final List<Tm4eSyntaxHighlighter> activeHighlighters = new ArrayList<>();
 
     public EditorTabView() {
         this.welcomeTab = new Tab("Welcome");
@@ -32,7 +33,7 @@ public class EditorTabView {
     }
 
     public void shutdownAllHighlighters() {
-        activeHighlighters.forEach(AntlrSyntaxHighlighter::shutdown);
+        activeHighlighters.forEach(Tm4eSyntaxHighlighter::shutdown);
         activeHighlighters.clear();
     }
 
@@ -113,7 +114,7 @@ public class EditorTabView {
         String fileExtension = getFileExtension(filePath);
 
         // ANTLR-based Syntax Highlighting
-        AntlrSyntaxHighlighter highlighter = new AntlrSyntaxHighlighter(codeArea, fileExtension);
+        Tm4eSyntaxHighlighter highlighter = new Tm4eSyntaxHighlighter(codeArea, fileExtension);
         activeHighlighters.add(highlighter);
 
         codeArea.replaceText(0, 0, content);

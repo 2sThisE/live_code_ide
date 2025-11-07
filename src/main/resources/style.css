@@ -406,46 +406,43 @@
 
 
 /* ================================================================== */
-/* --- 5. 구문 강조 스타일 (ANTLR 기반으로 재작성) --- */
+/* --- 5. 구문 강조 스타일 (tm4e 기반) --- */
 /* ================================================================== */
+/* --- 구문 강조 스타일 --- */
+/* 필수!! 더 강력한 선택자를 위해 .text와 함께 사용합니다. !important 사용!!*/
 
-/* 키워드 (if, for, class, def, import 등) */
-.code-area .keyword {
-    -fx-fill: #569CD6; /* 파란색 */
-}
-.code-area .keyword_control {
-    -fx-fill: #C586C0; /* 보라색 */
-}
+/* --- 범용 구문 강조 스타일 (가장 구체적인 규칙을 위로) --- */
+
+/* --- 디버그 로그 기반의 명시적 구문 강조 스타일 --- */
+/* 주석 */
+.text.comment { -fx-fill: #6A9555; }
 
 /* 문자열 */
-.code-area .string {
-    -fx-fill: #CE9178; /* 주황색 */
-}
-
-/* 주석 */
-.code-area .comment {
-    -fx-fill: #6A9955; /* 녹색 */
-}
+.text.string { -fx-fill: #CE9178; }
 
 /* 숫자 */
-.code-area .number {
-    -fx-fill: #B5CEA8; /* 밝은 녹색 */
-}
+.text.numeric { -fx-fill: #b0e792; }
 
-/* 구분자 (괄호, 콤마 등) */
-.code-area .separator {
-    -fx-fill: #d4d4d4; /* 기본 텍스트 색상 */
-}
+/* 빌트인 상수 (true, false, null) */
+.text.language-constant { -fx-fill: #569CD6; }
 
-/* 식별자 (변수, 함수 이름 등) */
-.code-area .identifier {
-    -fx-fill: #9CDCFE; /* 하늘색 */
-}
+/* 제어 키워드 (if, for, while, return, new) */
+.text.keyword-control { -fx-fill: #C586C0; }
 
-/* 기본 텍스트 (위에서 정의되지 않은 모든 토큰) */
-.code-area .text {
-    -fx-fill: #d4d4d4;
-}
+/* 일반 키워드 및 타입 (public, class, static, int, void) */
+.text.storage-modifier { -fx-fill: #569CD6; } 
+
+/* 클래스/타입 이름 */
+.text.entity-name-type,
+.text.storage-type { -fx-fill: #71e2b5; }
+
+/* 함수/메소드 이름 */
+.text.entity-name-function { -fx-fill: #ffffa9; }
+
+/* 변수 이름 */
+.text.variable { -fx-fill: #a7f0fc; }
+/* 연산자 (+, -, *, /, =, ==, !=, <, >, <=, >=) */
+.text.operator-comparison { -fx-fill: #d4d4d4; }
 
 *{
     -fx-tab-size: 4;

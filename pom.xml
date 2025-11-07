@@ -30,6 +30,25 @@
             <artifactId>json</artifactId>
             <version>20231013</version>
         </dependency>
+        <dependency>
+            <groupId>org.eclipse.tm4e</groupId>
+            <artifactId>org.eclipse.tm4e.core</artifactId>
+            <version>0.6.1</version> <!-- 버전 수정 -->
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/org.eclipse.tm4e.core_0.6.1.202308132047.jar</systemPath> <!-- 파일 이름 수정 -->
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.jruby.joni/joni -->
+        <dependency>
+            <groupId>org.jruby.joni</groupId>
+            <artifactId>joni</artifactId>
+            <version>2.2.6</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/com.google.code.gson/gson -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.13.2</version>
+        </dependency>
 
         <!-- JavaFX Dependencies -->
         <dependency>
@@ -65,12 +84,23 @@
         <dependency>
             <groupId>socketprotocol</groupId>
             <artifactId>socketprotocol</artifactId>
-            <version>1.0</version>
+            <version>1.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.antlr</groupId>
             <artifactId>antlr4-runtime</artifactId>
             <version>4.13.1</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/com.google.code.gson/gson -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.13.2</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>31.1-jre</version>
         </dependency>
         <!-- https://mvnrepository.com/artifact/org.bytedeco/llvm-platform -->
         <!-- <dependency>
