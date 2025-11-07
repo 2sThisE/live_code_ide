@@ -406,97 +406,47 @@
 
 
 /* ================================================================== */
-/* --- 5. 구문 강조 스타일 (Refactored by Gemini) --- */
+/* --- 5. 구문 강조 스타일 (ANTLR 기반으로 재작성) --- */
 /* ================================================================== */
 
-/* --- General Tokens --- */
-
-.text.punctuation_json {
-    -fx-fill: #D4D4D4; /* 기본 텍스트 색상 (off-white) */
+/* 키워드 (if, for, class, def, import 등) */
+.code-area .keyword {
+    -fx-fill: #569CD6; /* 파란색 */
+}
+.code-area .keyword_control {
+    -fx-fill: #C586C0; /* 보라색 */
 }
 
+/* 문자열 */
+.code-area .string {
+    -fx-fill: #CE9178; /* 주황색 */
+}
 
-/* --- 2. 공통 요소 스타일 (여러 언어에서 공유) --- */
-
-/* 주석 (Java, C++, Python, CSS) */
-.text.comment_java,
-.text.comment_cpp,
-.text.comment_line_number-sign_python,
-.text.string_quoted_docstring_python, /* Python Docstring은 주석처럼 처리 */
-.text.comment_block_css {
+/* 주석 */
+.code-area .comment {
     -fx-fill: #6A9955; /* 녹색 */
 }
 
-/* 문자열 (Java, C++, Python, CSS, JSON) */
-.text.string_quoted_double_java,
-.text.string_quoted_cpp,
-.text.string_quoted_python,
-.text.string_quoted_double_css,
-.text.string_quoted_double_json {
-    -fx-fill: #CE9178; /* 주황색 계열 */
-}
-
-/* 제어 키워드 (if, for, while, import, etc.) */
-.text.keyword_control_java,
-.text.keyword_control_cpp,
-.text.keyword_control_flow_python {
-    -fx-fill: #C586C0; /* 보라색 계열 */
-}
-
-/* 타입 및 저장소 키워드 (class, int, const, def, etc.) */
-.text.storage_modifier_java,
-.text.storage_type_java,
-.text.storage_type_primitive_java,
-.text.storage_type_cpp,
-.text.storage_type_python {
-    -fx-fill: #569CD6; /* 파란색 */
-}
-
-/* 상수 및 불리언 (true, false, null, None, nullptr) */
-.text.constant_language_java,
-.text.constant_language_cpp,
-.text.constant_language_python,
-.text.constant_language_json {
-     -fx-fill: #569CD6; /* 파란색 */
-}
-
 /* 숫자 */
-.text.constant_numeric_python,
-.text.constant_numeric_json,
-.text.constant_numeric_css {
+.code-area .number {
     -fx-fill: #B5CEA8; /* 밝은 녹색 */
 }
 
-
-/* --- 3. 언어별 특화 스타일 --- */
-
-/* Java: 내장 클래스 및 어노테이션 */
-.text.support_class_java { -fx-fill: #4EC9B0; } /* 청록색 */
-.text.storage_type_annotation_java { -fx-fill: #ffff46; } /* 노란색 */
-
-/* C++: 전처리기 */
-.text.keyword_preprocessor_cpp {
-    -fx-fill: #C586C0; /* 보라색 계열 */
-    -fx-font-style: italic;
+/* 구분자 (괄호, 콤마 등) */
+.code-area .separator {
+    -fx-fill: #d4d4d4; /* 기본 텍스트 색상 */
 }
 
-/* Python: 데코레이터, 내장 함수, self/cls */
-.text.entity_name_function_decorator_python { -fx-fill: #DCDCAA; } /* 노란색 */
-.text.support_function_builtin_python { -fx-fill: #DCDCAA; } /* 노란색 */
-.text.variable_language_special_python { -fx-fill: #9CDCFE; } /* 하늘색 */
+/* 식별자 (변수, 함수 이름 등) */
+.code-area .identifier {
+    -fx-fill: #9CDCFE; /* 하늘색 */
+}
 
-/* CSS: 선택자, 속성 등 */
-.text.keyword_control_at-rule_css { -fx-fill: #C586C0; } /* 보라색 계열 */
-.text.entity_name_tag_css { -fx-fill: #569CD6; } /* 파란색 */
-.text.entity_other_attribute-name_id_css { -fx-fill: #D7BA7D; } /* 노란색 계열 */
-.text.entity_other_attribute-name_class_css { -fx-fill: #D7BA7D; } /* 노란색 계열 */
-.text.entity_name_pseudo-element_css { -fx-fill: #C586C0; } /* 보라색 계열 */
-.text.support_type_property-name_css { -fx-fill: #9CDCFE; } /* 하늘색 */
-.text.constant_other_color_css { -fx-fill: #B5CEA8; } /* 밝은 녹색 */
-.text.support_constant_property-value_css { -fx-fill: #569CD6; } /* 파란색 */
+/* 기본 텍스트 (위에서 정의되지 않은 모든 토큰) */
+.code-area .text {
+    -fx-fill: #d4d4d4;
+}
 
-/* JSON: 속성 이름(키) */
-.text.support_type_property-name_json { -fx-fill: #9CDCFE; } /* 하늘색 */
 *{
     -fx-tab-size: 4;
 }

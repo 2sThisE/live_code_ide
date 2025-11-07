@@ -1,24 +1,32 @@
 package com.example.service;
 
-import javax.net.ssl.*;
-import com.example.model.UserInfo;
-import com.example.model.UserProjectsInfo;
-import com.example.util.ProtocolConstants;
-import socketprotocol.SocketProtocol;
-import socketprotocol.ParsedPacket;
-import socketprotocol.PacketException;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
-import java.security.SecureRandom;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import com.example.model.UserInfo;
+import com.example.model.UserProjectsInfo;
+import com.example.util.ProtocolConstants;
+
+import socketprotocol.PacketException;
+import socketprotocol.ParsedPacket;
+import socketprotocol.SocketProtocol;
 
 public class ClientSocketManager {
     private static final String SERVER_IP = "sjc07250.iptime.org";

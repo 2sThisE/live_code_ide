@@ -1,5 +1,11 @@
 package com.example.service;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseResult;
 import com.github.javaparser.ParserConfiguration;
@@ -8,13 +14,7 @@ import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
-
-public class AutoCompletionService {
+public class JavaCompletionService implements CompletionService {
 
     private static final Set<String> JAVA_KEYWORDS = Set.of(
             "abstract", "continue", "for", "new", "switch", "assert", "default", "goto", "package", "synchronized",
@@ -32,7 +32,7 @@ public class AutoCompletionService {
 
     private final JavaParser javaParser;
 
-    public AutoCompletionService() {
+    public JavaCompletionService() {
         // Configure the parser to be more lenient
         ParserConfiguration config = new ParserConfiguration();
         this.javaParser = new JavaParser(config);
@@ -67,13 +67,6 @@ public class AutoCompletionService {
         int prefixStart = caretPosition - prefix.length();
         String sanitizedCode = code.substring(0, prefixStart) + code.substring(caretPosition);
         ParseResult<CompilationUnit> parseResult = javaParser.parse(sanitizedCode);
-
-        // --- 디버깅 로그 추가 ---
-        if (!parseResult.isSuccessful()) {
-            System.out.println("Parsing failed. Problems:");
-            parseResult.getProblems().forEach(p -> System.out.println("- " + p.toString()));
-        }
-        // --- 여기까지 ---
 
         parseResult.getResult().ifPresent(cu -> {
             SuggestionVisitor visitor = new SuggestionVisitor();
@@ -134,4 +127,3 @@ public class AutoCompletionService {
         }
     }
 }
-

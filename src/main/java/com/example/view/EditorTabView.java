@@ -1,12 +1,18 @@
 package com.example.view;
+
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
+
+import com.example.service.CompletionService;
+import com.example.service.JavaCompletionService;
+import com.example.service.PythonCompletionService;
+import com.example.util.AntlrSyntaxHighlighter;
 import com.example.util.EditorEnhancer;
-import com.example.util.SyntaxHighlighter;
+
 import javafx.scene.Node;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
@@ -16,7 +22,7 @@ public class EditorTabView {
 
     private final TabPane editorTabs;
     private Tab welcomeTab;
-    private final List<SyntaxHighlighter> activeHighlighters = new ArrayList<>();
+    private final List<AntlrSyntaxHighlighter> activeHighlighters = new ArrayList<>();
 
     public EditorTabView() {
         this.welcomeTab = new Tab("Welcome");
@@ -26,7 +32,7 @@ public class EditorTabView {
     }
 
     public void shutdownAllHighlighters() {
-        activeHighlighters.forEach(SyntaxHighlighter::shutdown);
+        activeHighlighters.forEach(AntlrSyntaxHighlighter::shutdown);
         activeHighlighters.clear();
     }
 
@@ -88,6 +94,7 @@ public class EditorTabView {
         editorTabs.getTabs().add(newTab);
         editorTabs.getSelectionModel().select(newTab);
     }
+
     public void openFileInEditor(String filePath, String content) {
         String fileName = Paths.get(filePath).getFileName().toString();
         String tabId = "file-" + filePath;
@@ -104,12 +111,25 @@ public class EditorTabView {
         VirtualizedScrollPane<CodeArea> scrollPane = new VirtualizedScrollPane<>(codeArea);
 
         String fileExtension = getFileExtension(filePath);
-        SyntaxHighlighter highlighter = new SyntaxHighlighter(codeArea, fileExtension);
-        activeHighlighters.add(highlighter); // Add to the list
+
+        // ANTLR-based Syntax Highlighting
+        AntlrSyntaxHighlighter highlighter = new AntlrSyntaxHighlighter(codeArea, fileExtension);
+        activeHighlighters.add(highlighter);
 
         codeArea.replaceText(0, 0, content);
 
-        EditorEnhancer.enable(codeArea);
+        // Auto-Completion
+        CompletionService completionService = null;
+        switch (fileExtension.toLowerCase()) {
+            case "java":
+                completionService = new JavaCompletionService();
+                break;
+            case "py":
+                completionService = new PythonCompletionService();
+                break;
+            // Add other languages here in the future
+        }
+        EditorEnhancer.enable(codeArea, completionService);
         
         Runnable onClose = () -> {
             highlighter.shutdown();

@@ -1,6 +1,6 @@
 package com.example.util;
 
-import com.example.service.AutoCompletionService;
+import com.example.service.CompletionService;
 import javafx.application.Platform;
 import javafx.geometry.Bounds;
 import javafx.scene.control.ListView;
@@ -21,13 +21,13 @@ public class EditorEnhancer {
     private static final Pattern LEADING_WHITESPACE = Pattern.compile("^\\s*");
     private final AtomicInteger suggestionRequestCounter = new AtomicInteger(0);
     private final CodeArea codeArea;
-    private final AutoCompletionService autoCompletionService;
+    private final CompletionService completionService;
     private final PopupControl suggestionsPopup;
     private final ListView<String> suggestionsListView;
 
-    private EditorEnhancer(CodeArea codeArea) {
+    private EditorEnhancer(CodeArea codeArea, CompletionService completionService) {
         this.codeArea = codeArea;
-        this.autoCompletionService = new AutoCompletionService();
+        this.completionService = completionService;
         
         this.suggestionsListView = new ListView<>();
         this.suggestionsListView.setId("suggestion-list-view"); // ID 부여
@@ -44,8 +44,9 @@ public class EditorEnhancer {
         });
     }
 
-    public static void enable(CodeArea codeArea) {
-        EditorEnhancer enhancer = new EditorEnhancer(codeArea);
+    public static void enable(CodeArea codeArea, CompletionService completionService) {
+        if (completionService == null) return; // 서비스가 없으면 기능 활성화 안함
+        EditorEnhancer enhancer = new EditorEnhancer(codeArea, completionService);
         enhancer.registerEventHandlers();
     }
 
@@ -129,11 +130,11 @@ public class EditorEnhancer {
 
             String code = codeArea.getText();
             int caretPosition = codeArea.getCaretPosition();
-            List<String> suggestions = autoCompletionService.getSuggestions(code, caretPosition);
+            List<String> suggestions = completionService.getSuggestions(code, caretPosition);
 
             if (requestId != suggestionRequestCounter.get()) return;
 
-            if (suggestions.isEmpty()) {
+            if (suggestions == null || suggestions.isEmpty()) {
                 suggestionsPopup.hide();
                 return;
             }
@@ -254,7 +255,8 @@ public class EditorEnhancer {
             String bracesOnly = textBeforeCaret.replaceAll("[^{\\}]", "");
             if (!bracesOnly.isEmpty() && bracesOnly.endsWith("{")) {
                 codeArea.replaceSelection("\n" + indent + extraIndent);
-            } else {
+            }
+            else {
                 codeArea.replaceSelection("\n" + indent);
             }
         }
@@ -276,4 +278,3 @@ public class EditorEnhancer {
         return ")".equals(s) || "}".equals(s) || "]".equals(s) || "'".equals(s) || "\"".equals(s);
     }
 }
-
