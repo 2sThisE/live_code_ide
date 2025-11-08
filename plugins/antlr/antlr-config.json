@@ -1,8 +1,8 @@
 {
   "java": {
-    "lexer": "com.example.antlr.java.Java20Lexer",
-    "parser": "com.example.antlr.java.Java20Parser",
-    "visitor": "com.example.antlr.java.JavaSymbolVisitor",
+    "lexer": "com.ethis2s.antlr.java.Java20Lexer",
+    "parser": "com.ethis2s.antlr.java.Java20Parser",
+    "visitor": "com.ethis2s.antlr.java.JavaSymbolVisitor",
     "startRule": "compilationUnit"
   }
 }
