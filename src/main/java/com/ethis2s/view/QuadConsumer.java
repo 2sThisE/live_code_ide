@@ -1,4 +1,4 @@
-package com.example.view;
+package com.ethis2s.view;
 
 @FunctionalInterface
 public interface QuadConsumer<A, B, C, D> {

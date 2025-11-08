@@ -1,6 +1,6 @@
-package com.example.view;
+package com.ethis2s.view;
 
-import com.example.controller.MainController;
+import com.ethis2s.controller.MainController;
 import java.util.Arrays;
 import javafx.application.Platform;
 import javafx.geometry.Insets;

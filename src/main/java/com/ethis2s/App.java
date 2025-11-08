@@ -1,7 +1,7 @@
-package com.example;
+package com.ethis2s;
 
-import com.example.controller.MainController;
-import com.example.service.ClientSocketManager;
+import com.ethis2s.controller.MainController;
+import com.ethis2s.service.ClientSocketManager;
 
 import javafx.application.Application;
 import javafx.stage.Stage;

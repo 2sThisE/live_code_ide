@@ -1,4 +1,4 @@
-package com.example.util;
+package com.ethis2s.util;
 
 import javafx.application.Platform;
 import javafx.concurrent.Task;
@@ -13,7 +13,7 @@ import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.model.StyleSpans;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
 
-import com.example.service.AntlrLanguageService;
+import com.ethis2s.service.AntlrLanguageService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,7 +58,6 @@ public class Tm4eSyntaxHighlighter {
                         LANGUAGES.put(ext.trim(), new LanguageConfig(parts[0].trim(), parts[1].trim()));
                     }
                 }
-                System.out.println("[DEBUG] TM4E: Plugin configurations loaded for: " + LANGUAGES.keySet());
             } catch (Exception e) { e.printStackTrace(); }
         } else {
             System.err.println("INFO: 'languages.properties' not found in TM4E plugin directory. Highlighting will be disabled.");

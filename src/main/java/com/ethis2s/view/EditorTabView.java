@@ -1,6 +1,6 @@
-package com.example.view;
+package com.ethis2s.view;
 
-import com.example.util.HybridManager; // HybridManager를 import
+import com.ethis2s.util.HybridManager; // HybridManager를 import
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
@@ -39,7 +39,6 @@ public class EditorTabView {
     public void shutdownAllManagers() {
         activeManagers.forEach(HybridManager::shutdown);
         activeManagers.clear();
-        System.out.println("[DEBUG] EditorTabView: All HybridManagers have been shut down.");
     }
 
     public TabPane getTabPane() {
@@ -126,7 +125,6 @@ public class EditorTabView {
         
         // 2. 생성된 매니저를 "활성 목록"에 추가하여 추적합니다.
         activeManagers.add(manager);
-        System.out.println("[DEBUG] EditorTabView: HybridManager created and now tracking for: " + fileName);
 
         codeArea.replaceText(0, 0, content);
 
@@ -134,7 +132,6 @@ public class EditorTabView {
         Runnable onClose = () -> {
             manager.shutdown();
             activeManagers.remove(manager);
-            System.out.println("[DEBUG] EditorTabView: HybridManager shut down and removed for: " + fileName);
         };
         
         // 4. 새로운 탭을 엽니다. (openTabWithCloseCallback을 재사용하지 않고 직접 생성)

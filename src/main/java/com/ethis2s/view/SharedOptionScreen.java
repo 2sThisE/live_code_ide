@@ -1,11 +1,11 @@
-package com.example.view;
+package com.ethis2s.view;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import org.json.JSONArray;
-import com.example.controller.MainController;
-import com.example.controller.ProjectController;
-import com.example.model.UserProjectsInfo;
+import com.ethis2s.controller.MainController;
+import com.ethis2s.controller.ProjectController;
+import com.ethis2s.model.UserProjectsInfo;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;

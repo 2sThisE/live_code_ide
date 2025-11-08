@@ -1,4 +1,4 @@
-package com.example.util;
+package com.ethis2s.util;
 
 public final class ProtocolConstants {
     // Fragment flags

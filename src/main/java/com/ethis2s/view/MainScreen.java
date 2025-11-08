@@ -1,4 +1,4 @@
-package com.example.view;
+package com.ethis2s.view;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -10,10 +10,10 @@ import java.util.function.Consumer;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import com.example.controller.MainController;
-import com.example.controller.ProjectController;
-import com.example.model.UserInfo;
-import com.example.model.UserProjectsInfo;
+import com.ethis2s.controller.MainController;
+import com.ethis2s.controller.ProjectController;
+import com.ethis2s.model.UserInfo;
+import com.ethis2s.model.UserProjectsInfo;
 
 import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;

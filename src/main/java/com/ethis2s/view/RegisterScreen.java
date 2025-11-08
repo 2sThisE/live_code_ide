@@ -1,8 +1,8 @@
-package com.example.view;
+package com.ethis2s.view;
 
-import com.example.controller.MainController;
-import com.example.service.ClientSocketManager;
-import com.example.util.ProtocolConstants;
+import com.ethis2s.controller.MainController;
+import com.ethis2s.service.ClientSocketManager;
+import com.ethis2s.util.ProtocolConstants;
 import java.nio.charset.StandardCharsets;
 import javafx.application.Platform;
 import javafx.geometry.Insets;

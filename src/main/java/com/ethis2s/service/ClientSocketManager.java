@@ -1,4 +1,4 @@
-package com.example.service;
+package com.ethis2s.service;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -20,9 +20,9 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import com.example.model.UserInfo;
-import com.example.model.UserProjectsInfo;
-import com.example.util.ProtocolConstants;
+import com.ethis2s.model.UserInfo;
+import com.ethis2s.model.UserProjectsInfo;
+import com.ethis2s.util.ProtocolConstants;
 
 import socketprotocol.PacketException;
 import socketprotocol.ParsedPacket;

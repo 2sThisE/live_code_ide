@@ -1,4 +1,4 @@
-package com.example.model;
+package com.ethis2s.model;
 
 public class UserInfo {
     private String id;

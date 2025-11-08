@@ -1,6 +1,6 @@
-package com.example.view;
+package com.ethis2s.view;
 
-import com.example.model.UserProjectsInfo;
+import com.ethis2s.model.UserProjectsInfo;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;

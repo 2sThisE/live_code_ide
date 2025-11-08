@@ -4,13 +4,12 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.example</groupId>
+    <groupId>com.ethis2s</groupId>
     <artifactId>live_code_ide_client</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <name>live_code_ide_client</name>
     <!-- FIXME change it to the project's website -->
-    <url>http://www.example.com</url>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -155,7 +154,7 @@
                     <artifactId>exec-maven-plugin</artifactId>
                     <version>3.6.2</version>
                     <configuration>
-                        <mainClass>com.example.App</mainClass>
+                        <mainClass>com.ethis2s.App</mainClass>
                     </configuration>
                 </plugin>
                 <!-- JavaFX Maven Plugin -->
@@ -164,7 +163,7 @@
                     <artifactId>javafx-maven-plugin</artifactId>
                     <version>0.0.8</version>
                     <configuration>
-                        <mainClass>com.example.App</mainClass>
+                        <mainClass>com.ethis2s.App</mainClass>
                     </configuration>
                 </plugin>
             </plugins>

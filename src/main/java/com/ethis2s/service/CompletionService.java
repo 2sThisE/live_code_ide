@@ -1,4 +1,4 @@
-package com.example.service;
+package com.ethis2s.service;
 
 import java.util.List;
 

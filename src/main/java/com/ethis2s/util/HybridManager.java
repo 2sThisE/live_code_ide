@@ -1,9 +1,9 @@
-package com.example.util;
+package com.ethis2s.util;
 
-import com.example.service.AntlrCompletionService;
-import com.example.service.AntlrLanguageService;
-import com.example.service.AntlrLanguageService.AnalysisResult;
-import com.example.service.AntlrLanguageService.SyntaxError;
+import com.ethis2s.service.AntlrCompletionService;
+import com.ethis2s.service.AntlrLanguageService;
+import com.ethis2s.service.AntlrLanguageService.AnalysisResult;
+import com.ethis2s.service.AntlrLanguageService.SyntaxError;
 import javafx.application.Platform;
 import javafx.scene.input.KeyEvent;
 
@@ -32,22 +32,24 @@ public class HybridManager {
     public HybridManager(CodeArea codeArea, String fileExtension) {
         this.codeArea = codeArea;
         
-        System.out.println("[DEBUG] HybridManager: Initializing for extension '" + fileExtension + "'...");
+        
         
         this.highlighter = new Tm4eSyntaxHighlighter(codeArea, fileExtension);
 
         if (AntlrLanguageService.isSupported(fileExtension)) {
             this.analyzer = new AntlrLanguageService(fileExtension);
             this.completionService = new AntlrCompletionService(this.analyzer);
-            System.out.println("[DEBUG] HybridManager: ANTLR support is ENABLED.");
         } else {
             this.analyzer = null;
             this.completionService = null;
-            System.out.println("[DEBUG] HybridManager: ANTLR support is DISABLED for this language.");
         }
         
-        EditorEnhancer.enable(codeArea, this.completionService);
-        System.out.println("[DEBUG] HybridManager: EditorEnhancer has been enabled.");
+        // EditorEnhancer와 EditorInputManager를 설정합니다.
+        if (this.completionService != null) {
+            EditorEnhancer enhancer = new EditorEnhancer(codeArea, this.completionService);
+            EditorInputManager inputManager = new EditorInputManager(codeArea, enhancer, this.completionService);
+            inputManager.registerEventHandlers();
+        }
 
         codeArea.multiPlainChanges()
             .successionEnds(Duration.ofMillis(100)) // 반응성을 위해 딜레이 조절
@@ -71,7 +73,6 @@ public class HybridManager {
                 tm4eFuture.thenCombineAsync(antlrFuture, (baseSpans, analysisResult) -> {
                     // 2a. ANTLR의 오류 정보로 '오류 덧칠 설계도'를 만듭니다.
                     StyleSpans<Collection<String>> errorSpans = computeErrorSpans(analysisResult.errors);
-                    System.out.println("[DEBUG]   - Created " + errorSpans.getSpanCount() + " error spans.");
                     // 2b. TM4E의 기본 설계도 위에 오류 설계도를 덧칠하여 "최종 마스터 설계도"를 완성합니다.
                     //     이것이 매번 새로 그려지는 '완벽한 그림'입니다.
                     return baseSpans.overlay(errorSpans, (baseStyle, errorStyle) -> {
@@ -93,7 +94,6 @@ public class HybridManager {
             });
             
         // 초기 하이라이팅은 EditorTabView에서 텍스트를 삽입할 때 자동으로 트리거됩니다.
-        System.out.println("[DEBUG] HybridManager: Initialization complete. Waiting for text changes.");
     }
 
     // HybridManager.java

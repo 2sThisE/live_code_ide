@@ -1,7 +1,7 @@
-package com.example.service;
+package com.ethis2s.service;
 
-import com.example.service.AntlrLanguageService.AnalysisResult;
-import com.example.service.AntlrLanguageService.SymbolTable;
+import com.ethis2s.service.AntlrLanguageService.AnalysisResult;
+import com.ethis2s.service.AntlrLanguageService.SymbolTable;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;

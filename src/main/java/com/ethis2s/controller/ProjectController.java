@@ -1,15 +1,15 @@
-package com.example.controller;
+package com.ethis2s.controller;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import org.json.JSONObject;
 
-import com.example.model.UserInfo;
-import com.example.model.UserProjectsInfo;
-import com.example.service.ClientSocketManager;
-import com.example.util.ProtocolConstants;
-import com.example.view.MainScreen;
+import com.ethis2s.model.UserInfo;
+import com.ethis2s.model.UserProjectsInfo;
+import com.ethis2s.service.ClientSocketManager;
+import com.ethis2s.util.ProtocolConstants;
+import com.ethis2s.view.MainScreen;
 
 import javafx.application.Platform;
 
