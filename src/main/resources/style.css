@@ -443,6 +443,12 @@
 .text.variable { -fx-fill: #a7f0fc; }
 /* 연산자 (+, -, *, /, =, ==, !=, <, >, <=, >=) */
 .text.operator-comparison { -fx-fill: #d4d4d4; }
+.styled-text-area .syntax-error {
+    /* 방법 2: 반투명 빨간 배경색 (밑줄 대신 사용하거나 함께 사용할 수 있음) */
+    -rtfx-background-color: rgba(255, 71, 71, 0.39);
+    -rtfx-background-insets: 2 0 2 0; /* top right bottom left */
+
+}   
 
 *{
     -fx-tab-size: 4;

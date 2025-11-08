@@ -25,7 +25,7 @@ public class EditorEnhancer {
     private final PopupControl suggestionsPopup;
     private final ListView<String> suggestionsListView;
 
-    private EditorEnhancer(CodeArea codeArea, CompletionService completionService) {
+    public EditorEnhancer(CodeArea codeArea, CompletionService completionService) {
         this.codeArea = codeArea;
         this.completionService = completionService;
         
@@ -45,23 +45,25 @@ public class EditorEnhancer {
     }
 
     public static void enable(CodeArea codeArea, CompletionService completionService) {
-        if (completionService == null) return; // 서비스가 없으면 기능 활성화 안함
         EditorEnhancer enhancer = new EditorEnhancer(codeArea, completionService);
         enhancer.registerEventHandlers();
     }
-
+    
     private void registerEventHandlers() {
-        // --- KEY_TYPED 이벤트 처리 (팝업 띄우기, 자동 괄호 쌍) ---
+        // --- KEY_TYPED 이벤트 처리 ---
         codeArea.addEventHandler(KeyEvent.KEY_TYPED, e -> {
+            // 괄호/따옴표 자동 완성은 항상 작동합니다.
             handleAutoPairing(e);
-            if (!e.getCharacter().trim().isEmpty()) {
+            
+            String typedChar = e.getCharacter();
+            if (completionService != null && !typedChar.isEmpty() && Character.isJavaIdentifierPart(typedChar.charAt(0))) {
                 showSuggestionsAsync();
             } else if (suggestionsPopup.isShowing()) {
                 suggestionsPopup.hide();
             }
         });
 
-        // --- KEY_PRESSED 이벤트 처리 (팝업 상태에 따라 다르게 동작) ---
+        // --- KEY_PRESSED 이벤트 처리 (변경 없음, 이미 안전함) ---
         codeArea.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
             if (suggestionsPopup.isShowing()) {
                 handlePopupKeyPress(e);

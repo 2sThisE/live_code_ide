@@ -53,6 +53,10 @@ public class App extends Application {
     }
 
     public static void main(String[] args) {
+        System.out.println("[PATH DEBUG] =========================================================");
+        System.out.println("[PATH DEBUG] The application's Current Working Directory is:");
+        System.out.println("[PATH DEBUG] " + System.getProperty("user.dir"));
+        System.out.println("[PATH DEBUG] =========================================================");
         System.out.println("JavaFX Version: " + System.getProperty("javafx.version"));
         launch(args);
     }

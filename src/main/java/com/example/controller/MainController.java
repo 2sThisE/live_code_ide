@@ -63,7 +63,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     }
 
     public void shutdown() {
-        editorTabView.shutdownAllHighlighters();
+        editorTabView.shutdownAllManagers();
     }
 
     public void setSocketManager(ClientSocketManager socketManager) {

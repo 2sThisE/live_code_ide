@@ -102,13 +102,11 @@
             <artifactId>guava</artifactId>
             <version>31.1-jre</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/org.bytedeco/llvm-platform -->
-        <!-- <dependency>
-            <groupId>org.bytedeco</groupId>
-            <artifactId>llvm-platform</artifactId>
-            <version>20.1.7-1.5.12</version>
-        </dependency> -->
-
+        <dependency>
+            <groupId>org.antlr</groupId>
+            <artifactId>antlr4-runtime</artifactId>
+            <version>4.13.1</version>
+        </dependency>
     </dependencies>
 
     <build>

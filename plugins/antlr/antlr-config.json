@@ -1,0 +1,14 @@
+{
+  "java": {
+    "lexer": "com.example.antlr.java.Java20Lexer",
+    "parser": "com.example.antlr.java.Java20Parser",
+    "visitor": "com.example.antlr.java.JavaSymbolVisitor",
+    "startRule": "compilationUnit"
+  },
+  "py": {
+    "lexer": "com.example.antlr.python.Python3Lexer",
+    "parser": "com.example.antlr.python.Python3Parser",
+    "visitor": "com.example.antlr.python.PythonSymbolVisitor",
+    "startRule": "file_input"
+  }
+}
