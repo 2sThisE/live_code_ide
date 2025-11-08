@@ -178,14 +178,55 @@ public class AntlrLanguageService {
                 
                 StyleSpans<Collection<String>> symbolSpans = computeSymbolSpans(tokens, parser.getVocabulary(), symbolTable, config.identifierRuleName, text.length());
 
+                // [신규] 연속된 에러를 병합합니다.
+                List<SyntaxError> mergedErrors = mergeConsecutiveErrors(errorListener.getErrors());
+
                 // [수정] 새로운 AnalysisResult 형식에 맞춰 모든 결과를 반환합니다.
-                return new AnalysisResult(ast, errorListener.getErrors(), symbolTable, symbolSpans);
+                return new AnalysisResult(ast, mergedErrors, symbolTable, symbolSpans);
             } catch (Exception e) {
                 e.printStackTrace();
                 StyleSpans<Collection<String>> emptySpans = new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), text.length()).create();
                 return new AnalysisResult(null, Collections.singletonList(new SyntaxError(0, 0, 0, "Parser failed: " + e.getMessage())), new SymbolTable(), emptySpans);
             }
         }, executor);
+    }
+
+    /**
+     * 동일한 라인에서 발생하는 연속된 에러들을 하나의 에러로 병합합니다.
+     */
+    private List<SyntaxError> mergeConsecutiveErrors(List<SyntaxError> rawErrors) {
+        if (rawErrors == null || rawErrors.size() <= 1) {
+            return rawErrors;
+        }
+
+        // 라인과 시작 위치를 기준으로 에러를 정렬합니다.
+        rawErrors.sort(Comparator.comparingInt((SyntaxError e) -> e.line)
+                                 .thenComparingInt(e -> e.charPositionInLine));
+
+        List<SyntaxError> mergedErrors = new ArrayList<>();
+        SyntaxError currentError = rawErrors.get(0);
+
+        for (int i = 1; i < rawErrors.size(); i++) {
+            SyntaxError nextError = rawErrors.get(i);
+
+            // 같은 라인, 같은 메시지, 그리고 서로 붙어있는 에러인지 확인
+            if (nextError.line == currentError.line &&
+                nextError.message.equals(currentError.message) &&
+                (currentError.charPositionInLine + currentError.length) >= nextError.charPositionInLine) {
+                
+                // 에러를 병합: 시작 위치는 currentError, 끝 위치는 nextError
+                int newLength = (nextError.charPositionInLine + nextError.length) - currentError.charPositionInLine;
+                currentError = new SyntaxError(currentError.line, currentError.charPositionInLine, newLength, currentError.message);
+            } else {
+                // 병합 조건이 깨지면, 현재까지 병합된 에러를 목록에 추가하고 새 에러에서 다시 시작
+                mergedErrors.add(currentError);
+                currentError = nextError;
+            }
+        }
+        // 마지막으로 처리된 에러를 목록에 추가
+        mergedErrors.add(currentError);
+
+        return mergedErrors;
     }
     
     private StyleSpans<Collection<String>> computeSymbolSpans(CommonTokenStream tokens, Vocabulary vocabulary, SymbolTable symbolTable, String identifierRuleName, int totalLength) {

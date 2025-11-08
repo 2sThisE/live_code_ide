@@ -68,6 +68,12 @@ public class MainScreen {
         @Override public String toString() { return name; }
     }
 
+    private ProblemsView problemsView; // Make ProblemsView accessible
+
+    public ProblemsView getProblemsView() {
+        return problemsView;
+    }
+
     public BorderPane createMainScreen(Stage stage, TabPane editorTabs, Label statusLabel, MainController mainController) {
         BorderPane mainLayout = new BorderPane();
         editorTabs.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
@@ -142,7 +148,7 @@ public class MainScreen {
         outputTab.setClosable(false);
 
         // 'Problems' 탭 생성
-        ProblemsView problemsView = new ProblemsView();
+        this.problemsView = new ProblemsView(); // Assign to field
         Tab problemsTab = new Tab("PROBLEMS");
         problemsTab.setContent(problemsView.getView());
         problemsTab.setClosable(false);

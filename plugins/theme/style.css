@@ -546,3 +546,14 @@
 .bottom-tab-pane .tab:selected .tab-label {
     -fx-text-fill: #ffffff; /* White text for the selected tab */
 }
+  
+/* --- Error Tooltip --- */
+.error-tooltip {
+    -fx-font-size: 12px;
+    -fx-background-color: #333333;
+    -fx-text-fill: #ff6666;
+    -fx-background-radius: 4px;
+    -fx-border-color: #555555;
+    -fx-border-radius: 4px;
+    -fx-padding: 5px;
+}

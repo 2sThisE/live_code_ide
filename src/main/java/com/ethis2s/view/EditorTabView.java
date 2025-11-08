@@ -1,23 +1,29 @@
 package com.ethis2s.view;
 
+import com.ethis2s.controller.MainController;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
 import com.ethis2s.util.HybridManager;
+import com.ethis2s.view.ProblemsView.Problem;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
+import javafx.geometry.Point2D;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.control.Tooltip;
 import javafx.scene.control.TabPane.TabDragPolicy;
+import javafx.util.Duration;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
+import org.fxmisc.richtext.model.TwoDimensional.Bias;
 
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class EditorTabView {
@@ -25,17 +31,22 @@ public class EditorTabView {
     private final TabPane editorTabs;
     private Tab welcomeTab;
     private final List<HybridManager> activeManagers = new ArrayList<>();
+    private final MainController mainController;
     
-    // 각 탭(tabId)별로 에러가 발생한 라인 번호들을 저장하는 맵
-    private final Map<String, Set<Integer>> tabErrorLines = new HashMap<>();
-    // 각 탭(tabId)별로 CodeArea 인스턴스를 저장하는 맵
+    private final Map<String, List<SyntaxError>> tabErrors = new HashMap<>();
+    private final Map<String, String> tabFileNames = new HashMap<>();
     private final Map<String, CodeArea> codeAreaMap = new HashMap<>();
+    
+    private final Tooltip errorTooltip = new Tooltip();
+    private final PauseTransition tooltipDelay = new PauseTransition(Duration.millis(500));
 
-    public EditorTabView() {
+    public EditorTabView(MainController mainController) {
+        this.mainController = mainController;
         this.welcomeTab = new Tab("Welcome");
         this.welcomeTab.setClosable(false);
         this.editorTabs = new TabPane(this.welcomeTab);
         this.editorTabs.setTabDragPolicy(TabDragPolicy.REORDER);
+        errorTooltip.getStyleClass().add("error-tooltip");
     }
 
     public void shutdownAllManagers() {
@@ -54,7 +65,7 @@ public class EditorTabView {
     public void closeAllClosableTabs() {
         shutdownAllManagers();
         editorTabs.getTabs().removeIf(Tab::isClosable);
-        tabErrorLines.clear();
+        tabErrors.clear();
         codeAreaMap.clear();
         if (editorTabs.getTabs().isEmpty()) {
             this.welcomeTab = new Tab("Welcome");
@@ -95,10 +106,24 @@ public class EditorTabView {
         editorTabs.getSelectionModel().select(newTab);
     }
 
-    /**
-     * HybridManager로부터 에러 정보를 받아 UI를 업데이트하는 콜백 메소드.
-     */
+    private void aggregateAndSendProblems() {
+        List<Problem> allProblems = new ArrayList<>();
+        for (Map.Entry<String, List<SyntaxError>> entry : tabErrors.entrySet()) {
+            String tabId = entry.getKey();
+            String fileName = tabFileNames.get(tabId);
+            List<SyntaxError> errors = entry.getValue();
+            
+            for (SyntaxError error : errors) {
+                allProblems.add(new Problem(fileName, error));
+            }
+        }
+        mainController.updateProblems(allProblems);
+    }
+
     private void handleErrorUpdate(String tabId, String fileName, List<SyntaxError> errors) {
+        tabErrors.put(tabId, errors);
+        aggregateAndSendProblems();
+
         Tab tab = editorTabs.getTabs().stream().filter(t -> tabId.equals(t.getId())).findFirst().orElse(null);
         if (tab == null) return;
 
@@ -108,9 +133,6 @@ public class EditorTabView {
             tab.setGraphic(tabLabel);
         }
 
-        Set<Integer> errorLines = tabErrorLines.get(tabId);
-        errorLines.clear();
-
         if (errors.isEmpty()) {
             tabLabel.setText(fileName);
             tabLabel.getStyleClass().remove("tab-label-error");
@@ -119,18 +141,15 @@ public class EditorTabView {
             if (!tabLabel.getStyleClass().contains("tab-label-error")) {
                 tabLabel.getStyleClass().add("tab-label-error");
             }
-            errorLines.addAll(errors.stream().map(e -> e.line - 1).collect(Collectors.toSet()));
         }
 
-        // 라인 번호 UI를 강제로 다시 그리도록 요청
         CodeArea codeArea = codeAreaMap.get(tabId);
         if (codeArea != null) {
-            // setParagraphGraphicFactory는 IntFunction<? extends Node>를 받는다.
-            // 따라서, 올바른 람다식을 직접 전달해야 한다.
             codeArea.setParagraphGraphicFactory(lineIndex -> {
                 Label lineLabel = new Label(String.valueOf(lineIndex + 1));
                 lineLabel.getStyleClass().add("lineno");
-                if (tabErrorLines.getOrDefault(tabId, Set.of()).contains(lineIndex)) {
+                boolean hasError = errors.stream().anyMatch(e -> e.line - 1 == lineIndex);
+                if (hasError) {
                     lineLabel.getStyleClass().add("lineno-error");
                 }
                 return lineLabel;
@@ -149,19 +168,17 @@ public class EditorTabView {
 
         CodeArea codeArea = new CodeArea();
         codeArea.getStyleClass().add("code-area");
-        codeAreaMap.put(tabId, codeArea); // 맵에 CodeArea 등록
-        tabErrorLines.put(tabId, new HashSet<>()); // 맵에 에러 라인 Set 등록
+        codeAreaMap.put(tabId, codeArea);
+        tabErrors.put(tabId, new ArrayList<>());
 
-        // setParagraphGraphicFactory는 IntFunction<? extends Node>를 받는다.
         codeArea.setParagraphGraphicFactory(lineIndex -> {
             Label lineLabel = new Label(String.valueOf(lineIndex + 1));
             lineLabel.getStyleClass().add("lineno");
-            if (tabErrorLines.getOrDefault(tabId, Set.of()).contains(lineIndex)) {
-                lineLabel.getStyleClass().add("lineno-error");
-            }
             return lineLabel;
         });
         
+        setupErrorTooltip(codeArea, tabId);
+
         VirtualizedScrollPane<CodeArea> scrollPane = new VirtualizedScrollPane<>(codeArea);
         String fileExtension = getFileExtension(filePath);
 
@@ -175,8 +192,9 @@ public class EditorTabView {
         Runnable onClose = () -> {
             manager.shutdown();
             activeManagers.remove(manager);
-            tabErrorLines.remove(tabId); // 탭이 닫히면 맵에서 제거
-            codeAreaMap.remove(tabId);   // 탭이 닫히면 맵에서 제거
+            tabErrors.remove(tabId);
+            codeAreaMap.remove(tabId);
+            mainController.updateProblems(new ArrayList<>());
         };
         
         Tab newTab = new Tab(null, scrollPane);
@@ -188,6 +206,37 @@ public class EditorTabView {
         
         editorTabs.getTabs().add(newTab);
         editorTabs.getSelectionModel().select(newTab);
+    }
+
+    private void setupErrorTooltip(CodeArea codeArea, String tabId) {
+        codeArea.setOnMouseMoved(e -> {
+            tooltipDelay.stop();
+            errorTooltip.hide();
+            tooltipDelay.setOnFinished(event -> {
+                int charIndex = codeArea.hit(e.getX(), e.getY()).getCharacterIndex().orElse(-1);
+                if (charIndex == -1) return;
+
+                List<SyntaxError> errors = tabErrors.get(tabId);
+                if (errors == null) return;
+
+                Optional<SyntaxError> errorOpt = errors.stream().filter(err -> {
+                    int start = codeArea.getAbsolutePosition(err.line - 1, err.charPositionInLine);
+                    int end = start + err.length;
+                    return charIndex >= start && charIndex < end;
+                }).findFirst();
+
+                errorOpt.ifPresent(error -> {
+                    errorTooltip.setText(error.message);
+                    Point2D pos = codeArea.localToScreen(e.getX(), e.getY());
+                    errorTooltip.show(codeArea, pos.getX() + 10, pos.getY() + 10);
+                });
+            });
+            tooltipDelay.playFromStart();
+        });
+        codeArea.setOnMouseExited(e -> {
+            tooltipDelay.stop();
+            errorTooltip.hide();
+        });
     }
 
     private String getFileExtension(String filename) {

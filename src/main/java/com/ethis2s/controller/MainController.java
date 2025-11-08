@@ -16,6 +16,8 @@ import com.ethis2s.util.ReSizeHelper;
 import com.ethis2s.view.EditorTabView;
 import com.ethis2s.view.LoginScreen;
 import com.ethis2s.view.MainScreen;
+import com.ethis2s.view.ProblemsView;
+import com.ethis2s.view.ProblemsView.Problem;
 import com.ethis2s.view.ProjectPropertiesScreen;
 import com.ethis2s.view.RegisterScreen;
 import com.ethis2s.view.SharedOptionScreen;
@@ -41,6 +43,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     private final EditorTabView editorTabView;
     
     private ProjectController projectController;
+    private ProblemsView problemsView; // ProblemsView에 접근하기 위한 참조
 
     private Scene mainScene;
     private Label statusBarLabel;
@@ -58,8 +61,17 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         this.mainScreen = new MainScreen();
         this.loginScreen = new LoginScreen();
         this.registerScreen = new RegisterScreen();
-        this.editorTabView = new EditorTabView();
+        this.editorTabView = new EditorTabView(this); // EditorTabView에 자신을 전달
         primaryStage.setTitle("Live Code IDE");
+    }
+
+    /**
+     * EditorTabView로부터 받은 에러 목록을 ProblemsView에 업데이트합니다.
+     */
+    public void updateProblems(List<Problem> problems) {
+        if (problemsView != null) {
+            problemsView.updateProblems(problems);
+        }
     }
 
     public void shutdown() {
@@ -81,6 +93,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         primaryStage.setMinHeight(400);
         
         BorderPane rootPane = mainScreen.createMainScreen(primaryStage, editorTabView.getTabPane(), statusBarLabel, this);
+        this.problemsView = mainScreen.getProblemsView(); // MainScreen으로부터 ProblemsView 참조를 얻음
 
         this.mainScene = new Scene(rootPane, 1280, 720);
         mainScene.setFill(Color.TRANSPARENT);
