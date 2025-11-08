@@ -1,0 +1,27 @@
+package com.ethis2s.view;
+
+import javafx.scene.Node;
+import javafx.scene.control.TextArea;
+
+public class OutputView {
+
+    private final TextArea outputArea;
+
+    public OutputView() {
+        outputArea = new TextArea();
+        outputArea.setEditable(false);
+        outputArea.setPromptText("Output will be shown here...");
+    }
+
+    public Node getView() {
+        return outputArea;
+    }
+
+    public void clear() {
+        outputArea.clear();
+    }
+
+    public void appendText(String text) {
+        outputArea.appendText(text);
+    }
+}

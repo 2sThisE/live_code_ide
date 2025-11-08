@@ -1,0 +1,492 @@
+.main-container {
+    /* Create a "border" using a larger, darker background behind the main one */
+    -fx-background-color: #2c2c2c, #1a1a1a;
+    -fx-background-insets: 0, 1; /* The inner background is inset by 1px */
+    -fx-background-radius: 4px; /* Reduced rounding */
+}
+
+
+/* 1. root-pane을 투명한 창틀로만 사용합니다. */
+.root-pane {
+    -fx-background-color: transparent; /* 배경색을 투명으로 변경 */
+}
+
+/* 2. titleBar가 위쪽 뚜껑 역할을 하도록 수정합니다. */
+.custom-title-bar { /* 이 클래스가 없다면 MainScreen.java의 titleBar에 추가해주세요 */
+    -fx-background-color: #333333; /* 타이틀 바 배경색 */
+    /* 위쪽 모서리만 둥글게 (top-left, top-right, bottom-right, bottom-left) */
+    -fx-background-radius: 6px 6px 0 0;
+
+
+    -fx-border-color: #5a5a5a; /* 테두리 색상 (배경보다 약간 밝게) */
+    -fx-border-radius: 8px 8px 0 0; /* 배경과 동일하게 */
+    /* 위, 오른쪽, 아래, 왼쪽 순서로 두께 지정 -> 아래쪽 테두리만 0으로 설정 */
+    -fx-border-width: 1px 1px 0 1px; 
+}
+
+/* 3. statusBar가 아래쪽 뚜껑 역할을 하도록 수정합니다. */
+.status-bar {
+    -fx-background-color: #3c3c3c; /* 상태 표시줄 배경색 */
+    /* 아래쪽 모서리만 둥글게 (top-left, top-right, bottom-right, bottom-left) */
+    -fx-background-radius: 0 0 6px 6px;
+    -fx-padding: 3px 5px;
+
+    -fx-border-color: #5a5a5a;
+    -fx-border-radius: 0 0 8px 8px;
+    /* 위, 오른쪽, 아래, 왼쪽 순서로 두께 지정 -> 위쪽 테두리만 0으로 설정 */
+    -fx-border-width: 0 1px 1px 1px;
+}
+
+.root {
+    -fx-base: #1e1e1e; 
+    -fx-background: #1e1e1e; 
+    -fx-background-radius: 15;
+    -fx-border-radius: 15;
+    -fx-control-inner-background: #252526; 
+    -fx-font-family: "Malgun Gothic", "Noto Sans KR", sans-serif;
+}
+
+/* Remove unwanted outer borders/padding */
+.split-pane {
+    -fx-padding: 0;
+}
+
+/* General Text Color */
+.label, .text, .button, .menu-item .label, .menu .label {
+    -fx-text-fill: #cccccc; 
+}
+#main-split-pane {
+    -fx-border-color: #5a5a5a;
+    -fx-border-width: 0 1px 0 1px; /* 양옆 테두리만 설정 */
+
+    /* SplitPane 자체의 배경색을 투명하게 만들어 root-pane 배경이 보이도록 합니다. */
+    -fx-background-color: transparent;
+    
+}
+.text-field, .password-field {
+    -fx-background-color: #3c3c3c;
+    -fx-text-fill: #cccccc;
+    -fx-prompt-text-fill: #888888;
+    -fx-border-color: #3c3c3c;
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-insets: 0;
+    -fx-border-insets: 0;
+    -fx-background-radius: 8px;
+}
+
+.text-field:focused, .password-field:focused {
+    -fx-border-color: #007acc;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+}
+
+.button {
+    -fx-background-color: #0e639c;
+    -fx-text-fill: #ffffff;
+    -fx-background-radius: 2px;
+}
+
+.button:hover {
+    -fx-background-color: #1177bb;
+}
+
+#welcome-text, #properties-title {
+    -fx-fill: #ffffff;
+    -fx-font-size: 24px;
+    -fx-font-weight: bold;
+}
+
+/* Tab Pane */
+.tab-pane {
+    -fx-tab-min-width: 100px;
+}
+.tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: #252526;
+}
+.tab-pane .tab {
+    -fx-background-color: #2d2d2d;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-border-color: #252526;
+    -fx-border-radius: 5px 5px 0 0;
+    -fx-background-radius: 5px 5px 0 0;
+}
+.tab-pane .tab:selected {
+    -fx-background-color: #1e1e1e;
+    -fx-border-color: #1e1e1e;
+    -fx-border-radius: 5px 5px 0 0;
+    -fx-background-radius: 5px 5px 0 0;
+}
+.tab .tab-label {
+    -fx-text-fill: #999999;
+}
+.tab:selected .tab-label {
+    -fx-text-fill: #ffffff;
+}
+
+/* Tree View (File Explorer) */
+.tree-view {
+    -fx-background-color: #252526;
+}
+.tree-cell {
+    -fx-text-fill: #cccccc;
+    -fx-font-size: 14px;
+    -fx-padding: 3px;
+}
+.tree-cell:selected {
+    -fx-background-color: #444444;
+}
+.tree-view:focused .tree-cell:selected {
+    -fx-background-color: #444444;
+}
+.tree-cell:filled:hover {
+    -fx-background-color: #333333;
+}
+
+/* Text Area (Editor & Output) */
+.text-area, .text-area .content {
+    -fx-background-color: #1e1e1e;
+    -fx-text-fill: #d4d4d4;
+}
+
+/* Split Pane Divider */
+.split-pane-divider {
+    -fx-background-color: #333333;
+    -fx-padding: 0 1px 0 1px;
+}
+
+/* Status Bar */
+.status-bar .label {
+    -fx-text-fill: #ffffff;
+}
+
+/* Menu Bar */
+.menu-bar {
+    -fx-background-color: transparent; /* Make menu bar transparent to be part of the title bar */
+}
+.menu:hover, .menu:showing {
+    -fx-background-color: #444444;
+    -fx-background-radius: 8px;
+}
+.menu-item {
+    -fx-background-color: #333333;
+}
+.menu-item:focused {
+    -fx-background-color: #007acc;
+}
+.menu-item:focused .label {
+    -fx-text-fill: #ffffff;
+}
+.context-menu {
+    -fx-background-color: #333333;
+    -fx-border-color: #444444;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-padding: 4px; /* 위아래, 양옆으로 4px의 여백 */
+}
+.menu-item {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+}
+
+.context-menu .separator {
+    -fx-padding: 5px 0px; /* 위아래로 5px의 여백을 줘서 공간을 확보 */
+}
+
+/* 2. 실제 구분선의 색상과 두께를 설정합니다. */
+.context-menu .separator .line {
+    -fx-border-color: #555555;  /* 기본 회색보다 약간 더 밝은 회색으로 변경 */
+    -fx-border-width: 1px 0 0 0; /* 1px 두께의 상단 테두리를 선으로 사용 */
+}
+
+
+/* Header for TreeView */
+.file-explorer-header {
+    -fx-background-color: #252526; /* Darker header */
+    -fx-padding: 5px;
+    -fx-border-width: 0;
+}
+.add-project-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #cccccc;
+    -fx-font-size: 16px;
+}
+.add-project-button:hover {
+    -fx-background-color: #444444;
+}
+.add-project-button:pressed {
+    -fx-background-color: #5e5e5e;
+}
+
+.shared-label {
+    -fx-font-size: 10px;
+    -fx-text-fill: #888888;
+    -fx-padding: 3 0 0 0;
+}
+
+/* Custom Window Buttons */
+.window-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-padding: 8px 15px;
+    -fx-text-fill: #cccccc;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+}
+.window-button:hover {
+    -fx-background-color: #444444;
+}
+.window-button:pressed {
+    -fx-background-color: #5e5e5e;
+}
+.close-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #cccccc;
+    -fx-background-radius: 0 6px 0 0;
+    -fx-border-color: transparent;
+    -fx-border-radius: 0 0 6px 0;
+    -fx-border-width: 1px 1px 0 0;
+    
+}
+.close-button:hover {
+    -fx-background-color: #e81123;
+    -fx-text-fill: #ffffff;
+    -fx-background-radius: 0 6px 0 0;
+    
+} 
+.close-button:pressed {
+    -fx-background-color: #9b111e;
+    -fx-text-fill: #ffffff;
+    -fx-background-radius: 0 6px 0 0;
+    
+}
+
+/* ListView 전체 컨테이너 */
+.list-view {
+    -fx-background-color: #252526; /* TreeView와 동일한 배경색 */
+    -fx-padding: 4px; 
+}
+
+/* ListView의 각 아이템 (ListCell) */
+.list-cell {
+    /* 기본적으로는 투명하게 하여 list-view의 배경이 보이도록 함 */
+    -fx-background-color: transparent;
+    -fx-text-fill: #cccccc; /* 기본 글자색 */
+    -fx-font-size: 14px;
+    -fx-padding: 8px 12px; /* 아이템의 상하좌우 여백 */
+    -fx-background-radius: 6px; /* 약간의 둥근 모서리 */
+}
+
+/* 아이템에 내용이 있고(filled), 마우스가 올라갔을 때(hover) */
+.list-cell:filled:hover {
+    -fx-background-color: #333333; /* TreeView와 동일한 호버 색상 */
+}
+
+/* 아이템이 선택되었을 때 */
+.list-cell:selected {
+    -fx-background-color: #094771; /* VS Code의 리스트 선택 색상 */
+    -fx-text-fill: white;
+}
+
+/* ListView가 포커스를 가지고 있을 때 선택된 아이템 (더 선명한 색상) */
+.list-view:focused .list-cell:selected {
+    -fx-background-color: #007acc;
+}
+/* .list-view:focused{
+    -fx-border-width: 0;
+} */
+/* 목록 끝의 비어있는 셀들은 아무 스타일도 적용하지 않음 */
+.list-cell:empty {
+    -fx-background-color: transparent;
+}
+
+.folder-tree-cell > .tree-disclosure-node {
+    -fx-opacity: 1;
+}
+
+/* ================================================================== */
+/* RichTextFX CodeArea: VS Code Dark+ Theme                           */
+/* ================================================================== */
+
+/* --- 1. CodeArea 기본 스타일 --- */
+.code-area {
+    -fx-background-color: #1e1e1e; /* VS Code 에디터 배경색 */
+    -fx-font-family: "Consolas" !important; /* 코딩용 고정폭 폰트 */
+    -fx-font-weight: 900;
+    -fx-font-size: 14px;
+    -fx-padding: 5px; /* 에디터 내부의 여백 */
+}
+
+/* 기본 텍스트 (스타일이 지정되지 않은 모든 텍스트) */
+.code-area .text {
+    -fx-fill: #d4d4d4;
+    -fx-line-spacing: 4px; /* 기본 텍스트 색상 (밝은 회색) */
+}
+.text-flow {
+    -fx-tab-size: 1!important; /* 원하는 탭 길이로 설정 */
+}
+.code-area .text-flow {
+    -fx-tab-size: 1!important; /* 4칸 공백 크기로 설정 */
+}
+/* --- 3. 에디터 UI 요소 스타일 --- */
+#my-code-area .text-flow {
+    -fx-tab-size: 4; /* 원하는 탭 너비 (예: 4칸 공백) */
+}
+/* 라인 번호 영역 */
+.code-area .lineno {
+    -fx-background-color: #1e1e1e; /* 에디터와 동일한 배경 */
+    -fx-text-fill: #858585;       /* 라인 번호 텍스트 색상 (어��운 회색) */
+    -fx-padding: 0 15px 0 0;     /* 코드와 간격을 주기 위한 오른쪽 여백 */
+    -fx-font-size: 13px;
+    
+}
+
+/* 현재 커서가 있는 라인 하이라이트 */
+.code-area .paragraph-box:has-caret {
+    -fx-background-color: #2a2d2e; /* 미묘하게 더 밝은 배경색 */
+}
+
+/* 텍스트 입력 커서 (Caret) */
+.code-area .caret {
+    -fx-stroke: #d4d4d4; /* 커서 색상 */
+    -fx-stroke-width: 2px;
+}
+
+/* 텍스트 선택(Selection) 영역 */
+.code-area .selection {
+    -fx-fill: #264f78; /* VS Code 선택 영역 배경색 */
+
+}
+
+/* ================================================================== */
+/* --- 4. 스크롤바 스타일 (최종 수정 버전) --- */
+/* ================================================================== */
+
+/* Java 코드에서 직접 추가한 .editor-scroll-pane 클래스를 사용합니다. */
+.editor-scroll-pane .scroll-bar {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+
+.editor-scroll-pane .scroll-bar .track {
+    -fx-background-color: #2a2d2e;
+    -fx-border-color: transparent;
+}
+
+.editor-scroll-pane .scroll-bar .thumb {
+    -fx-background-color: #686868;
+    -fx-background-insets: 0;
+    
+}
+
+.editor-scroll-pane .scroll-bar .thumb:hover {
+    -fx-background-color: #888888;
+}
+
+.editor-scroll-pane .scroll-bar .increment-button,
+.editor-scroll-pane .scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-padding: 0;
+    -fx-font-size: 0;
+    -fx-min-width: 0;
+    -fx-max-width: 0;
+    -fx-pref-width: 0;
+    -fx-min-height: 0;
+    -fx-max-height: 0;
+    -fx-pref-height: 0;
+}
+
+/* 세로 스크롤바의 전체 폭을 지정합니다. */
+.editor-scroll-pane .scroll-bar:vertical {
+    -fx-pref-width: 15px; /* 원하는 너비로 조절 (기본값은 약 12px) */
+}
+
+
+/* ================================================================== */
+/* --- 5. 구문 강조 스타일 (tm4e 기반) --- */
+/* ================================================================== */
+/* --- 구문 강조 스타일 --- */
+/* 필수!! 더 강력한 선택자를 위해 .text와 함께 사용합니다. !important 사용!!*/
+
+/* --- 범용 구문 강조 스타일 (가장 구체적인 규칙을 위로) --- */
+
+/* --- 디버그 로그 기반의 명시적 구문 강조 스타일 --- */
+/* 주석 */
+.text.comment { -fx-fill: #6A9555; }
+
+/* 문자열 */
+.text.string { -fx-fill: #CE9178; }
+
+/* 숫자 */
+.text.numeric { -fx-fill: #b0e792; }
+
+/* 빌트인 상수 (true, false, null) */
+.text.language-constant { -fx-fill: #569CD6; }
+
+/* 제어 키워드 (if, for, while, return, new) */
+.text.keyword-control { -fx-fill: #C586C0; }
+
+/* 일반 키워드 및 타입 (public, class, static, int, void) */
+.text.storage-modifier { -fx-fill: #569CD6; } 
+
+/* 클래스/타입 이름 */
+.text.entity-name-type,
+.text.storage-type { -fx-fill: #71e2b5; }
+
+/* 함수/메소드 이름 */
+.text.entity-name-function { -fx-fill: #ffffa9; }
+
+/* 변수 이름 */
+.text.variable { -fx-fill: #a7f0fc; }
+/* 연산자 (+, -, *, /, =, ==, !=, <, >, <=, >=) */
+.text.operator-comparison { -fx-fill: #d4d4d4; }
+.styled-text-area .syntax-error {
+    /* 방법 2: 반투명 빨간 배경색 (밑줄 대신 사용하거나 함께 사용할 수 있음) */
+    -rtfx-background-color: rgba(255, 71, 71, 0.39);
+    -rtfx-background-insets: 2 0 2 0; /* top right bottom left */
+
+}   
+
+*{
+    -fx-tab-size: 4;
+}
+
+/* --- Auto-completion Popup --- */
+.suggestion-item-selected .label {
+    -fx-text-fill: white!important;
+}
+.context-menu .menu-item.suggestion-item-selected {
+    -fx-background-color: #007acc!important;
+}
+
+/* --- Specific style for our suggestion popup --- */
+#suggestion-list-view {
+    -fx-background-color: #151515; /* Darker than editor */
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-border-color: #333333; /* Faint, light border */
+    -fx-border-width: 1px;
+    -fx-padding: 0; /* No padding */
+}
+
+#suggestion-list-view .list-cell {
+    -fx-padding: 2px 12px; /* Further reduced vertical padding */
+    -fx-background-radius: 0;
+    -fx-font-size: 13px; /* Slightly smaller font */
+}
+
+#suggestion-list-view .list-cell:filled:hover {
+    -fx-background-color: #333333;
+}
+
+#suggestion-list-view .list-cell:selected {
+    -fx-background-color: #094771;
+    -fx-text-fill: white;
+}
+
+#suggestion-list-view:focused .list-cell:selected {
+    -fx-background-color: #007acc;
+}

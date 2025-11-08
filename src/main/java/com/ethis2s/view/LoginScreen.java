@@ -14,7 +14,7 @@ import javafx.scene.layout.GridPane;
 public class LoginScreen {
 
     private Label actiontarget;
-
+    
     public GridPane createLoginView(MainController mainController) {
         GridPane grid = new GridPane();
         grid.setAlignment(Pos.CENTER);

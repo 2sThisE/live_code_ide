@@ -3,6 +3,14 @@
     "lexer": "com.ethis2s.antlr.java.Java20Lexer",
     "parser": "com.ethis2s.antlr.java.Java20Parser",
     "visitor": "com.ethis2s.antlr.java.JavaSymbolVisitor",
-    "startRule": "compilationUnit"
+    "startRule": "compilationUnit",
+    "identifierRuleName": "Identifier"
+  },
+  "py": {
+    "lexer": "com.ethis2s.antlr.python.Python3Lexer",
+    "parser": "com.ethis2s.antlr.python.Python3Parser",
+    "visitor": "com.ethis2s.antlr.python.Python3SymbolVisitor",
+    "startRule": "file_input",
+    "identifierRuleName": "NAME"
   }
 }

@@ -151,25 +151,20 @@ public class Tm4eSyntaxHighlighter {
         if (scope == null || scope.isEmpty()) {
             return "";
         }
+        // ANTLR이 담당할 사용자 정의 심볼들은 색칠하지 않는다.
+        if (scope.startsWith("entity.name.function")) return ""; // 메소드 이름
+        if (scope.startsWith("entity.name.type") || scope.startsWith("support.class")) return ""; // 클래스/타입 이름
+        if (scope.startsWith("variable") && !scope.startsWith("variable.language")) return ""; // this, super 제외 변수
+
+        // --- 나머지 규칙은 기존과 동일 ---
         if (scope.startsWith("punctuation.definition.comment")) return "comment";
-        // [핵심 수정] 더 구체적인 규칙을 항상 먼저 확인합니다.
         if (scope.startsWith("keyword.control")) return "keyword-control";
-        
-        // [신규] 수정자(modifier)를 먼저 감지합니다.
         if (scope.startsWith("storage.modifier")||scope.startsWith("keyword.other.package")||scope.startsWith("variable.language")) return "storage-modifier";
-        
-        // [수정] 타입(type)을 감지합니다.
         if (scope.startsWith("storage.type")) return "storage-type";
-        
-        // 기존 규칙들은 그대로 유지
         if (scope.startsWith("constant.numeric")) return "numeric";
         if (scope.startsWith("constant.language")) return "language-constant";
-        if (scope.startsWith("entity.name.function")) return "entity-name-function";
-        if (scope.startsWith("entity.name.type") || scope.startsWith("support.class")) return "entity-name-type";
-        if (scope.startsWith("variable")) return "variable";
         if (scope.startsWith("string")||scope.startsWith("punctuation.definition.string")) return "string";
         if (scope.startsWith("comment")) return "comment";
-        // 위에 해당하지 않는 나머지 모든 'keyword'는 일반 'storage-type'으로 처리합니다.
         if (scope.startsWith("keyword")) return "";
         
         return "";

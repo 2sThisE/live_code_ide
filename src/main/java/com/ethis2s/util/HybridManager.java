@@ -3,10 +3,11 @@ package com.ethis2s.util;
 import com.ethis2s.service.AntlrCompletionService;
 import com.ethis2s.service.AntlrLanguageService;
 import com.ethis2s.service.AntlrLanguageService.AnalysisResult;
+import com.ethis2s.service.AntlrLanguageService.Symbol;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
 import javafx.application.Platform;
-import javafx.scene.input.KeyEvent;
-
+import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.Vocabulary;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.model.StyleSpans;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
@@ -16,10 +17,11 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 /**
  * CodeArea에 대한 모든 언어 서비스(하이라이팅, 문법 검사 등)를 총괄하는 최종 지휘자 클래스.
- * TM4E와 ANTLR의 실행 순서를 제어하여 충돌을 방지합니다.
+ * TM4E로 기본 하이라이팅을, ANTLR로 심볼 하이라이팅과 오류 검사를 수행하여 결합합니다.
  */
 public class HybridManager {
     
@@ -28,11 +30,11 @@ public class HybridManager {
     private final AntlrLanguageService analyzer;
     private final ExecutorService analysisExecutor = Executors.newSingleThreadExecutor();
     private AntlrCompletionService completionService = null;
+    private final Consumer<List<SyntaxError>> onErrorUpdate; // 에러 정보를 UI에 전달할 콜백
 
-    public HybridManager(CodeArea codeArea, String fileExtension) {
+    public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate) {
         this.codeArea = codeArea;
-        
-        
+        this.onErrorUpdate = onErrorUpdate;
         
         this.highlighter = new Tm4eSyntaxHighlighter(codeArea, fileExtension);
 
@@ -44,72 +46,111 @@ public class HybridManager {
             this.completionService = null;
         }
         
-        // EditorEnhancer와 EditorInputManager를 설정합니다.
-        if (this.completionService != null) {
-            EditorEnhancer enhancer = new EditorEnhancer(codeArea, this.completionService);
-            EditorInputManager inputManager = new EditorInputManager(codeArea, enhancer, this.completionService);
-            inputManager.registerEventHandlers();
-        }
+        // completionService가 null이어도 EditorEnhancer와 EditorInputManager를 항상 설정합니다.
+        // 이렇게 하면 자동 완성을 제외한 편의 기능(괄호, 탭 등)이 항상 동작합니다.
+        EditorEnhancer enhancer = new EditorEnhancer(codeArea, this.completionService);
+        EditorInputManager inputManager = new EditorInputManager(codeArea, enhancer, this.completionService);
+        inputManager.registerEventHandlers();
 
         codeArea.multiPlainChanges()
-            .successionEnds(Duration.ofMillis(100)) // 반응성을 위해 딜레이 조절
+            .successionEnds(Duration.ofMillis(100))
             .subscribe(ignore -> {
                 String text = codeArea.getText();
 
-                // 1. 두 개의 비동기 작업을 동시에 시작합니다.
                 CompletableFuture<StyleSpans<Collection<String>>> tm4eFuture = 
                     CompletableFuture.supplyAsync(() -> highlighter.computeHighlighting(text), analysisExecutor);
 
                 CompletableFuture<AnalysisResult> antlrFuture = 
                     (analyzer != null) ? analyzer.analyze(text) : 
-                    CompletableFuture.completedFuture(new AnalysisResult(null, Collections.emptyList(), null));
+                    CompletableFuture.completedFuture(new AnalysisResult(null, Collections.emptyList(), new AntlrLanguageService.SymbolTable(), new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), 0).create()));
                 
                 if (completionService != null) {
                     completionService.updateAnalysisResult(antlrFuture);
                 }
 
-                // 2. [핵심] 두 작업이 "모두" 끝나기를 기다렸다가,
-                //    두 결과물을 완벽하게 합쳐서 최종 스타일을 만듭니다.
                 tm4eFuture.thenCombineAsync(antlrFuture, (baseSpans, analysisResult) -> {
-                    // 2a. ANTLR의 오류 정보로 '오류 덧칠 설계도'를 만듭니다.
+                    // 에러 정보를 콜백을 통해 UI 계층으로 전달
+                    Platform.runLater(() -> this.onErrorUpdate.accept(analysisResult.errors));
+
+                    // [수정] 이제 ANTLR 서비스가 만들어준 완성된 symbolSpans를 바로 사용합니다.
+                    StyleSpans<Collection<String>> symbolSpans = analysisResult.symbolSpans;
                     StyleSpans<Collection<String>> errorSpans = computeErrorSpans(analysisResult.errors);
-                    // 2b. TM4E의 기본 설계도 위에 오류 설계도를 덧칠하여 "최종 마스터 설계도"를 완성합니다.
-                    //     이것이 매번 새로 그려지는 '완벽한 그림'입니다.
-                    return baseSpans.overlay(errorSpans, (baseStyle, errorStyle) -> {
-                        // errorStyle이 비어있지 않으면 (즉, 오류가 있으면), 두 스타일을 합칩니다.
-                        if (!errorStyle.isEmpty()) {
-                            Set<String> combined = new HashSet<>(baseStyle);
-                            combined.addAll(errorStyle);
-                            return combined;
-                        }
-                        // 오류가 없으면, 기존 TM4E 스타일을 그대로 사용합니다.
-                        return baseStyle;
-                    });
-                }, Platform::runLater) // 덧칠 작업은 UI 스레드에서
+                    
+                    // 3. TM4E 기본 설계도 -> 심볼 덧칠 -> 오류 덧칠 순서로 합친다.
+                    return baseSpans.overlay(symbolSpans, (base, symbol) -> !symbol.isEmpty() ? symbol : base)
+                                    .overlay(errorSpans, (base, error) -> {
+                                        if (!error.isEmpty()) {
+                                            Set<String> combined = new HashSet<>(base);
+                                            combined.addAll(error);
+                                            return combined;
+                                        }
+                                        return base;
+                                    });
+                }, Platform::runLater)
                 .thenAcceptAsync(finalSpans -> {
-                    // 3. 완성된 최종 설계도로 "단 한 번만" 화면 전체를 새로 그립니다.
-                    //    이 작업은 이전의 모든 스타일(유령 오류 포함)을 완전히 지우고 새로 칠합니다.
                     codeArea.setStyleSpans(0, finalSpans);
                 }, Platform::runLater);
             });
-            
-        // 초기 하이라이팅은 EditorTabView에서 텍스트를 삽입할 때 자동으로 트리거됩니다.
     }
 
-    // HybridManager.java
+    /**
+     * ANTLR 분석 결과(심볼 테이블, 토큰)를 바탕으로 사용자 정의 심볼에 대한
+     * '덧칠 설계도'를 생성합니다.
+     */
+    // private StyleSpans<Collection<String>> computeSymbolSpans(AnalysisResult result) {
+    //     int totalLength = codeArea.getLength();
+    //     StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
+        
+    //     if (result == null || result.tokens == null || result.vocabulary == null || result.symbolTable == null) {
+    //         return spansBuilder.add(Collections.emptyList(), totalLength).create();
+    //     }
+
+    //     Vocabulary vocabulary = result.vocabulary;
+    //     // [수정] Java g4 문법의 실제 Identifier 이름
+    //     String identifierRuleName = "Identifier"; 
+        
+    //     int lastKwEnd = 0;
+    //     for (Token token : result.tokens) {
+    //         String symbolicName = vocabulary.getSymbolicName(token.getType());
+
+    //         // [수정] symbolicName이 null이 아니고, IdentifierRuleName과 일치할 때만
+    //         if (symbolicName != null && symbolicName.equals(identifierRuleName)) {
+    //             String tokenText = token.getText();
+    //             Symbol symbol = result.symbolTable.resolve(tokenText);
+                
+    //             if (symbol != null) {
+    //                 String styleClass = switch (symbol.kind) {
+    //                     case CLASS -> "entity-name-type";
+    //                     case METHOD -> "entity-name-function";
+    //                     case VARIABLE -> "variable";
+    //                     default -> "";
+    //                 };
+                    
+    //                 if (!styleClass.isEmpty()) {
+    //                     int start = token.getStartIndex();
+    //                     int end = token.getStopIndex() + 1;
+
+    //                     if (start >= lastKwEnd) {
+    //                          spansBuilder.add(Collections.emptyList(), start - lastKwEnd);
+    //                          spansBuilder.add(Arrays.asList("text", styleClass), end - start);
+    //                          lastKwEnd = end;
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     spansBuilder.add(Collections.emptyList(), totalLength - lastKwEnd);
+    //     return spansBuilder.create();
+    // }
 
     /**
-     * ANTLR이 반환한 문법 오류 목록을 바탕으로, 'syntax-error' 스타일만 포함하는
-     * 순수한 "오류 덧칠 설계도(StyleSpans)"를 생성하는 헬퍼 메소드.
-     * @param errors AntlrLanguageService가 반환한 오류 목록
-     * @return 오류 위치에만 스타일이 적용된 StyleSpans 객체
+     * ANTLR 오류 목록을 바탕으로 '오류 덧칠 설계도'를 생성합니다. (기존과 동일)
      */
     private StyleSpans<Collection<String>> computeErrorSpans(List<SyntaxError> errors) {
         StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
         int lastKwEnd = 0;
         int totalLength = codeArea.getLength();
 
-        // 오류가 없다면, 빈 스타일을 가진 StyleSpans를 반환합니다.
         if (errors == null || errors.isEmpty()) {
             spansBuilder.add(Collections.emptyList(), totalLength);
             return spansBuilder.create();
@@ -117,27 +158,13 @@ public class HybridManager {
 
         for (SyntaxError error : errors) {
             int line = error.line - 1;
-            // 안전장치: 존재하지 않는 라인을 참조할 경우 건너뜁니다.
-            if (line < 0 || line >= codeArea.getParagraphs().size()) {
-                continue;
-            }
-
+            if (line < 0 || line >= codeArea.getParagraphs().size()) continue;
             int start = codeArea.getAbsolutePosition(line, error.charPositionInLine);
             int length = error.length;
-            
-            // 안전장치: 계산된 위치가 텍스트 범위를 벗어나지 않도록 보정합니다.
-            if (start + length > totalLength) {
-                length = totalLength - start;
-            }
-            if (length < 0) {
-                continue;
-            }
+            if (start + length > totalLength) length = totalLength - start;
+            if (length < 0) continue;
             int end = start + length;
-            
-            if (start < lastKwEnd) {
-                // 오류 위치가 겹치는 매우 드문 경우에 대한 안전장치
-                continue;
-            }
+            if (start < lastKwEnd) continue;
             
             spansBuilder.add(Collections.emptyList(), start - lastKwEnd);
             spansBuilder.add(Collections.singleton("syntax-error"), length);

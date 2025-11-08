@@ -84,7 +84,13 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
 
         this.mainScene = new Scene(rootPane, 1280, 720);
         mainScene.setFill(Color.TRANSPARENT);
-        mainScene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+        try {
+            String cssPath = "file:/" + System.getProperty("user.dir").replace("\\", "/") + "/plugins/theme/style.css";
+            mainScene.getStylesheets().add(cssPath);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("테마 파일을 로드할 수 없습니다: plugins/theme/style.css");
+        }
         
         primaryStage.setScene(mainScene);
         primaryStage.show();

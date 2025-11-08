@@ -29,6 +29,8 @@ import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.SplitPane;
+import javafx.geometry.Side;
+import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
@@ -68,7 +70,7 @@ public class MainScreen {
 
     public BorderPane createMainScreen(Stage stage, TabPane editorTabs, Label statusLabel, MainController mainController) {
         BorderPane mainLayout = new BorderPane();
-        
+        editorTabs.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
         MenuBar menuBar = new MenuBar();
         Menu fileMenu = new Menu("File");
         MenuItem logoutItem = new MenuItem("로그아웃");
@@ -129,12 +131,27 @@ public class MainScreen {
         
         fileExplorerContainer = new BorderPane(fileExplorer);
 
-        TextArea outputArea = new TextArea();
-        outputArea.setEditable(false);
-        outputArea.setPromptText("Output will be shown here...");
+        // --- 하단 탭 패널 생성 ---
+        TabPane bottomTabPane = new TabPane();
+        bottomTabPane.getStyleClass().add("bottom-tab-pane"); // 커스텀 스타일 적용
+
+        // 'Output' 탭 생성
+        OutputView outputView = new OutputView();
+        Tab outputTab = new Tab("OUTPUT");
+        outputTab.setContent(outputView.getView());
+        outputTab.setClosable(false);
+
+        // 'Problems' 탭 생성
+        ProblemsView problemsView = new ProblemsView();
+        Tab problemsTab = new Tab("PROBLEMS");
+        problemsTab.setContent(problemsView.getView());
+        problemsTab.setClosable(false);
+
+        bottomTabPane.getTabs().addAll(outputTab, problemsTab);
+        // --- 하단 탭 패널 생성 끝 ---
 
         TabPane safeEditorTabs = (editorTabs != null) ? editorTabs : new TabPane();
-        SplitPane centerSplit = new SplitPane(safeEditorTabs, outputArea);
+        SplitPane centerSplit = new SplitPane(safeEditorTabs, bottomTabPane);
         
         centerSplit.setOrientation(Orientation.VERTICAL);
         centerSplit.setDividerPositions(0.75);

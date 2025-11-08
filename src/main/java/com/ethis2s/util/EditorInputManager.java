@@ -87,13 +87,93 @@ public class EditorInputManager {
             codeArea.moveTo(caretPosition); // 커서를 다시 원래 위치로 이동
         }
 
-        // 자동 완성 제안 로직
+        // 닫는 중괄호를 입력했을 때, 코드 블록 자동 정렬
+        if ("}".equals(typedChar)) {
+            autoFormatBlock();
+        }
+
+        // 자동 완성 제안 로직 (completionService가 있을 때만 동작)
         if (completionService != null && Character.isJavaIdentifierPart(typedChar.charAt(0))) {
             suggestionsHiddenManually = false;
             enhancer.showSuggestionsAsync();
         } else if (enhancer.isPopupShowing()) {
             enhancer.hideSuggestions();
         }
+    }
+
+    private void autoFormatBlock() {
+        int closingBracePos = codeArea.getCaretPosition() - 1;
+        if (closingBracePos < 0) return;
+
+        int openingBracePos = findMatchingOpeningBrace(closingBracePos);
+        if (openingBracePos == -1) return;
+
+        int startLine = codeArea.offsetToPosition(openingBracePos, Bias.Forward).getMajor();
+        int endLine = codeArea.offsetToPosition(closingBracePos, Bias.Forward).getMajor();
+
+        String startLineText = codeArea.getParagraph(startLine).getText();
+        Matcher matcher = LEADING_WHITESPACE.matcher(startLineText);
+        String baseIndent = matcher.find() ? matcher.group() : "";
+
+        StringBuilder formattedText = new StringBuilder();
+        int indentLevel = countTabs(baseIndent);
+
+        for (int i = startLine; i <= endLine; i++) {
+            String line = codeArea.getParagraph(i).getText().trim();
+
+            if (line.startsWith("}")) {
+                indentLevel--;
+            }
+
+            // 음수 들여쓰기 방지
+            if (indentLevel < 0) indentLevel = 0; 
+            
+            for (int j = 0; j < indentLevel; j++) {
+                formattedText.append('\t');
+            }
+            formattedText.append(line);
+
+            if (line.endsWith("{")) {
+                indentLevel++;
+            }
+            
+            if (i < endLine) {
+                formattedText.append('\n');
+            }
+        }
+
+        int replaceStart = codeArea.getAbsolutePosition(startLine, 0);
+        int replaceEnd = codeArea.getAbsolutePosition(endLine, codeArea.getParagraph(endLine).length());
+        
+        codeArea.replaceText(replaceStart, replaceEnd, formattedText.toString());
+    }
+
+    private int findMatchingOpeningBrace(int closingBracePos) {
+        if (closingBracePos <= 0) return -1;
+        String text = codeArea.getText(0, closingBracePos);
+        int braceCounter = 0;
+        for (int i = text.length() - 1; i >= 0; i--) {
+            char c = text.charAt(i);
+            if (c == '}') {
+                braceCounter++;
+            } else if (c == '{') {
+                braceCounter--;
+                if (braceCounter < 0) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    private int countTabs(String s) {
+        int count = 0;
+        for (char c : s.toCharArray()) {
+            if (c == '\t') {
+                count++;
+            }
+        }
+        return count;
     }
 
     private void handleKeyPressed(KeyEvent e) {

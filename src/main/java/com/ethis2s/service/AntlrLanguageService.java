@@ -4,6 +4,9 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.fxmisc.richtext.model.StyleSpans;
+import org.fxmisc.richtext.model.StyleSpansBuilder;
+
 import java.io.InputStreamReader;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -25,7 +28,9 @@ public class AntlrLanguageService {
 
     // --- 1. 설정 및 분석 결과 데이터 클래스들 ---
     
-    private static class AntlrConfig { String lexer, parser, startRule, visitor; }
+    private static class AntlrConfig { 
+        String lexer, parser, startRule, visitor, identifierRuleName; 
+    }
 
     public static class Symbol {
         public enum Kind { CLASS, METHOD, VARIABLE }
@@ -45,8 +50,13 @@ public class AntlrLanguageService {
         public final ParseTree ast;
         public final List<SyntaxError> errors;
         public final SymbolTable symbolTable;
-        public AnalysisResult(ParseTree ast, List<SyntaxError> errors, SymbolTable symbolTable) {
-            this.ast = ast; this.errors = errors; this.symbolTable = symbolTable;
+        public final StyleSpans<Collection<String>> symbolSpans; // [수정] 시맨틱 하이라이팅 결과
+
+        public AnalysisResult(ParseTree ast, List<SyntaxError> errors, SymbolTable symbolTable, StyleSpans<Collection<String>> symbolSpans) {
+            this.ast = ast;
+            this.errors = errors;
+            this.symbolTable = symbolTable;
+            this.symbolSpans = symbolSpans;
         }
     }
 
@@ -132,11 +142,12 @@ public class AntlrLanguageService {
 
     public CompletableFuture<AnalysisResult> analyze(String text) {
         if (config == null) {
-            return CompletableFuture.completedFuture(new AnalysisResult(null, Collections.emptyList(), new SymbolTable()));
+            // ANTLR 지원 안되면 비어있는 결과를 즉시 반환
+            StyleSpans<Collection<String>> emptySpans = new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), text.length()).create();
+            return CompletableFuture.completedFuture(new AnalysisResult(null, Collections.emptyList(), new SymbolTable(), emptySpans));
         }
         return CompletableFuture.supplyAsync(() -> {
             try {
-                // [핵심] 모든 클래스를 pluginClassLoader를 통해 로드합니다.
                 Class<?> lexerClass = Class.forName(config.lexer, true, pluginClassLoader);
                 Lexer lexer = (Lexer) lexerClass.getConstructor(CharStream.class).newInstance(CharStreams.fromString(text));
                 
@@ -145,6 +156,7 @@ public class AntlrLanguageService {
                 lexer.addErrorListener(errorListener);
 
                 CommonTokenStream tokens = new CommonTokenStream(lexer);
+                tokens.fill(); // 모든 토큰을 즉시 로드해야 전체 목록을 가져올 수 있음
                 
                 Class<?> parserClass = Class.forName(config.parser, true, pluginClassLoader);
                 Parser parser = (Parser) parserClass.getConstructor(TokenStream.class).newInstance(tokens);
@@ -164,12 +176,52 @@ public class AntlrLanguageService {
                     visitMethod.invoke(visitor, ast);
                 }
                 
-                return new AnalysisResult(ast, errorListener.getErrors(), symbolTable);
+                StyleSpans<Collection<String>> symbolSpans = computeSymbolSpans(tokens, parser.getVocabulary(), symbolTable, config.identifierRuleName, text.length());
+
+                // [수정] 새로운 AnalysisResult 형식에 맞춰 모든 결과를 반환합니다.
+                return new AnalysisResult(ast, errorListener.getErrors(), symbolTable, symbolSpans);
             } catch (Exception e) {
                 e.printStackTrace();
-                return new AnalysisResult(null, Collections.singletonList(new SyntaxError(0, 0, 0, "Parser failed: " + e.getMessage())), new SymbolTable());
+                StyleSpans<Collection<String>> emptySpans = new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), text.length()).create();
+                return new AnalysisResult(null, Collections.singletonList(new SyntaxError(0, 0, 0, "Parser failed: " + e.getMessage())), new SymbolTable(), emptySpans);
             }
         }, executor);
+    }
+    
+    private StyleSpans<Collection<String>> computeSymbolSpans(CommonTokenStream tokens, Vocabulary vocabulary, SymbolTable symbolTable, String identifierRuleName, int totalLength) {
+        StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
+        int lastKwEnd = 0;
+
+        if (identifierRuleName == null || identifierRuleName.isEmpty()) {
+            return spansBuilder.add(Collections.emptyList(), totalLength).create();
+        }
+
+        for (Token token : tokens.getTokens()) {
+            String symbolicName = vocabulary.getSymbolicName(token.getType());
+            
+            if (symbolicName != null && symbolicName.equals(identifierRuleName)) {
+                Symbol symbol = symbolTable.resolve(token.getText());
+                
+                if (symbol != null) {
+                    String styleClass = switch (symbol.kind) {
+                        case CLASS -> "entity-name-type";
+                        case METHOD -> "entity-name-function";
+                        case VARIABLE -> "variable";
+                    };
+                    
+                    int start = token.getStartIndex();
+                    int end = token.getStopIndex() + 1;
+
+                    if (start >= lastKwEnd) {
+                        spansBuilder.add(Collections.emptyList(), start - lastKwEnd);
+                        spansBuilder.add(Arrays.asList("text", styleClass), end - start);
+                        lastKwEnd = end;
+                    }
+                }
+            }
+        }
+        spansBuilder.add(Collections.emptyList(), totalLength - lastKwEnd);
+        return spansBuilder.create();
     }
     
     public List<String> getCompletions(AnalysisResult result, String text, int caretPosition) {
