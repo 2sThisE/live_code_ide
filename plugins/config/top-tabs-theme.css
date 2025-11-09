@@ -1,0 +1,197 @@
+/* ================================================================== */
+/* Top Tabs Theme - Styles for the main editor tabs and CodeArea. */
+/* ================================================================== */
+
+/* General Tab Pane Styles */
+.tab-pane {
+    -fx-tab-min-width: 0;
+}
+
+.tab-pane .tab-header-area {
+    -fx-padding: 0;
+}
+
+.tab-pane .tab-header-background {
+    -fx-background-color: #252526;
+}
+
+.tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent #3c3c3c;
+    -fx-border-width: 0 1px;
+    -fx-padding: 4px 8px 4px 16px;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.tab-pane .tab:selected {
+    -fx-background-color: #1e1e1e;
+    -fx-border-color: #cccccc;
+    -fx-border-width: 0 0 1px 0;
+}
+
+.tab-pane .tab .tab-label {
+    -fx-text-fill: #999999;
+    -fx-font-size: 13px;
+    -fx-padding: 0 10px 0 0;
+}
+
+.tab-pane .tab:selected .tab-label {
+    -fx-text-fill: #ffffff;
+}
+
+.tab-pane .tab .tab-close-button {
+    -fx-background-color: #9b9b9b;
+    -fx-padding: 4;
+    -fx-cursor: hand;
+    -fx-opacity: 1;
+}
+
+.tab-pane .tab .tab-close-button:hover {
+    -fx-background-color: #dadada;
+    -fx-background-radius: 2px;
+}
+
+/* RichTextFX CodeArea Styles */
+.code-area {
+    -fx-background-color: #1e1e1e;
+    -fx-padding: 5px; 
+}
+
+.code-area .text {
+    -fx-fill: #d4d4d4;
+}
+
+.code-area .lineno {
+    /* 배경색, 글자색, 정렬만 남겨둡니다. 폰트, 패딩, 너비는 Java가 제어합니다. */
+    -fx-background-color: #1e1e1e; /* transparent 대신 배경색과 맞추는 것을 권장합니다. */
+    -fx-text-fill: #858585;
+    -fx-alignment: CENTER_RIGHT; 
+}
+
+/* 
+ * 커서가 있는 줄에는 배경색만 칠하도록 규칙을 다시 추가합니다.
+ * 높이는 Java 코드가 padding으로 제어하므로, 여기서는 색상만 지정하면 됩니다.
+*/
+.code-area .paragraph-box:has-caret {
+    -fx-background-color: #2a2d2e;
+}
+
+.code-area .caret {
+    /* 커서의 색상만 남겨둡니다. 모양, 높이, 두께는 Java가 제어합니다. */
+    -fx-stroke: #d4d4d4;
+}
+
+.code-area .selection {
+    -fx-fill: #264f78;
+}
+
+
+/* Scroll Bar Styles */
+
+.editor-scroll-pane .scroll-bar {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+
+.editor-scroll-pane .scroll-bar .track {
+    -fx-background-color: #2a2d2e;
+    -fx-border-color: transparent;
+}
+
+.editor-scroll-pane .scroll-bar .thumb {
+    -fx-background-color: #686868;
+    -fx-background-insets: 0;
+}
+
+.editor-scroll-pane .scroll-bar .thumb:hover {
+    -fx-background-color: #888888;
+}
+
+.editor-scroll-pane .scroll-bar .increment-button,
+.editor-scroll-pane .scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-padding: 0;
+    -fx-font-size: 0;
+    -fx-min-width: 0;
+    -fx-max-width: 0;
+    -fx-pref-width: 0;
+    -fx-min-height: 0;
+    -fx-max-height: 0;
+    -fx-pref-height: 0;
+}
+
+.editor-scroll-pane .scroll-bar:vertical {
+    -fx-pref-width: 15px;
+}
+
+/* Syntax Highlighting */
+.text.comment { -fx-fill: #6A9555; }
+.text.string { -fx-fill: #CE9178; }
+.text.numeric { -fx-fill: #b0e792; }
+.text.language-constant { -fx-fill: #569CD6; }
+.text.keyword-control { -fx-fill: #C586C0; }
+.text.storage-modifier { -fx-fill: #569CD6; }
+.text.entity-name-type,
+.text.storage-type { -fx-fill: #71e2b5; }
+.text.entity-name-function { -fx-fill: #ffffa9; }
+.text.variable { -fx-fill: #a7f0fc; }
+.text.operator-comparison { -fx-fill: #d4d4d4; }
+.styled-text-area .syntax-error {
+    -rtfx-background-color: rgba(255, 71, 71, 0.39);
+    -rtfx-background-insets: 2 0 2 0;
+}
+
+/* Auto-completion Popup */
+.suggestion-item-selected .label {
+    -fx-text-fill: white!important;
+}
+.context-menu .menu-item.suggestion-item-selected {
+    -fx-background-color: #007acc!important;
+}
+
+#suggestion-list-view {
+    -fx-background-color: #151515;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-border-color: #333333;
+    -fx-border-width: 1px;
+    -fx-padding: 0;
+}
+
+#suggestion-list-view .list-cell {
+    -fx-padding: 2px 12px;
+    -fx-background-radius: 0;
+    -fx-font-size: 13px;
+}
+
+#suggestion-list-view .list-cell:filled:hover {
+    -fx-background-color: #333333;
+}
+
+#suggestion-list-view .list-cell:selected {
+    -fx-background-color: #094771;
+    -fx-text-fill: white;
+}
+
+#suggestion-list-view:focused .list-cell:selected {
+    -fx-background-color: #007acc;
+}
+
+/* Error Highlighting */
+.tab-label-error { -fx-text-fill: #ff6666; }
+.lineno-error .text { -fx-fill: #ff6666 !important; }
+
+/* Error Tooltip */
+.error-tooltip {
+    -fx-font-size: 12px;
+    -fx-background-color: #333333;
+    -fx-text-fill: #ff6666;
+    -fx-background-radius: 4px;
+    -fx-border-color: #555555;
+    -fx-border-radius: 4px;
+    -fx-padding: 5px;
+}

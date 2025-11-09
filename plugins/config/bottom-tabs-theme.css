@@ -1,0 +1,73 @@
+/* ================================================================== */
+/* Bottom Tabs Theme - Styles for the bottom Problems/Output tabs. */
+/* ================================================================== */
+
+.bottom-tab-pane {
+    -fx-tab-min-width: 0;
+}
+
+.bottom-tab-pane .tab-header-area {
+    -fx-padding: 0;
+}
+
+.bottom-tab-pane .tab-header-background {
+    -fx-background-color: #252526;
+}
+
+.bottom-tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 4px 12px;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+}
+
+.bottom-tab-pane .tab:selected {
+    -fx-background-color: transparent;
+    -fx-border-color: #cccccc;
+    -fx-border-width: 0 0 1px 0;
+}
+
+.bottom-tab-pane .tab .tab-label {
+    -fx-text-fill: #999999;
+    -fx-padding: 0; /* Override for centering */
+}
+
+.bottom-tab-pane .tab:selected .tab-label {
+    -fx-text-fill: #ffffff;
+}
+
+/* ListView for Problems/Output */
+.list-view {
+    -fx-background-color: #252526;
+    -fx-padding: 4px;
+}
+
+.list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #cccccc;
+    -fx-font-size: 14px;
+    -fx-padding: 8px 12px;
+}
+
+.list-cell:filled:hover {
+    -fx-background-color: #333333;
+}
+
+.list-cell:selected {
+    -fx-background-color: #094771;
+    -fx-text-fill: white;
+}
+
+.list-view:focused .list-cell:selected {
+    -fx-background-color: #007acc;
+}
+
+.list-cell:empty {
+    -fx-background-color: transparent;
+}
+
+.problems-list-cell {
+    -fx-font-size: 12px;
+    -fx-padding: 2px 8px;
+}

@@ -71,19 +71,23 @@ public class MainScreen {
     private ProblemsView problemsView; // Make ProblemsView accessible
     private OutputView outputView;
     private Tab problemsTab;
+    private Label problemsTabLabel;
 
     public void updateProblemsTab(int errorCount) {
-        if (problemsTab == null) return;
+        if (problemsTabLabel == null) return;
 
-        if (errorCount > 0) {
-            problemsTab.setText("PROBLEMS (" + errorCount + ")");
-            if (!problemsTab.getStyleClass().contains("tab-label-error")) {
-                problemsTab.getStyleClass().add("tab-label-error");
+        Platform.runLater(() -> {
+            if (errorCount > 0) {
+                
+                problemsTabLabel.setText("PROBLEMS (" + errorCount + ")");
+                if (!problemsTabLabel.getStyleClass().contains("tab-label-error")) {
+                    problemsTabLabel.getStyleClass().add("tab-label-error");
+                }
+            } else {
+                problemsTabLabel.setText("PROBLEMS");
+                problemsTabLabel.getStyleClass().remove("tab-label-error");
             }
-        } else {
-            problemsTab.setText("PROBLEMS");
-            problemsTab.getStyleClass().remove("tab-label-error");
-        }
+        });
     }
 
     public ProblemsView getProblemsView() {
@@ -149,7 +153,13 @@ public class MainScreen {
             isDragging[0] = false;
         });
 
-        mainLayout.getStyleClass().add("root-pane"); 
+        mainLayout.getStyleClass().add("root-pane");
+        try {
+            Path cssPath = Paths.get("plugins", "config", "top-tabs-theme.css");
+            mainLayout.getStylesheets().add(cssPath.toUri().toURL().toExternalForm());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         mainLayout.setTop(titleBar);
 
         fileExplorer = new TreeView<>();
@@ -168,8 +178,10 @@ public class MainScreen {
         outputTab.setClosable(false);
 
         // 'Problems' 탭 생성
-        this.problemsView = new ProblemsView(); // Assign to field
-        this.problemsTab = new Tab("PROBLEMS");
+        this.problemsView = new ProblemsView(mainController); // Assign to field
+        this.problemsTabLabel = new Label("PROBLEMS");
+        this.problemsTab = new Tab();
+        this.problemsTab.setGraphic(problemsTabLabel);
         problemsTab.setContent(problemsView.getView());
         problemsTab.setClosable(false);
 

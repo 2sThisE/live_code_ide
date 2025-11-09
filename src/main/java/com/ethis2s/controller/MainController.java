@@ -101,11 +101,16 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         this.mainScene = new Scene(rootPane, 1280, 720);
         mainScene.setFill(Color.TRANSPARENT);
         try {
-            String cssPath = "file:/" + System.getProperty("user.dir").replace("\\", "/") + "/plugins/theme/style.css";
-            mainScene.getStylesheets().add(cssPath);
+            String baseCssPath = "file:/" + System.getProperty("user.dir").replace("\\", "/") + "/plugins/config/";
+            mainScene.getStylesheets().addAll(
+                baseCssPath + "main-theme.css",
+                baseCssPath + "tree-view-theme.css",
+                baseCssPath + "top-tabs-theme.css",
+                baseCssPath + "bottom-tabs-theme.css"
+            );
         } catch (Exception e) {
             e.printStackTrace();
-            System.err.println("테마 파일을 로드할 수 없습니다: plugins/theme/style.css");
+            System.err.println("테마 파일을 로드할 수 없습니다.");
         }
         
         primaryStage.setScene(mainScene);
@@ -321,5 +326,11 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     @Override
     public void onAddFolderResponse(boolean result) {
         projectController.handleAddFolderResponse(result);
+    }
+
+    public void navigateToError(Problem problem) {
+        if (editorTabView != null && problem != null) {
+            editorTabView.navigateTo(problem.filePath, problem.error.line, problem.error.charPositionInLine);
+        }
     }
 }

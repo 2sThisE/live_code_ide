@@ -2,24 +2,37 @@ package com.ethis2s.view;
 
 import com.ethis2s.controller.MainController;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
+import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.HybridManager;
 import com.ethis2s.view.ProblemsView.Problem;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
+import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.SimpleDoubleProperty;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
+import javafx.collections.ListChangeListener;
+import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
+import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.Tooltip;
+import javafx.scene.text.Font;
+import javafx.scene.text.Text;
 import javafx.scene.control.TabPane.TabDragPolicy;
 import javafx.util.Duration;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
+import org.fxmisc.richtext.LineNumberFactory;
 import org.fxmisc.richtext.model.TwoDimensional.Bias;
 
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,9 +125,16 @@ public class EditorTabView {
             String tabId = entry.getKey();
             String fileName = tabFileNames.get(tabId);
             List<SyntaxError> errors = entry.getValue();
-            
-            for (SyntaxError error : errors) {
-                allProblems.add(new Problem(fileName, error));
+
+            String filePath = null;
+            if (tabId.startsWith("file-")) {
+                filePath = tabId.substring(5);
+            }
+
+            if (filePath != null && fileName != null) {
+                for (SyntaxError error : errors) {
+                    allProblems.add(new Problem(filePath, fileName, error));
+                }
             }
         }
         mainController.updateProblems(allProblems);
@@ -145,15 +165,9 @@ public class EditorTabView {
 
         CodeArea codeArea = codeAreaMap.get(tabId);
         if (codeArea != null) {
-            codeArea.setParagraphGraphicFactory(lineIndex -> {
-                Label lineLabel = new Label(String.valueOf(lineIndex + 1));
-                lineLabel.getStyleClass().add("lineno");
-                boolean hasError = errors.stream().anyMatch(e -> e.line - 1 == lineIndex);
-                if (hasError) {
-                    lineLabel.getStyleClass().add("lineno-error");
-                }
-                return lineLabel;
-            });
+            // The existing factory now knows how to handle errors.
+            // We just need to trigger a refresh of the paragraph graphics.
+            codeArea.setParagraphGraphicFactory(codeArea.getParagraphGraphicFactory());
         }
     }
 
@@ -165,17 +179,18 @@ public class EditorTabView {
             selectTab(tabId);
             return;
         }
-
+        
         CodeArea codeArea = new CodeArea();
         codeArea.getStyleClass().add("code-area");
+        
+        String dynamicCSS = String.format(".paragraph-text { -fx-tab-size: %d; }", ConfigManager.TAB_SIZE);
+        String dataUri = "data:text/css;base64," + Base64.getEncoder().encodeToString(dynamicCSS.getBytes());
+        codeArea.getStylesheets().add(dataUri);
         codeAreaMap.put(tabId, codeArea);
         tabErrors.put(tabId, new ArrayList<>());
+        tabFileNames.put(tabId, fileName);
 
-        codeArea.setParagraphGraphicFactory(lineIndex -> {
-            Label lineLabel = new Label(String.valueOf(lineIndex + 1));
-            lineLabel.getStyleClass().add("lineno");
-            return lineLabel;
-        });
+        setupEditorFeatures(codeArea, tabId);
         
         setupErrorTooltip(codeArea, tabId);
 
@@ -203,7 +218,6 @@ public class EditorTabView {
         newTab.setId(tabId);
         newTab.setClosable(true);
         newTab.setOnClosed(e -> onClose.run());
-        
         editorTabs.getTabs().add(newTab);
         editorTabs.getSelectionModel().select(newTab);
     }
@@ -243,5 +257,137 @@ public class EditorTabView {
         if (filename == null) return "";
         int dotIndex = filename.lastIndexOf('.');
         return (dotIndex == -1) ? "" : filename.substring(dotIndex + 1);
+    }
+
+    public void navigateTo(String filePath, int line, int column) {
+        String tabId = "file-" + filePath;
+        if (!hasTab(tabId)) {
+            System.out.println("File not open: " + filePath);
+            return;
+        }
+
+        selectTab(tabId);
+        CodeArea codeArea = codeAreaMap.get(tabId);
+        if (codeArea != null) {
+            // line is 1-based, moveTo is 0-based
+            codeArea.moveTo(line - 1, column);
+            codeArea.requestFollowCaret(); // Make sure the caret is visible
+            codeArea.requestFocus();
+        }
+    }
+    
+
+    private void setupEditorFeatures(CodeArea codeArea, String tabId) {
+        // =================================================================================
+        // --- 1. 스타일의 "단일 소스(Single Source of Truth)" 정의 ---
+        // =================================================================================
+        final int FONT_SIZE = 16;
+        final String FONT_FAMILY = "Consolas";
+        final Font CODE_FONT = Font.font(FONT_FAMILY, FONT_SIZE);
+        final Font LINE_NUMBER_FONT = Font.font(FONT_FAMILY, FONT_SIZE);
+        final double LINE_SPACING_FACTOR = 0.4; // 줄 간격을 약간 늘려 가독성 확보
+        final double MIN_INITIAL_WIDTH = 60.0;
+        final double RIGHT_PADDING_NUM = 15.0;
+        final double LEFT_PADDING_NUM = 5.0;
+
+        // =================================================================================
+        // --- 2. 폰트 메트릭스를 기반으로 동적 CSS 및 높이 계산 (개선된 방식) ---
+        // =================================================================================
+
+        // 폰트의 전체 높이를 더 정확하게 측정하기 위해 FontMetrics 사용 (JavaFX 8u60 이상 권장)
+        // 또는 Text 객체를 사용하되, 더 안정적인 높이 계산을 적용합니다.
+        Text tempText = new Text("Ag");
+        tempText.setFont(CODE_FONT);
+        double fontHeight = tempText.getLayoutBounds().getHeight(); // 기본 폰트 높이
+
+        // 목표 라인 높이(Target Line Height)를 명확하게 정의합니다.
+        // 이 값이 코드와 라인 번호의 실제 한 줄 높이가 됩니다.
+        double targetLineHeight = Math.ceil(fontHeight * (1 + LINE_SPACING_FACTOR));
+
+        // 라인 높이에 따른 상하 패딩 계산
+        // (목표 높이 - 폰트 높이) / 2
+        double caretHeight = targetLineHeight + 1;
+
+        // 최종 CSS 규칙 생성
+        String dynamicCSS = String.format(
+            /*
+            * .paragraph-box: Flexbox를 사용하여 텍스트를 수직 중앙 정렬합니다.
+            *   - fx-display: flex; -> Flexbox 컨테이너로 만듭니다.
+            *   - fx-alignment: center-left; -> 내용을 수직으로는 중앙, 수평으로는 왼쪽에 정렬합니다.
+            * .caret: 보정된 높이(caretHeight)를 적용합니다.
+            */
+            ".paragraph-box {" +
+            "    -fx-min-height: %.1fpx; -fx-max-height: %.1fpx; -fx-pref-height: %.1fpx;" +
+            "    -fx-display: flex;" +
+            "    -fx-alignment: center-left;" +
+            "    -fx-padding: 0 0 0 10px;" +
+            "}" +
+            ".caret {" +
+            "    -fx-shape: \"M0,0 H1 V%.1f\";" +
+            "    -fx-stroke-width: 2px;" +
+            "}",
+            targetLineHeight, targetLineHeight, targetLineHeight,
+            caretHeight // ★ 핵심: 보정된 커서 높이 적용
+        );
+
+        String dataUri = "data:text/css;base64," + Base64.getEncoder().encodeToString(dynamicCSS.getBytes());
+        codeArea.getStylesheets().add(dataUri);
+
+        // CodeArea 자체의 폰트 설정
+        codeArea.setStyle(String.format(
+            "-fx-font-family: '%s'; -fx-font-size: %dpx;",
+            FONT_FAMILY,
+            FONT_SIZE
+        ));
+        
+        // =================================================================================
+        // --- 3. 라인 번호 너비 및 스타일 설정 (개선된 높이 값 적용) ---
+        // =================================================================================
+
+        final DoubleProperty lineNumberPrefWidth = new SimpleDoubleProperty(MIN_INITIAL_WIDTH);
+
+        // 라인 번호 너비 동적 계산 (이전 코드와 동일)
+        codeArea.getParagraphs().addListener((ListChangeListener<Object>) c -> {
+            int totalLines = Math.max(1, codeArea.getParagraphs().size());
+            String maxLineNumberText = String.valueOf(totalLines);
+            Text text = new Text(maxLineNumberText);
+            text.setFont(LINE_NUMBER_FONT);
+            double textWidth = text.getLayoutBounds().getWidth();
+            double horizontalPadding = LEFT_PADDING_NUM + RIGHT_PADDING_NUM;
+            double dynamicWidth = Math.ceil(textWidth + horizontalPadding);
+            lineNumberPrefWidth.set(Math.max(MIN_INITIAL_WIDTH, dynamicWidth));
+        });
+
+        codeArea.setParagraphGraphicFactory(lineIndex -> {
+            Label lineLabel = new Label();
+            lineLabel.setFont(LINE_NUMBER_FONT);
+            lineLabel.setText(String.valueOf(lineIndex + 1));
+            lineLabel.getStyleClass().add("lineno");
+
+            // *** 핵심: 라인 번호의 높이도 CSS와 동일한 targetLineHeight로 고정 ***
+            lineLabel.setPrefHeight(targetLineHeight);
+            lineLabel.setAlignment(Pos.CENTER); // 텍스트를 중앙에 정렬
+            
+            // 패딩은 좌우만 적용 (높이는 prefHeight로 제어하므로)
+            lineLabel.setPadding(new Insets(0, RIGHT_PADDING_NUM, 0, LEFT_PADDING_NUM));
+            
+            lineLabel.prefWidthProperty().bind(lineNumberPrefWidth);
+            
+            // 에러 상태 처리
+            List<SyntaxError> errors = tabErrors.getOrDefault(tabId, new ArrayList<>());
+            boolean hasError = errors.stream().anyMatch(e -> e.line - 1 == lineIndex);
+            if (hasError) {
+                if (!lineLabel.getStyleClass().contains("lineno-error")) {
+                    lineLabel.getStyleClass().add("lineno-error");
+                }
+            } else {
+                lineLabel.getStyleClass().remove("lineno-error");
+            }
+            return lineLabel;
+        });
+        
+        
+        // 캐럿이 화면에 보이도록 자동 스크롤
+        codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> codeArea.requestFollowCaret());
     }
 }
