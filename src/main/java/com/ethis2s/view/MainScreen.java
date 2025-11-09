@@ -69,9 +69,29 @@ public class MainScreen {
     }
 
     private ProblemsView problemsView; // Make ProblemsView accessible
+    private OutputView outputView;
+    private Tab problemsTab;
+
+    public void updateProblemsTab(int errorCount) {
+        if (problemsTab == null) return;
+
+        if (errorCount > 0) {
+            problemsTab.setText("PROBLEMS (" + errorCount + ")");
+            if (!problemsTab.getStyleClass().contains("tab-label-error")) {
+                problemsTab.getStyleClass().add("tab-label-error");
+            }
+        } else {
+            problemsTab.setText("PROBLEMS");
+            problemsTab.getStyleClass().remove("tab-label-error");
+        }
+    }
 
     public ProblemsView getProblemsView() {
         return problemsView;
+    }
+
+    public OutputView getOutputView() {
+        return outputView;
     }
 
     public BorderPane createMainScreen(Stage stage, TabPane editorTabs, Label statusLabel, MainController mainController) {
@@ -142,14 +162,14 @@ public class MainScreen {
         bottomTabPane.getStyleClass().add("bottom-tab-pane"); // 커스텀 스타일 적용
 
         // 'Output' 탭 생성
-        OutputView outputView = new OutputView();
+        this.outputView = new OutputView();
         Tab outputTab = new Tab("OUTPUT");
         outputTab.setContent(outputView.getView());
         outputTab.setClosable(false);
 
         // 'Problems' 탭 생성
         this.problemsView = new ProblemsView(); // Assign to field
-        Tab problemsTab = new Tab("PROBLEMS");
+        this.problemsTab = new Tab("PROBLEMS");
         problemsTab.setContent(problemsView.getView());
         problemsTab.setClosable(false);
 
@@ -417,6 +437,7 @@ public class MainScreen {
             fileExplorer.getSelectionModel().select(newItem);
             fileExplorer.scrollTo(fileExplorer.getRow(newItem));
             fileExplorer.edit(newItem); 
+            
         });
     }
 
@@ -612,6 +633,7 @@ public class MainScreen {
                     if (!newName.isEmpty()) {
                         commitEdit(new UserProjectsInfo(newName));
                         projectController.createProjectRequest(newName);
+                        projectController.projectListRequest();
                     } else {
                         cancelEdit();
                     }

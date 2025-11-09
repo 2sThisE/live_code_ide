@@ -152,6 +152,10 @@ public class ProjectController {
     public void handleCreateProjectResponse(boolean result) {
         if (result) {
             projectListRequest();
+        } else {
+            Platform.runLater(() -> {
+                mainScreen.getOutputView().appendText("[ERROR] 프로젝트 생성에 실패했습니다.\n");
+            });
         }
     }
 }

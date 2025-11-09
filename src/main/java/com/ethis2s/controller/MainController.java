@@ -72,6 +72,9 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         if (problemsView != null) {
             problemsView.updateProblems(problems);
         }
+        if (mainScreen != null) {
+            mainScreen.updateProblemsTab(problems.size());
+        }
     }
 
     public void shutdown() {
