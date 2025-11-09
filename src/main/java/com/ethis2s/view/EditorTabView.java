@@ -21,6 +21,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.Tooltip;
+import javafx.scene.layout.Region;
 import javafx.scene.text.Font;
 import javafx.scene.text.Text;
 import javafx.scene.control.TabPane.TabDragPolicy;
@@ -33,6 +34,7 @@ import org.fxmisc.richtext.model.TwoDimensional.Bias;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -281,7 +283,7 @@ public class EditorTabView {
         // =================================================================================
         // --- 1. 스타일의 "단일 소스(Single Source of Truth)" 정의 ---
         // =================================================================================
-        final int FONT_SIZE = 16;
+        final int FONT_SIZE = 15;
         final String FONT_FAMILY = "Consolas";
         final Font CODE_FONT = Font.font(FONT_FAMILY, FONT_SIZE);
         final Font LINE_NUMBER_FONT = Font.font(FONT_FAMILY, FONT_SIZE);
@@ -306,8 +308,9 @@ public class EditorTabView {
 
         // 라인 높이에 따른 상하 패딩 계산
         // (목표 높이 - 폰트 높이) / 2
+        double verticalPadding = (targetLineHeight - fontHeight) / 2.0;
         double caretHeight = targetLineHeight + 1;
-
+        
         // 최종 CSS 규칙 생성
         String dynamicCSS = String.format(
             /*
@@ -315,6 +318,7 @@ public class EditorTabView {
             *   - fx-display: flex; -> Flexbox 컨테이너로 만듭니다.
             *   - fx-alignment: center-left; -> 내용을 수직으로는 중앙, 수평으로는 왼쪽에 정렬합니다.
             * .caret: 보정된 높이(caretHeight)를 적용합니다.
+            * .syntax-error: 계산된 verticalPadding 값을 사용하여 배경 높이를 확장합니다.
             */
             ".paragraph-box {" +
             "    -fx-min-height: %.1fpx; -fx-max-height: %.1fpx; -fx-pref-height: %.1fpx;" +
@@ -325,9 +329,14 @@ public class EditorTabView {
             ".caret {" +
             "    -fx-shape: \"M0,0 H1 V%.1f\";" +
             "    -fx-stroke-width: 2px;" +
+            "}" +
+            ".syntax-error {" +
+            "    -rtfx-background-color: rgba(255, 71, 71, 0.39);" +
+            "    -fx-padding: %.1fpx 0;" + /* ★ 핵심: 계산된 수직 패딩 적용 */
             "}",
-            targetLineHeight, targetLineHeight, targetLineHeight,
-            caretHeight // ★ 핵심: 보정된 커서 높이 적용
+            targetLineHeight, targetLineHeight, targetLineHeight, // for .paragraph-box
+            caretHeight, // for .caret
+            verticalPadding // for .syntax-error padding
         );
 
         String dataUri = "data:text/css;base64," + Base64.getEncoder().encodeToString(dynamicCSS.getBytes());
@@ -357,23 +366,28 @@ public class EditorTabView {
             double dynamicWidth = Math.ceil(textWidth + horizontalPadding);
             lineNumberPrefWidth.set(Math.max(MIN_INITIAL_WIDTH, dynamicWidth));
         });
-
+        final String CARET_LINE_STYLE = "-fx-text-fill: #d4d4d4;"; // 커서 라인 색상
+        final String DEFAULT_LINE_STYLE = "-fx-text-fill: #585858;"; // 기본 라인 색상
         codeArea.setParagraphGraphicFactory(lineIndex -> {
             Label lineLabel = new Label();
             lineLabel.setFont(LINE_NUMBER_FONT);
             lineLabel.setText(String.valueOf(lineIndex + 1));
             lineLabel.getStyleClass().add("lineno");
-
-            // *** 핵심: 라인 번호의 높이도 CSS와 동일한 targetLineHeight로 고정 ***
             lineLabel.setPrefHeight(targetLineHeight);
-            lineLabel.setAlignment(Pos.CENTER); // 텍스트를 중앙에 정렬
-            
-            // 패딩은 좌우만 적용 (높이는 prefHeight로 제어하므로)
+            lineLabel.setAlignment(Pos.CENTER);
             lineLabel.setPadding(new Insets(0, RIGHT_PADDING_NUM, 0, LEFT_PADDING_NUM));
-            
             lineLabel.prefWidthProperty().bind(lineNumberPrefWidth);
+
+            // ★★★ 해결책 ★★★
+            // 새로 생성되는 모든 라인 번호에 기본 스타일을 즉시 적용합니다.
+            // 이렇게 하면 줄바꿈 시에도 모든 라인이 올바른 기본 색상을 유지합니다.
+            if (lineIndex == codeArea.getCurrentParagraph()) {
+                lineLabel.setStyle(CARET_LINE_STYLE);
+            } else {
+                lineLabel.setStyle(DEFAULT_LINE_STYLE);
+            }
             
-            // 에러 상태 처리
+            // --- 에러 상태 처리 로직은 그대로 유지 ---
             List<SyntaxError> errors = tabErrors.getOrDefault(tabId, new ArrayList<>());
             boolean hasError = errors.stream().anyMatch(e -> e.line - 1 == lineIndex);
             if (hasError) {
@@ -386,8 +400,36 @@ public class EditorTabView {
             return lineLabel;
         });
         
-        
+        codeArea.currentParagraphProperty().addListener((obs, oldParagraph, newParagraph) -> {
+            // 이전 라인의 스타일을 기본값으로 되돌림
+            Label oldLabel = getLineNumberLabel(codeArea, oldParagraph);
+            if (oldLabel != null) {
+                oldLabel.setStyle(DEFAULT_LINE_STYLE);
+            }
+
+            // 새 라인의 스타일을 강조값으로 변경
+            Label newLabel = getLineNumberLabel(codeArea, newParagraph);
+            if (newLabel != null) {
+                newLabel.setStyle(CARET_LINE_STYLE);
+            }
+        });
         // 캐럿이 화면에 보이도록 자동 스크롤
         codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> codeArea.requestFollowCaret());
+ 
+    }
+    private Label getLineNumberLabel(CodeArea codeArea, int paragraphIndex) {
+        // IndexOutOfBoundsException 방지를 위해, paragraphIndex가 유효한 범위 내에 있는지 확인합니다.
+        if (paragraphIndex < 0 || paragraphIndex >= codeArea.getParagraphs().size()) {
+            return null;
+        }
+        Node graphic = codeArea.getParagraphGraphic(paragraphIndex);
+        if (graphic instanceof Label) {
+            return (Label) graphic;
+        }
+        // RichTextFX v0.10+ 에서는 LabeledImpl 안에 Label이 있을 수 있습니다.
+        if (graphic instanceof Region && ((Region) graphic).lookup(".label") instanceof Label) {
+            return (Label) ((Region) graphic).lookup(".label");
+        }
+        return null;
     }
 }

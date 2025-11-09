@@ -13,6 +13,7 @@ import com.ethis2s.model.UserProjectsInfo;
 import com.ethis2s.service.ClientSocketManager;
 import com.ethis2s.util.ProtocolConstants;
 import com.ethis2s.util.ReSizeHelper;
+import com.ethis2s.view.DebugView;
 import com.ethis2s.view.EditorTabView;
 import com.ethis2s.view.LoginScreen;
 import com.ethis2s.view.MainScreen;
@@ -44,6 +45,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     
     private ProjectController projectController;
     private ProblemsView problemsView; // ProblemsView에 접근하기 위한 참조
+    private DebugView debugView;
 
     private Scene mainScene;
     private Label statusBarLabel;
@@ -77,6 +79,10 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         }
     }
 
+    public DebugView getDebugView() {
+        return debugView;
+    }
+
     public void shutdown() {
         editorTabView.shutdownAllManagers();
     }
@@ -97,6 +103,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         
         BorderPane rootPane = mainScreen.createMainScreen(primaryStage, editorTabView.getTabPane(), statusBarLabel, this);
         this.problemsView = mainScreen.getProblemsView(); // MainScreen으로부터 ProblemsView 참조를 얻음
+        this.debugView = mainScreen.getDebugView(); // MainScreen으로부터 DebugView 참조를 얻음
 
         this.mainScene = new Scene(rootPane, 1280, 720);
         mainScene.setFill(Color.TRANSPARENT);

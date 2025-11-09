@@ -69,6 +69,7 @@ public class MainScreen {
     }
 
     private ProblemsView problemsView; // Make ProblemsView accessible
+    private DebugView debugView;
     private OutputView outputView;
     private Tab problemsTab;
     private Label problemsTabLabel;
@@ -96,6 +97,10 @@ public class MainScreen {
 
     public OutputView getOutputView() {
         return outputView;
+    }
+
+    public DebugView getDebugView() {
+        return debugView;
     }
 
     public BorderPane createMainScreen(Stage stage, TabPane editorTabs, Label statusLabel, MainController mainController) {
@@ -185,7 +190,13 @@ public class MainScreen {
         problemsTab.setContent(problemsView.getView());
         problemsTab.setClosable(false);
 
-        bottomTabPane.getTabs().addAll(outputTab, problemsTab);
+        // 'Debug' 탭 생성
+        this.debugView = new DebugView();
+        Tab debugTab = new Tab("DEBUG");
+        debugTab.setContent(debugView.getView());
+        debugTab.setClosable(false);
+
+        bottomTabPane.getTabs().addAll(outputTab, problemsTab, debugTab);
         // --- 하단 탭 패널 생성 끝 ---
 
         TabPane safeEditorTabs = (editorTabs != null) ? editorTabs : new TabPane();

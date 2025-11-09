@@ -2,11 +2,12 @@ package com.ethis2s;
 
 import com.ethis2s.controller.MainController;
 import com.ethis2s.service.ClientSocketManager;
-
+import com.ethis2s.util.DebugRedirectStream;
+import com.ethis2s.view.DebugView;
+import java.io.PrintStream;
 import javafx.application.Application;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
-import javafx.application.Platform;
 
 public class App extends Application {
 
@@ -29,6 +30,15 @@ public class App extends Application {
 
         // Initialize the main UI
         mainController.initMainScreen();
+
+        // Redirect console output to the DebugView
+        DebugView debugView = mainController.getDebugView();
+        if (debugView != null) {
+            PrintStream outStream = new DebugRedirectStream(System.out, debugView);
+            PrintStream errStream = new DebugRedirectStream(System.err, debugView);
+            System.setOut(outStream);
+            System.setErr(errStream);
+        }
         
         // Start the socket connection in a new thread to avoid blocking the UI
         new Thread(() -> {
