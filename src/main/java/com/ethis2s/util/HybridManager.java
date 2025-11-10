@@ -5,6 +5,7 @@ import com.ethis2s.service.AntlrLanguageService;
 import com.ethis2s.service.AntlrLanguageService.AnalysisResult;
 import com.ethis2s.service.AntlrLanguageService.BracketPair;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
+import com.ethis2s.util.Tm4eSyntaxHighlighter.StyleToken;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.util.Duration;
@@ -33,7 +34,7 @@ public class HybridManager {
     private AntlrCompletionService completionService = null;
     private final Consumer<List<SyntaxError>> onErrorUpdate;
     private final PauseTransition antlrDebouncer;
-    private StyleSpans<Collection<String>> lastTm4eSpans; // TM4E 결과를 저장할 필드
+    private List<StyleToken> lastTm4eTokens; // TM4E 결과를 저장할 필드
     private AnalysisResult lastAnalysisResult; // ANTLR 분석 결과를 저장할 필드
     private CompletableFuture<AnalysisResult> currentAntlrFuture; // 현재 진행중인 ANTLR 분석 작업
 
@@ -61,10 +62,25 @@ public class HybridManager {
 
         // 텍스트가 변경될 때마다 즉시 TM4E 하이라이팅을 실행하고, ANTLR 분석은 1초 뒤로 예약합니다.
         codeArea.multiPlainChanges()
-            .successionEnds(java.time.Duration.ofMillis(50)) // TM4E는 더 빠르게 반응
-            .subscribe(ignore -> {
-                runTm4eHighlighting();
+            .subscribe(changes -> {
+                // 예측 스타일링 적용
+                if (lastTm4eTokens != null) {
+                    for (var change : changes) {
+                        int diff = change.getInserted().length() - change.getRemoved().length();
+                        if (diff != 0) {
+                            shiftTokens(lastTm4eTokens, change.getPosition(), diff);
+                            if (lastAnalysisResult != null) {
+                                shiftTokens(lastAnalysisResult.symbolTokens, change.getPosition(), diff);
+                                // TODO: BracketMapping 등 다른 ANTLR 결과도 보정 필요
+                            }
+                        }
+                    }
+                    applyHighlighting();
+                }
+
+                // 실제 분석 실행
                 antlrDebouncer.playFromStart(); // ANTLR 분석 타이머 재시작
+                runTm4eHighlighting();
             });
         
         // 커서 위치가 바뀔 때마다 즉시 괄호 강조를 업데이트합니다.
@@ -74,10 +90,10 @@ public class HybridManager {
     private void runTm4eHighlighting() {
         String text = codeArea.getText();
         CompletableFuture.supplyAsync(() -> highlighter.computeHighlighting(text), analysisExecutor)
-            .thenAcceptAsync(tm4eSpans -> {
-                this.lastTm4eSpans = tm4eSpans;
-                // ANTLR 분석을 기다리지 않고, TM4E 결과라도 먼저 화면에 적용합니다.
-                codeArea.setStyleSpans(0, tm4eSpans);
+            .thenAcceptAsync(tokens -> {
+                this.lastTm4eTokens = tokens;
+                // ANTLR 분석이 완료되면 applyHighlighting이 호출되므로, 여기서는 직접 호출하지 않아도 됨.
+                // 만약 ANTLR 분석이 없다면, 여기서 직접 호출해야 할 수도 있음.
             }, Platform::runLater);
     }
 
@@ -103,7 +119,7 @@ public class HybridManager {
         currentAntlrFuture.thenAcceptAsync(analysisResult -> {
             this.lastAnalysisResult = analysisResult; // 최신 분석 결과를 저장합니다.
             
-            if (this.lastTm4eSpans == null) {
+            if (this.lastTm4eTokens == null) {
                 antlrDebouncer.playFromStart(); 
                 return;
             }
@@ -125,28 +141,70 @@ public class HybridManager {
         });
     }
 
+    private void shiftTokens(List<StyleToken> tokens, int position, int diff) {
+        if (tokens == null) return;
+        for (StyleToken token : tokens) {
+            if (token.start >= position) {
+                token.start += diff;
+                token.end += diff;
+            } else if (token.end > position) {
+                token.end += diff;
+            }
+        }
+    }
+
     private void updateBracketHighlighting() {
         // ANTLR 분석 결과가 없으면 아무것도 하지 않습니다.
-        if (lastAnalysisResult == null || lastTm4eSpans == null) {
+        if (lastAnalysisResult == null || lastTm4eTokens == null) {
             return;
         }
         // 모든 스타일을 다시 계산하되, 괄호 강조만 새 커서 위치를 기준으로 다시 계산합니다.
         applyHighlighting();
     }
 
+    private StyleSpans<Collection<String>> tokensToSpans(List<StyleToken> tokens) {
+        if (tokens == null || tokens.isEmpty()) {
+            return StyleSpans.singleton(Collections.emptyList(), codeArea.getLength());
+        }
+
+        StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
+        int lastEnd = 0;
+        for (StyleToken token : tokens) {
+            int start = token.start;
+            int end = token.end;
+            if (start > lastEnd) {
+                spansBuilder.add(Collections.emptyList(), start - lastEnd);
+            }
+            spansBuilder.add(token.styleClasses, end - start);
+            lastEnd = end;
+        }
+        int remaining = codeArea.getLength() - lastEnd;
+        if (remaining > 0) {
+            spansBuilder.add(Collections.emptyList(), remaining);
+        }
+        return spansBuilder.create();
+    }
+
     private void applyHighlighting() {
-        if (lastAnalysisResult == null || lastTm4eSpans == null) {
+        if (lastTm4eTokens == null) {
+            return;
+        }
+
+        StyleSpans<Collection<String>> tm4eSpans = tokensToSpans(lastTm4eTokens);
+
+        if (lastAnalysisResult == null) {
+            codeArea.setStyleSpans(0, tm4eSpans);
             return;
         }
 
         int caretPosition = codeArea.getCaretPosition();
         Optional<BracketPair> bracketPair = lastAnalysisResult.bracketMapping.findEnclosingPair(caretPosition);
 
-        StyleSpans<Collection<String>> symbolSpans = lastAnalysisResult.symbolSpans;
+        StyleSpans<Collection<String>> symbolSpans = tokensToSpans(lastAnalysisResult.symbolTokens);
         StyleSpans<Collection<String>> errorSpans = computeErrorSpans(lastAnalysisResult.errors);
         StyleSpans<Collection<String>> bracketSpans = computeBracketHighlightSpans(bracketPair);
         
-        StyleSpans<Collection<String>> finalSpans = this.lastTm4eSpans
+        StyleSpans<Collection<String>> finalSpans = tm4eSpans
             .overlay(symbolSpans, (base, symbol) -> !symbol.isEmpty() ? symbol : base)
             .overlay(errorSpans, (base, error) -> {
                 if (!error.isEmpty()) {

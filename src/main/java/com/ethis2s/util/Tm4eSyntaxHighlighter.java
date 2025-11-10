@@ -141,10 +141,22 @@ public class Tm4eSyntaxHighlighter {
     
     public void shutdown() { executor.shutdown(); }
 
-     private class HighlightingTask extends Task<StyleSpans<Collection<String>>> {
+    public static class StyleToken {
+        public int start;
+        public int end;
+        public final List<String> styleClasses;
+
+        public StyleToken(int start, int end, List<String> styleClasses) {
+            this.start = start;
+            this.end = end;
+            this.styleClasses = styleClasses;
+        }
+    }
+
+     private class HighlightingTask extends Task<List<StyleToken>> {
         private final String text;
         public HighlightingTask(String text) { this.text = text; }
-        @Override protected StyleSpans<Collection<String>> call() {return computeHighlighting(text);}
+        @Override protected List<StyleToken> call() {return computeHighlighting(text);}
     }
 
     private String scopeToGenericStyleClass(String scope) {
@@ -170,51 +182,41 @@ public class Tm4eSyntaxHighlighter {
         return "";
     }
     
-    public StyleSpans<Collection<String>> computeHighlighting(String text) {
-        // "No spans have been added" 오류를 해결하는 안전장치
+    public List<StyleToken> computeHighlighting(String text) {
+        List<StyleToken> tokens = new ArrayList<>();
         if (text.isEmpty()) {
-            return StyleSpans.singleton(Collections.singleton("text"), 0);
+            return tokens;
         }
 
-        StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
         String[] lines = text.split("\n", -1);
+        IStateStack ruleStack = null;
+        int currentOffset = 0;
 
-        IStateStack ruleStack = null; // [기억력 담당] 이전 줄의 상태를 저장할 변수
-        
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
-            
-            // [핵심 수정] 상태를 저장하는, 3개의 인자를 받는 tokenizeLine 호출!
             ITokenizeLineResult<IToken[]> result = grammar.tokenizeLine(line, ruleStack, null);
-            ruleStack = result.getRuleStack(); // [기억력 담당] 다음 줄을 위해 상태 업데이트
+            ruleStack = result.getRuleStack();
             boolean isErrorLine = this.errorLines.contains(i);
-            // getTokens()가 IToken[]을 반환하므로 더 이상 Object 캐스팅 불필요
-            IToken[] tokens = result.getTokens();
+            IToken[] lineTokens = result.getTokens();
 
             int lastTokenEnd = 0;
-            for (IToken token : tokens) {
+            for (IToken token : lineTokens) {
                 int start = token.getStartIndex();
                 int end = token.getEndIndex();
                 if (end > line.length()) {
                     end = line.length();
                     if (start >= end) continue;
                 }
-                
+
                 if (start > lastTokenEnd) {
-                    spansBuilder.add(Collections.singleton("text"), start - lastTokenEnd);
+                    tokens.add(new StyleToken(currentOffset + lastTokenEnd, currentOffset + start, Collections.singletonList("text")));
                 }
-                String word = line.substring(start, end); // 토큰에 해당하는 실제 단어 추출
-                 String finalGenericClass = ""; // 최종 번역된 클래스를 저장할 변수
 
                 List<String> styleClasses = new ArrayList<>();
                 styleClasses.add("text");
                 if (!token.getScopes().isEmpty()) {
                     String scope = token.getScopes().get(token.getScopes().size() - 1);
                     String genericClass = scopeToGenericStyleClass(scope);
-                    String originalScope = token.getScopes().get(token.getScopes().size() - 1);
-                    // "번역기"를 통해 범용 CSS 클래스로 변환
-                    finalGenericClass = scopeToGenericStyleClass(originalScope);
-                    
                     if (!genericClass.isEmpty()) {
                         styleClasses.add(genericClass);
                     }
@@ -222,22 +224,21 @@ public class Tm4eSyntaxHighlighter {
                 if (isErrorLine) {
                     styleClasses.add("syntax-error");
                 }
-                spansBuilder.add(styleClasses, end - start);
+                tokens.add(new StyleToken(currentOffset + start, currentOffset + end, styleClasses));
                 lastTokenEnd = end;
             }
+
             if (line.length() > lastTokenEnd) {
-                // 줄의 나머지 부분에도 오류 스타일을 적용해야 할 수 있음
                 List<String> remainingStyles = new ArrayList<>();
                 remainingStyles.add("text");
                 if (isErrorLine) {
                     remainingStyles.add("syntax-error");
                 }
-                spansBuilder.add(remainingStyles, line.length() - lastTokenEnd);
+                tokens.add(new StyleToken(currentOffset + lastTokenEnd, currentOffset + line.length(), remainingStyles));
             }
-            if (i < lines.length - 1) {
-                spansBuilder.add(Collections.singleton("text"), 1);
-            }
+            
+            currentOffset += line.length() + 1; // +1 for newline character
         }
-        return spansBuilder.create();
+        return tokens;
     }
 }

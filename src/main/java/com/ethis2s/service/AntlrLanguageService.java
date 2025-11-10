@@ -1,5 +1,6 @@
 package com.ethis2s.service;
 
+import com.ethis2s.util.Tm4eSyntaxHighlighter.StyleToken;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import org.antlr.v4.runtime.*;
@@ -50,14 +51,14 @@ public class AntlrLanguageService {
         public final ParseTree ast;
         public final List<SyntaxError> errors;
         public final SymbolTable symbolTable;
-        public final StyleSpans<Collection<String>> symbolSpans;
+        public final List<StyleToken> symbolTokens;
         public final BracketMapping bracketMapping;
 
-        public AnalysisResult(ParseTree ast, List<SyntaxError> errors, SymbolTable symbolTable, StyleSpans<Collection<String>> symbolSpans, BracketMapping bracketMapping) {
+        public AnalysisResult(ParseTree ast, List<SyntaxError> errors, SymbolTable symbolTable, List<StyleToken> symbolTokens, BracketMapping bracketMapping) {
             this.ast = ast;
             this.errors = errors;
             this.symbolTable = symbolTable;
-            this.symbolSpans = symbolSpans;
+            this.symbolTokens = symbolTokens;
             this.bracketMapping = bracketMapping;
         }
     }
@@ -191,8 +192,7 @@ public class AntlrLanguageService {
     public CompletableFuture<AnalysisResult> analyze(String text, int caretPosition) {
         if (config == null) {
             // ANTLR 지원 안되면 비어있는 결과를 즉시 반환
-            StyleSpans<Collection<String>> emptySpans = new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), text.length()).create();
-            return CompletableFuture.completedFuture(new AnalysisResult(null, Collections.emptyList(), new SymbolTable(), emptySpans, new BracketMapping(Collections.emptyMap(), Collections.emptyMap())));
+            return CompletableFuture.completedFuture(new AnalysisResult(null, Collections.emptyList(), new SymbolTable(), Collections.emptyList(), new BracketMapping(Collections.emptyMap(), Collections.emptyMap())));
         }
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -224,7 +224,7 @@ public class AntlrLanguageService {
                     visitMethod.invoke(visitor, ast);
                 }
                 
-                StyleSpans<Collection<String>> symbolSpans = computeSymbolSpans(tokens, parser.getVocabulary(), symbolTable, config.identifierRuleName, text.length());
+                List<StyleToken> symbolTokens = computeSymbolSpans(tokens, parser.getVocabulary(), symbolTable, config.identifierRuleName, text.length());
 
                 List<SyntaxError> mergedErrors = mergeConsecutiveErrors(errorListener.getErrors());
 
@@ -232,11 +232,10 @@ public class AntlrLanguageService {
                 BracketMapping bracketMapping = precomputeBracketPairs(tokens);
 
                 // 모든 분석 결과를 하나의 객체에 담아 반환합니다.
-                return new AnalysisResult(ast, mergedErrors, symbolTable, symbolSpans, bracketMapping);
+                return new AnalysisResult(ast, mergedErrors, symbolTable, symbolTokens, bracketMapping);
             } catch (Exception e) {
                 e.printStackTrace();
-                StyleSpans<Collection<String>> emptySpans = new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), text.length()).create();
-                return new AnalysisResult(null, Collections.singletonList(new SyntaxError(0, 0, 0, "Parser failed: " + e.getMessage())), new SymbolTable(), emptySpans, null);
+                return new AnalysisResult(null, Collections.singletonList(new SyntaxError(0, 0, 0, "Parser failed: " + e.getMessage())), new SymbolTable(), Collections.emptyList(), null);
             }
         }, executor);
     }
@@ -279,12 +278,10 @@ public class AntlrLanguageService {
         return mergedErrors;
     }
     
-    private StyleSpans<Collection<String>> computeSymbolSpans(CommonTokenStream tokens, Vocabulary vocabulary, SymbolTable symbolTable, String identifierRuleName, int totalLength) {
-        StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
-        int lastKwEnd = 0;
-
+    private List<StyleToken> computeSymbolSpans(CommonTokenStream tokens, Vocabulary vocabulary, SymbolTable symbolTable, String identifierRuleName, int totalLength) {
+        List<StyleToken> symbolTokens = new ArrayList<>();
         if (identifierRuleName == null || identifierRuleName.isEmpty()) {
-            return spansBuilder.add(Collections.emptyList(), totalLength).create();
+            return symbolTokens;
         }
 
         for (Token token : tokens.getTokens()) {
@@ -303,16 +300,11 @@ public class AntlrLanguageService {
                     int start = token.getStartIndex();
                     int end = token.getStopIndex() + 1;
 
-                    if (start >= lastKwEnd) {
-                        spansBuilder.add(Collections.emptyList(), start - lastKwEnd);
-                        spansBuilder.add(Arrays.asList("text", styleClass), end - start);
-                        lastKwEnd = end;
-                    }
+                    symbolTokens.add(new StyleToken(start, end, Arrays.asList("text", styleClass)));
                 }
             }
         }
-        spansBuilder.add(Collections.emptyList(), totalLength - lastKwEnd);
-        return spansBuilder.create();
+        return symbolTokens;
     }
     
     public List<String> getCompletions(AnalysisResult result, String text, int caretPosition) {
