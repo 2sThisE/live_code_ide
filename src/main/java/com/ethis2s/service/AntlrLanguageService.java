@@ -50,13 +50,15 @@ public class AntlrLanguageService {
         public final ParseTree ast;
         public final List<SyntaxError> errors;
         public final SymbolTable symbolTable;
-        public final StyleSpans<Collection<String>> symbolSpans; // [수정] 시맨틱 하이라이팅 결과
+        public final StyleSpans<Collection<String>> symbolSpans;
+        public final Optional<BracketPair> bracketPair; // 괄호 쌍 정보를 담을 필드 추가
 
-        public AnalysisResult(ParseTree ast, List<SyntaxError> errors, SymbolTable symbolTable, StyleSpans<Collection<String>> symbolSpans) {
+        public AnalysisResult(ParseTree ast, List<SyntaxError> errors, SymbolTable symbolTable, StyleSpans<Collection<String>> symbolSpans, Optional<BracketPair> bracketPair) {
             this.ast = ast;
             this.errors = errors;
             this.symbolTable = symbolTable;
             this.symbolSpans = symbolSpans;
+            this.bracketPair = bracketPair;
         }
     }
 
@@ -140,11 +142,11 @@ public class AntlrLanguageService {
         this.config = CONFIGS.get(this.fileExtension);
     }
 
-    public CompletableFuture<AnalysisResult> analyze(String text) {
+    public CompletableFuture<AnalysisResult> analyze(String text, int caretPosition) {
         if (config == null) {
             // ANTLR 지원 안되면 비어있는 결과를 즉시 반환
             StyleSpans<Collection<String>> emptySpans = new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), text.length()).create();
-            return CompletableFuture.completedFuture(new AnalysisResult(null, Collections.emptyList(), new SymbolTable(), emptySpans));
+            return CompletableFuture.completedFuture(new AnalysisResult(null, Collections.emptyList(), new SymbolTable(), emptySpans, Optional.empty()));
         }
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -178,15 +180,17 @@ public class AntlrLanguageService {
                 
                 StyleSpans<Collection<String>> symbolSpans = computeSymbolSpans(tokens, parser.getVocabulary(), symbolTable, config.identifierRuleName, text.length());
 
-                // [신규] 연속된 에러를 병합합니다.
                 List<SyntaxError> mergedErrors = mergeConsecutiveErrors(errorListener.getErrors());
 
-                // [수정] 새로운 AnalysisResult 형식에 맞춰 모든 결과를 반환합니다.
-                return new AnalysisResult(ast, mergedErrors, symbolTable, symbolSpans);
+                // 커서 위치를 기반으로 괄호 쌍을 찾습니다.
+                Optional<BracketPair> bracketPair = findSmallestEnclosingBracket(ast, caretPosition);
+
+                // 모든 분석 결과를 하나의 객체에 담아 반환합니다.
+                return new AnalysisResult(ast, mergedErrors, symbolTable, symbolSpans, bracketPair);
             } catch (Exception e) {
                 e.printStackTrace();
                 StyleSpans<Collection<String>> emptySpans = new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), text.length()).create();
-                return new AnalysisResult(null, Collections.singletonList(new SyntaxError(0, 0, 0, "Parser failed: " + e.getMessage())), new SymbolTable(), emptySpans);
+                return new AnalysisResult(null, Collections.singletonList(new SyntaxError(0, 0, 0, "Parser failed: " + e.getMessage())), new SymbolTable(), emptySpans, Optional.empty());
             }
         }, executor);
     }
@@ -299,6 +303,74 @@ public class AntlrLanguageService {
         return filteredSuggestions;
     }
     
+    public static class BracketPair {
+        public final Token start;
+        public final Token end;
+
+        public BracketPair(Token start, Token end) {
+            this.start = start;
+            this.end = end;
+        }
+    }
+
+    public Optional<BracketPair> findEnclosingBracketPair(AnalysisResult result, int caretPosition) {
+        if (result == null || result.ast == null) {
+            return Optional.empty();
+        }
+        return findSmallestEnclosingBracket(result.ast, caretPosition);
+    }
+
+    private Optional<BracketPair> findSmallestEnclosingBracket(ParseTree tree, int caretPosition) {
+        if (tree == null) {
+            return Optional.empty();
+        }
+
+        // 1. 현재 노드가 괄호 쌍을 나타내는지 확인 (예: block, expressionInParentheses 등)
+        //    이 부분은 각 언어의 ANTLR 문법에 따라 매우 달라집니다.
+        //    여기서는 일반적인 규칙 컨텍스트를 예로 듭니다.
+        if (tree instanceof ParserRuleContext) {
+            ParserRuleContext ctx = (ParserRuleContext) tree;
+            Token start = ctx.getStart();
+            Token stop = ctx.getStop();
+
+            // 현재 노드가 커서를 포함���는지 확인
+            if (start != null && stop != null &&
+                start.getStartIndex() < caretPosition && stop.getStopIndex() + 1 > caretPosition) {
+
+                // 자식 노드들을 재귀적으로 탐색하여 더 작은(더 안쪽의) 괄호 쌍을 찾는다.
+                for (int i = 0; i < tree.getChildCount(); i++) {
+                    Optional<BracketPair> childResult = findSmallestEnclosingBracket(tree.getChild(i), caretPosition);
+                    // 더 작은 쌍을 찾았다면, 그것을 반환한다.
+                    if (childResult.isPresent()) {
+                        return childResult;
+                    }
+                }
+
+                // 더 이상 작게 감싸는 자식 노드가 없다면, 현재 노드가 가장 작은 단위이다.
+                // 이 노드가 실제로 괄호로 시작하고 끝나는지 확인하여 반환한다.
+                // (이 로직은 문법에 따라 더 정교해져야 합니다)
+                String startText = start.getText();
+                String stopText = stop.getText();
+                if (("(".equals(startText) && ")".equals(stopText)) ||
+                    ("{".equals(startText) && "}".equals(stopText)) ||
+                    ("[".equals(startText) && "]".equals(stopText))) {
+                    return Optional.of(new BracketPair(start, stop));
+                }
+            }
+        }
+        
+        // 현재 노드가 커서를 포함하지 않거나 괄호 쌍이 아니면, 자식 노드를 계속 탐색한다.
+        // (위의 로직에서 이미 처리되었지만, 안전을 위해 남겨둡니다)
+        for (int i = 0; i < tree.getChildCount(); i++) {
+            Optional<BracketPair> found = findSmallestEnclosingBracket(tree.getChild(i), caretPosition);
+            if (found.isPresent()) {
+                return found;
+            }
+        }
+
+        return Optional.empty();
+    }
+
     public void shutdown() { executor.shutdown(); }
 
     private static class ErrorCollectingErrorListener extends BaseErrorListener {

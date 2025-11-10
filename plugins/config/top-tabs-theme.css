@@ -179,7 +179,9 @@
 .text.storage-type { -fx-fill: #71e2b5; }
 .text.entity-name-function { -fx-fill: #ffffa9; }
 .text.variable { -fx-fill: #a7f0fc;}
-
+.text.bracket-highlight {
+    -rtfx-background-color: rgba(129, 129, 129, 0.315);
+}
 
 /* Suggestion List View */
 
@@ -207,3 +209,6 @@
     -fx-border-radius: 4px;
     -fx-padding: 5px;
 }
+
+
+

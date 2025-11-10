@@ -15,11 +15,15 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
-
+import com.ethis2s.service.AntlrLanguageService.BracketPair;
+import org.antlr.v4.runtime.Token;
 /**
  * CodeArea에 대한 모든 언어 서비스(하이라이팅, 문법 검사 등)를 총괄하는 최종 지휘자 클래스.
  * TM4E로 기본 하이라이팅을, ANTLR로 심볼 하이라이팅과 오류 검사를 수행하여 결합합니다.
  */
+
+
+
 public class HybridManager {
     
     private final CodeArea codeArea;
@@ -43,51 +47,101 @@ public class HybridManager {
             this.completionService = null;
         }
         
-        // completionService가 null이어도 EditorEnhancer와 EditorInputManager를 항상 설정합니다.
-        // 이렇게 하면 자동 완성을 제외한 편의 기능(괄호, 탭 등)이 항상 동작합니다.
-        EditorEnhancer enhancer = new EditorEnhancer(codeArea, this.completionService);
+        EditorEnhancer enhancer = new EditorEnhancer(codeArea, this.completionService, this);
         EditorInputManager inputManager = new EditorInputManager(codeArea, enhancer, this.completionService);
         inputManager.registerEventHandlers();
 
+        // 텍스트가 변경되거나 커서 위치가 바뀔 때마다 분석 및 스타일링을 다시 실행합니다.
         codeArea.multiPlainChanges()
-            .successionEnds(Duration.ofMillis(100))
-            .subscribe(ignore -> {
-                String text = codeArea.getText();
+            .successionEnds(Duration.ofMillis(200))
+            .subscribe(ignore -> runAnalysesAndApplyStyling());
+        
+        codeArea.caretPositionProperty()
+            .addListener((obs, oldPos, newPos) -> runAnalysesAndApplyStyling());
+    }
 
-                CompletableFuture<StyleSpans<Collection<String>>> tm4eFuture = 
-                    CompletableFuture.supplyAsync(() -> highlighter.computeHighlighting(text), analysisExecutor);
+    /**
+     * ���든 분석을 실행하고 그 결과를 종합하여 CodeArea에 스타일을 적용하는 핵심 메소드.
+     */
+    private void runAnalysesAndApplyStyling() {
+        String text = codeArea.getText();
+        int caretPosition = codeArea.getCaretPosition();
 
-                CompletableFuture<AnalysisResult> antlrFuture = 
-                    (analyzer != null) ? analyzer.analyze(text) : 
-                    CompletableFuture.completedFuture(new AnalysisResult(null, Collections.emptyList(), new AntlrLanguageService.SymbolTable(), new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), 0).create()));
-                
-                if (completionService != null) {
-                    completionService.updateAnalysisResult(antlrFuture);
-                }
+        // TM4E 기본 하이라이팅 (비동기)
+        CompletableFuture<StyleSpans<Collection<String>>> tm4eFuture = 
+            CompletableFuture.supplyAsync(() -> highlighter.computeHighlighting(text), analysisExecutor);
 
-                tm4eFuture.thenCombineAsync(antlrFuture, (baseSpans, analysisResult) -> {
-                    // 에러 정보를 콜백을 통해 UI 계층으로 전달
-                    Platform.runLater(() -> this.onErrorUpdate.accept(analysisResult.errors));
+        // ANTLR 심층 분석 (비동기), 커서 위치 전달
+        CompletableFuture<AnalysisResult> antlrFuture = 
+            (analyzer != null) ? analyzer.analyze(text, caretPosition) : 
+            CompletableFuture.completedFuture(new AnalysisResult(null, Collections.emptyList(), new AntlrLanguageService.SymbolTable(), new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), 0).create(), Optional.empty()));
+        
+        if (completionService != null) {
+            completionService.updateAnalysisResult(antlrFuture);
+        }
 
-                    // [수정] 이제 ANTLR 서비스가 만들어준 완성된 symbolSpans를 바로 사용합니다.
-                    StyleSpans<Collection<String>> symbolSpans = analysisResult.symbolSpans;
-                    StyleSpans<Collection<String>> errorSpans = computeErrorSpans(analysisResult.errors);
-                    
-                    // 3. TM4E 기본 설계도 -> 심볼 덧칠 -> 오류 덧칠 순서로 합친다.
-                    return baseSpans.overlay(symbolSpans, (base, symbol) -> !symbol.isEmpty() ? symbol : base)
-                                    .overlay(errorSpans, (base, error) -> {
-                                        if (!error.isEmpty()) {
-                                            Set<String> combined = new HashSet<>(base);
-                                            combined.addAll(error);
-                                            return combined;
-                                        }
-                                        return base;
-                                    });
-                }, Platform::runLater)
-                .thenAcceptAsync(finalSpans -> {
-                    codeArea.setStyleSpans(0, finalSpans);
-                }, Platform::runLater);
-            });
+        // 두 분석이 모두 끝나면 결과를 종합하여 UI 스레드에서 스타일 적용
+        tm4eFuture.thenCombineAsync(antlrFuture, (baseSpans, analysisResult) -> {
+            Platform.runLater(() -> this.onErrorUpdate.accept(analysisResult.errors));
+
+            StyleSpans<Collection<String>> symbolSpans = analysisResult.symbolSpans;
+            StyleSpans<Collection<String>> errorSpans = computeErrorSpans(analysisResult.errors);
+            StyleSpans<Collection<String>> bracketSpans = computeBracketHighlightSpans(analysisResult.bracketPair);
+            
+            // 모든 스타일 레이어를 순서대로 겹쳐 최종 스타일을 만듭니다.
+            return baseSpans
+                .overlay(symbolSpans, (base, symbol) -> !symbol.isEmpty() ? symbol : base)
+                .overlay(errorSpans, (base, error) -> {
+                    if (!error.isEmpty()) {
+                        Set<String> combined = new HashSet<>(base);
+                        combined.addAll(error);
+                        return combined;
+                    }
+                    return base;
+                })
+                .overlay(bracketSpans, (base, bracket) -> {
+                    // 괄호 하이라이트는 다른 스타일과 겹칠 수 있으므로, 스타일을 추가합니다.
+                    if (!bracket.isEmpty()) {
+                        Set<String> combined = new HashSet<>(base);
+                        combined.addAll(bracket);
+                        return combined;
+                    }
+                    return base;
+                });
+
+        }, Platform::runLater)
+        .thenAcceptAsync(finalSpans -> {
+            codeArea.setStyleSpans(0, finalSpans);
+        }, Platform::runLater);
+    }
+
+    private StyleSpans<Collection<String>> computeBracketHighlightSpans(Optional<BracketPair> bracketPairOpt) {
+        StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
+        int textLength = codeArea.getLength();
+
+        if (bracketPairOpt.isPresent()) {
+            BracketPair pair = bracketPairOpt.get();
+            Token start = pair.start;
+            Token end = pair.end;
+
+            int startPos = start.getStartIndex();
+            int endPos = end.getStartIndex();
+            
+            spansBuilder.add(Collections.emptyList(), startPos);
+            spansBuilder.add(Collections.singleton("bracket-highlight"), 1);
+            if (endPos > startPos + 1) {
+                spansBuilder.add(Collections.emptyList(), endPos - (startPos + 1));
+            }
+            spansBuilder.add(Collections.singleton("bracket-highlight"), 1);
+            
+            int remainingLength = textLength - (endPos + 1);
+            if (remainingLength > 0) {
+                spansBuilder.add(Collections.emptyList(), remainingLength);
+            }
+        } else {
+            spansBuilder.add(Collections.emptyList(), textLength);
+        }
+        return spansBuilder.create();
     }
 
     private StyleSpans<Collection<String>> computeErrorSpans(List<SyntaxError> errors) {

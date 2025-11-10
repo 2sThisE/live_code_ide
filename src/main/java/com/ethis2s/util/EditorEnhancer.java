@@ -24,7 +24,7 @@ public class EditorEnhancer {
     private final PopupControl suggestionsPopup;
     private final ListView<String> suggestionsListView;
 
-    public EditorEnhancer(CodeArea codeArea, CompletionService completionService) {
+    public EditorEnhancer(CodeArea codeArea, CompletionService completionService, HybridManager hybridManager) {
         this.codeArea = codeArea;
         this.completionService = completionService;
 
