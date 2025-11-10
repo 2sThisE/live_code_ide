@@ -35,8 +35,10 @@ public class HybridManager {
     private final Consumer<List<SyntaxError>> onErrorUpdate;
     private final PauseTransition antlrDebouncer;
     private List<StyleToken> lastTm4eTokens; // TM4E 결과를 저장할 필드
+    private List<StyleToken> lastErrorTokens; // ANTLR 에러 결과를 저장할 필드
     private AnalysisResult lastAnalysisResult; // ANTLR 분석 결과를 저장할 필드
     private CompletableFuture<AnalysisResult> currentAntlrFuture; // 현재 진행중인 ANTLR 분석 작업
+    private long tm4eRequestCounter = 0; // TM4E 요청 번호표
 
     public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate) {
         this.codeArea = codeArea;
@@ -63,24 +65,26 @@ public class HybridManager {
         // 텍스트가 변경될 때마다 즉시 TM4E 하이라이팅을 실행하고, ANTLR 분석은 1초 뒤로 예약합니다.
         codeArea.multiPlainChanges()
             .subscribe(changes -> {
-                // 예측 스타일링 적용
+                // 1. 예측 스타일링 즉시 적용
                 if (lastTm4eTokens != null) {
                     for (var change : changes) {
                         int diff = change.getInserted().length() - change.getRemoved().length();
                         if (diff != 0) {
                             shiftTokens(lastTm4eTokens, change.getPosition(), diff);
-                            if (lastAnalysisResult != null) {
+                            if (lastAnalysisResult != null && lastAnalysisResult.symbolTokens != null) {
                                 shiftTokens(lastAnalysisResult.symbolTokens, change.getPosition(), diff);
-                                // TODO: BracketMapping 등 다른 ANTLR 결과도 보정 필요
+                            }
+                            if (lastErrorTokens != null) {
+                                shiftTokens(lastErrorTokens, change.getPosition(), diff);
                             }
                         }
                     }
                     applyHighlighting();
                 }
 
-                // 실제 분석 실행
-                antlrDebouncer.playFromStart(); // ANTLR 분석 타이머 재시작
+                // 2. 실제 분석 요청
                 runTm4eHighlighting();
+                antlrDebouncer.playFromStart();
             });
         
         // 커서 위치가 바뀔 때마다 즉시 괄호 강조를 업데이트합니다.
@@ -88,12 +92,14 @@ public class HybridManager {
     }
 
     private void runTm4eHighlighting() {
+        long requestId = ++tm4eRequestCounter;
         String text = codeArea.getText();
         CompletableFuture.supplyAsync(() -> highlighter.computeHighlighting(text), analysisExecutor)
             .thenAcceptAsync(tokens -> {
-                this.lastTm4eTokens = tokens;
-                // ANTLR 분석이 완료되면 applyHighlighting이 호출되므로, 여기서는 직접 호출하지 않아도 됨.
-                // 만약 ANTLR 분석이 없다면, 여기서 직접 호출해야 할 수도 있음.
+                if (requestId == tm4eRequestCounter) {
+                    this.lastTm4eTokens = tokens;
+                    applyHighlighting();
+                }
             }, Platform::runLater);
     }
 
@@ -119,6 +125,21 @@ public class HybridManager {
         currentAntlrFuture.thenAcceptAsync(analysisResult -> {
             this.lastAnalysisResult = analysisResult; // 최신 분석 결과를 저장합니다.
             
+            // ANTLR 에러를 StyleToken으로 변환하여 저장
+            this.lastErrorTokens = new java.util.ArrayList<>();
+            if (analysisResult.errors != null) {
+                for (SyntaxError error : analysisResult.errors) {
+                    int line = error.line - 1;
+                    if (line < 0 || line >= codeArea.getParagraphs().size()) continue;
+                    int start = codeArea.getAbsolutePosition(line, error.charPositionInLine);
+                    int end = start + error.length;
+                    if (end > codeArea.getLength()) end = codeArea.getLength();
+                    if (start < end) {
+                        lastErrorTokens.add(new StyleToken(start, end, Collections.singletonList("syntax-error")));
+                    }
+                }
+            }
+
             if (this.lastTm4eTokens == null) {
                 antlrDebouncer.playFromStart(); 
                 return;
@@ -126,7 +147,7 @@ public class HybridManager {
 
             this.onErrorUpdate.accept(analysisResult.errors);
             
-            // 모든 스타일을 종합하여 화면에 적용합니다.
+            // ��든 스타일을 종합하여 화면에 적용합니다.
             applyHighlighting();
         }, Platform::runLater)
         .exceptionally(ex -> {
@@ -201,7 +222,7 @@ public class HybridManager {
         Optional<BracketPair> bracketPair = lastAnalysisResult.bracketMapping.findEnclosingPair(caretPosition);
 
         StyleSpans<Collection<String>> symbolSpans = tokensToSpans(lastAnalysisResult.symbolTokens);
-        StyleSpans<Collection<String>> errorSpans = computeErrorSpans(lastAnalysisResult.errors);
+        StyleSpans<Collection<String>> errorSpans = tokensToSpans(lastErrorTokens);
         StyleSpans<Collection<String>> bracketSpans = computeBracketHighlightSpans(bracketPair);
         
         StyleSpans<Collection<String>> finalSpans = tm4eSpans
@@ -255,38 +276,6 @@ public class HybridManager {
         return spansBuilder.create();
     }
 
-    private StyleSpans<Collection<String>> computeErrorSpans(List<SyntaxError> errors) {
-        StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
-        int lastKwEnd = 0;
-        int totalLength = codeArea.getLength();
-
-        if (errors == null || errors.isEmpty()) {
-            spansBuilder.add(Collections.emptyList(), totalLength);
-            return spansBuilder.create();
-        }
-
-        for (SyntaxError error : errors) {
-            int line = error.line - 1;
-            if (line < 0 || line >= codeArea.getParagraphs().size()) continue;
-            int start = codeArea.getAbsolutePosition(line, error.charPositionInLine);
-            int length = error.length;
-            if (start + length > totalLength) length = totalLength - start;
-            if (length < 0) continue;
-            int end = start + length;
-            if (start < lastKwEnd) continue;
-            
-            spansBuilder.add(Collections.emptyList(), start - lastKwEnd);
-            spansBuilder.add(Collections.singleton("syntax-error"), length);
-            lastKwEnd = end;
-        }
-        
-        if (totalLength > lastKwEnd) {
-            spansBuilder.add(Collections.emptyList(), totalLength - lastKwEnd);
-        }
-        
-        return spansBuilder.create();
-    }
-    
     public void shutdown() {
         if (highlighter != null) highlighter.shutdown();
         if (analyzer != null) analyzer.shutdown();
