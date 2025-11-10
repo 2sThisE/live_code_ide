@@ -30,6 +30,8 @@ public class EditorEnhancer {
 
         this.suggestionsListView = new ListView<>();
         this.suggestionsListView.setId("suggestion-list-view");
+        this.suggestionsListView.setFocusTraversable(false); // 포커스를 받지 않도록 설정
+
         this.suggestionsPopup = new PopupControl();
         this.suggestionsPopup.setAutoHide(true);
         this.suggestionsPopup.getScene().setRoot(suggestionsListView);
@@ -62,7 +64,7 @@ public class EditorEnhancer {
                 hideSuggestions();
                 return;
             }
-
+            
             populatePopup(suggestions);
 
             Optional<Bounds> caretBounds = codeArea.getCaretBounds();
@@ -110,8 +112,14 @@ public class EditorEnhancer {
     }
 
     private void populatePopup(List<String> suggestions) {
+        final double ESTIMATED_CELL_HEIGHT = 25.0; // 각 항목의 예상 높이
+        final double MAX_VISIBLE_ITEMS = 5.5;   // 최대 5.5개 항목 표시
+
         suggestionsListView.getItems().setAll(suggestions);
-        suggestionsListView.setPrefHeight(150);
+        
+        // 아이템 개수에 따라 높이를 동적으로 계산
+        double listHeight = Math.min(suggestions.size(), MAX_VISIBLE_ITEMS) * ESTIMATED_CELL_HEIGHT;
+        suggestionsListView.setPrefHeight(listHeight);
     }
 
     private void selectSuggestion(int index) {

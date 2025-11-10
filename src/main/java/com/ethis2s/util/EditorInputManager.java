@@ -28,6 +28,7 @@ public class EditorInputManager {
     private final EditorEnhancer enhancer;
     private final CompletionService completionService;
 
+    private final StringBuilder currentWord = new StringBuilder();
     private boolean suggestionsHiddenManually = false;
 
     public EditorInputManager(CodeArea codeArea, EditorEnhancer enhancer, CompletionService completionService) {
@@ -39,14 +40,16 @@ public class EditorInputManager {
     public void registerEventHandlers() {
         codeArea.addEventFilter(KeyEvent.KEY_TYPED, this::handleKeyTyped);
         codeArea.addEventFilter(KeyEvent.KEY_PRESSED, this::handleKeyPressed);
-        codeArea.textProperty().addListener((obs, oldText, newText) -> {
-            // 붙여넣기는 보통 한 번에 여러 줄이 변경되므로, 변경된 텍스트 전체를 검사합니다.
-            // 현재 캐럿 위치를 기준으로 변경이 일어난 범위를 추정합니다.
-            int currentParagraph = codeArea.getCurrentParagraph();
-            int startParagraph = Math.max(0, currentParagraph - 50); // 예: 변경된 줄 위로 50줄
-            int endParagraph = Math.min(codeArea.getParagraphs().size() - 1, currentParagraph + 50); // 아래로 50줄
+        
+        codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
+            Platform.runLater(() -> this.updateWordBoxAndSuggest());
+        });
 
-            // Platform.runLater를 사용하여 UI 업데이트가 끝난 후 안정적인 상태에서 실행
+        codeArea.textProperty().addListener((obs, oldText, newText) -> {
+            int currentParagraph = codeArea.getCurrentParagraph();
+            int startParagraph = Math.max(0, currentParagraph - 50);
+            int endParagraph = Math.min(codeArea.getParagraphs().size() - 1, currentParagraph + 50);
+
             Platform.runLater(() -> {
                 for (int i = startParagraph; i <= endParagraph; i++) {
                     optimizeIndent(i);
@@ -54,7 +57,36 @@ public class EditorInputManager {
             });
         });
     }
+    
+    private void updateWordBoxAndSuggest() {
+        if (completionService == null) return;
+
+        int caretPosition = codeArea.getCaretPosition();
+        String text = codeArea.getText();
+        
+        int start = caretPosition - 1;
+        while (start >= 0 && Character.isJavaIdentifierPart(text.charAt(start))) {
+            start--;
+        }
+        start++; // 단어의 시작점으로 이동
+
+        currentWord.setLength(0);
+        if (caretPosition > start) {
+            currentWord.append(text, start, caretPosition);
+        }
+
+        if (currentWord.length() > 0) {
+            if (!suggestionsHiddenManually) {
+                enhancer.showSuggestionsAsync();
+            }
+        } else {
+            suggestionsHiddenManually = false; // 단어가 끝나면 수동 숨김 상태 리셋
+            enhancer.hideSuggestions();
+        }
+    }
+    
     public void optimizeIndent(int paragraphIndex) {
+
         int tabSize = ConfigManager.TAB_SIZE;
         if (tabSize <= 1) return;
 
@@ -111,16 +143,11 @@ public class EditorInputManager {
         if (e.isConsumed()) return;
 
         if ("}".equals(typedChar)) {
-            // 실행을 잠시 뒤로 미루어 CodeArea가 '}' 문자로 업데이트될 시간을 준다.
             Platform.runLater(this::autoFormatBlock);
         }
-
-        if (completionService != null && Character.isJavaIdentifierPart(typedChar.charAt(0))) {
-            suggestionsHiddenManually = false;
-            enhancer.showSuggestionsAsync();
-        } else if (enhancer.isPopupShowing()) {
-            enhancer.hideSuggestions();
-        }
+        
+        // 텍스트 변경 후 단어 박스 업데이트 예약
+        Platform.runLater(() -> this.updateWordBoxAndSuggest());
     }
 
     private void handleSpaceToTabConversion(KeyEvent e) {
@@ -259,9 +286,25 @@ public class EditorInputManager {
             IndexRange selection = codeArea.getSelection();
             if (selection.getLength() > 0) {
                 handleBlockIndent(e.isShiftDown(), selection);
-            } else {
-                if (!e.isShiftDown()) {
-                    codeArea.insertText(codeArea.getCaretPosition(), "\t");
+            } else if (!e.isShiftDown()) {
+                int caretPosition = codeArea.getCaretPosition();
+                boolean handled = false;
+
+                // '괄호 탈출' 로직
+                if (caretPosition > 0 && caretPosition < codeArea.getLength()) {
+                    String charBefore = codeArea.getText(caretPosition - 1, caretPosition);
+                    String charAfter = codeArea.getText(caretPosition, caretPosition + 1);
+                    String expectedClosing = getClosingChar(charBefore);
+
+                    if (expectedClosing != null && expectedClosing.equals(charAfter) && !"'\"".contains(charBefore)) {
+                        codeArea.moveTo(caretPosition + 1);
+                        handled = true;
+                    }
+                }
+
+                // '괄호 탈출'이 아니면 기본 탭 삽입
+                if (!handled) {
+                    codeArea.insertText(caretPosition, "\t");
                 }
             }
             e.consume();
@@ -272,6 +315,9 @@ public class EditorInputManager {
             if (!e.isConsumed()) {
                 handleTabBackspace(e);
             }
+            Platform.runLater(() -> this.updateWordBoxAndSuggest());
+        } else if (e.getCode() == KeyCode.DELETE) {
+            Platform.runLater(() -> this.updateWordBoxAndSuggest());
         } else if (e.getCode() == KeyCode.HOME) {
             int currentParagraph = codeArea.getCurrentParagraph();
             String currentLine = codeArea.getParagraph(currentParagraph).getText();
@@ -382,6 +428,8 @@ public class EditorInputManager {
                 e.consume();
                 break;
             default:
+                // 팝업이 처리하지 않는 키는 일반 키 입력으로 넘김
+                handleNormalKeyPress(e);
                 break;
         }
     }

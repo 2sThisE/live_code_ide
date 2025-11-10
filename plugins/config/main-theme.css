@@ -177,38 +177,58 @@
     -fx-background-radius: 0 6px 0 0;
 }
 
-.scroll-bar {
+
+ .scroll-bar {
     -fx-background-color: transparent;
     -fx-background-insets: 0;
+    -fx-border-width: 0 0 0 1px; /* 상 우 하 좌 (공백으로 구분) */
+    -fx-border-color: rgb(26, 26, 26);
+}
+
+ .scroll-bar .track {
+    -fx-background-color: transparent;
+    
+    
+    /* 만약을 위해 트랙의 배경 여백도 0으로 설정하여 꽉 채웁니다. */
+    -fx-background-insets: 0;
+}
+
+ .scroll-bar .thumb {
+    -fx-background-color: #3838388e;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+}
+
+ .scroll-bar .thumb:hover {
+    -fx-background-color: #3d3d3d; 
+}
+
+ .scroll-bar .increment-button,
+ .scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-padding: 0;
+    -fx-font-size: 0;
+    -fx-min-width: 0;
+    -fx-max-width: 0;
+    -fx-pref-width: 0;
+    -fx-min-height: 0;
+    -fx-max-height: 0;
+    -fx-pref-height: 0;
+}
+
+/* ★★★ 핵심 해결책 ★★★ */
+ .scroll-bar:vertical {
+    -fx-pref-width: 15px;
     -fx-padding: 0;
 }
 
-.scroll-bar .track-background {
-    -fx-background-color: transparent;
-    -fx-background-insets: 0;
-}
-
-.scroll-bar .thumb {
-    -fx-background-color: #4f4f4f;
-    -fx-background-insets: 0;
-}
-
-.scroll-bar .thumb:hover {
-    -fx-background-color: #6a6a6a;
-}
-
-.scroll-bar .thumb:pressed {
-    -fx-background-color: #858585;
-}
-
-.scroll-bar:vertical {
-    -fx-pref-width: 10;
-    -fx-padding: 2 0 2 0;
-}
-
-.scroll-bar:horizontal {
-    -fx-pref-height: 10;
-    -fx-padding: 0 2 0 2;
+/* 수평 스크롤바도 동일하게 처리하려면 추가합니다. */
+ .scroll-bar:horizontal {
+    -fx-border-width: 1 0 0 0px; /* 상 우 하 좌 (공백으로 구분) */
+    -fx-border-color: rgb(26, 26, 26);
+    -fx-pref-height: 15px;
+    -fx-padding: 0;
 }
 
 .scroll-bar .increment-button,
@@ -228,4 +248,39 @@
 
 .scroll-pane > .corner {
     -fx-background-color: transparent;
+}
+
+.suggestion-item-selected .label {
+    -fx-text-fill: white!important;
+}
+.context-menu .menu-item.suggestion-item-selected {
+    -fx-background-color: #007acc!important;
+}
+
+#suggestion-list-view {
+    -fx-background-color: #151515;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-border-color: #333333;
+    -fx-border-width: 1px;
+    -fx-padding: 0;
+}
+
+#suggestion-list-view .list-cell {
+    -fx-padding: 2px 12px;
+    -fx-background-radius: 0;
+    -fx-font-size: 13px;
+}
+
+#suggestion-list-view .list-cell:filled:hover {
+    -fx-background-color: #333333;
+}
+
+#suggestion-list-view .list-cell:selected {
+    -fx-background-color: #094771;
+    -fx-text-fill: white;
+}
+
+#suggestion-list-view:focused .list-cell:selected {
+    -fx-background-color: #007acc;
 }

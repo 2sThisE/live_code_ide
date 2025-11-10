@@ -90,59 +90,6 @@ public class HybridManager {
             });
     }
 
-    /**
-     * ANTLR 분석 결과(심볼 테이블, 토큰)를 바탕으로 사용자 정의 심볼에 대한
-     * '덧칠 설계도'를 생성합니다.
-     */
-    // private StyleSpans<Collection<String>> computeSymbolSpans(AnalysisResult result) {
-    //     int totalLength = codeArea.getLength();
-    //     StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
-        
-    //     if (result == null || result.tokens == null || result.vocabulary == null || result.symbolTable == null) {
-    //         return spansBuilder.add(Collections.emptyList(), totalLength).create();
-    //     }
-
-    //     Vocabulary vocabulary = result.vocabulary;
-    //     // [수정] Java g4 문법의 실제 Identifier 이름
-    //     String identifierRuleName = "Identifier"; 
-        
-    //     int lastKwEnd = 0;
-    //     for (Token token : result.tokens) {
-    //         String symbolicName = vocabulary.getSymbolicName(token.getType());
-
-    //         // [수정] symbolicName이 null이 아니고, IdentifierRuleName과 일치할 때만
-    //         if (symbolicName != null && symbolicName.equals(identifierRuleName)) {
-    //             String tokenText = token.getText();
-    //             Symbol symbol = result.symbolTable.resolve(tokenText);
-                
-    //             if (symbol != null) {
-    //                 String styleClass = switch (symbol.kind) {
-    //                     case CLASS -> "entity-name-type";
-    //                     case METHOD -> "entity-name-function";
-    //                     case VARIABLE -> "variable";
-    //                     default -> "";
-    //                 };
-                    
-    //                 if (!styleClass.isEmpty()) {
-    //                     int start = token.getStartIndex();
-    //                     int end = token.getStopIndex() + 1;
-
-    //                     if (start >= lastKwEnd) {
-    //                          spansBuilder.add(Collections.emptyList(), start - lastKwEnd);
-    //                          spansBuilder.add(Arrays.asList("text", styleClass), end - start);
-    //                          lastKwEnd = end;
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     spansBuilder.add(Collections.emptyList(), totalLength - lastKwEnd);
-    //     return spansBuilder.create();
-    // }
-
-    /**
-     * ANTLR 오류 목록을 바탕으로 '오류 덧칠 설계도'를 생성합니다. (기존과 동일)
-     */
     private StyleSpans<Collection<String>> computeErrorSpans(List<SyntaxError> errors) {
         StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
         int lastKwEnd = 0;

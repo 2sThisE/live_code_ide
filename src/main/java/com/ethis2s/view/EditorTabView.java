@@ -380,6 +380,7 @@ public class EditorTabView {
         });
         final String CARET_LINE_STYLE = "-fx-text-fill: #d4d4d4;"; // 커서 라인 색상
         final String DEFAULT_LINE_STYLE = "-fx-text-fill: #585858;"; // 기본 라인 색상
+        final String ERR_LINE_STYLE="-fx-text-fill: #ff6666 !important;";
         codeArea.setParagraphGraphicFactory(lineIndex -> {
             Label lineLabel = new Label();
             lineLabel.setFont(LINE_NUMBER_FONT);
@@ -398,16 +399,14 @@ public class EditorTabView {
             } else {
                 lineLabel.setStyle(DEFAULT_LINE_STYLE);
             }
-            
             // --- 에러 상태 처리 로직은 그대로 유지 ---
             List<SyntaxError> errors = tabErrors.getOrDefault(tabId, new ArrayList<>());
             boolean hasError = errors.stream().anyMatch(e -> e.line - 1 == lineIndex);
             if (hasError) {
-                if (!lineLabel.getStyleClass().contains("lineno-error")) {
-                    lineLabel.getStyleClass().add("lineno-error");
-                }
+                if (!lineLabel.getStyle().contains(ERR_LINE_STYLE)) lineLabel.setStyle(ERR_LINE_STYLE);
             } else {
-                lineLabel.getStyleClass().remove("lineno-error");
+                if (lineIndex == codeArea.getCurrentParagraph()) lineLabel.setStyle(CARET_LINE_STYLE);
+                else lineLabel.setStyle(DEFAULT_LINE_STYLE);
             }
             return lineLabel;
         });
@@ -416,13 +415,13 @@ public class EditorTabView {
             // 이전 라인의 스타일을 기본값으로 되돌림
             Label oldLabel = getLineNumberLabel(codeArea, oldParagraph);
             if (oldLabel != null) {
-                oldLabel.setStyle(DEFAULT_LINE_STYLE);
+                updateLineNumberStyle(oldLabel, oldParagraph, tabId, codeArea, 
+                                        DEFAULT_LINE_STYLE, CARET_LINE_STYLE, ERR_LINE_STYLE);
             }
-
-            // 새 라인의 스타일을 강조값으로 변경
             Label newLabel = getLineNumberLabel(codeArea, newParagraph);
             if (newLabel != null) {
-                newLabel.setStyle(CARET_LINE_STYLE);
+                updateLineNumberStyle(newLabel, newParagraph, tabId, codeArea, 
+                                        DEFAULT_LINE_STYLE, CARET_LINE_STYLE, ERR_LINE_STYLE);
             }
         });
         // 캐럿이 화면에 보이도록 자동 스크롤
@@ -443,5 +442,22 @@ public class EditorTabView {
             return (Label) ((Region) graphic).lookup(".label");
         }
         return null;
+    }
+    private void updateLineNumberStyle(Label lineLabel, int lineIndex, String tabId, CodeArea codeArea,
+                                   String DEFAULT_LINE_STYLE, String CARET_LINE_STYLE, String ERR_LINE_STYLE) {
+    
+        List<SyntaxError> errors = tabErrors.getOrDefault(tabId, Collections.emptyList());
+        boolean hasError = errors.stream().anyMatch(e -> e.line - 1 == lineIndex);
+
+        // 사용자님이 작성하신 완벽한 로직
+        if (hasError) {
+            lineLabel.setStyle(ERR_LINE_STYLE);
+        } else {
+            if (lineIndex == codeArea.getCurrentParagraph()) {
+                lineLabel.setStyle(CARET_LINE_STYLE);
+            } else {
+                lineLabel.setStyle(DEFAULT_LINE_STYLE);
+            }
+        }
     }
 }

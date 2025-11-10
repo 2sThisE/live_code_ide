@@ -120,20 +120,26 @@
 .editor-scroll-pane .scroll-bar {
     -fx-background-color: transparent;
     -fx-background-insets: 0;
+    -fx-border-width: 0 0 0 1px; /* 상 우 하 좌 (공백으로 구분) */
+    -fx-border-color: black;
 }
 
 .editor-scroll-pane .scroll-bar .track {
-    -fx-background-color: #2a2d2e;
-    -fx-border-color: transparent;
-}
-
-.editor-scroll-pane .scroll-bar .thumb {
-    -fx-background-color: #686868;
+    -fx-background-color: transparent;
+    
+    
+    /* 만약을 위해 트랙의 배경 여백도 0으로 설정하여 꽉 채웁니다. */
     -fx-background-insets: 0;
 }
 
+.editor-scroll-pane .scroll-bar .thumb {
+    -fx-background-color: #38383860;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+}
+
 .editor-scroll-pane .scroll-bar .thumb:hover {
-    -fx-background-color: #888888;
+    -fx-background-color: #3d3d3db6; 
 }
 
 .editor-scroll-pane .scroll-bar .increment-button,
@@ -150,8 +156,16 @@
     -fx-pref-height: 0;
 }
 
+/* ★★★ 핵심 해결책 ★★★ */
 .editor-scroll-pane .scroll-bar:vertical {
     -fx-pref-width: 15px;
+    -fx-padding: 0;
+}
+
+/* 수평 스크롤바도 동일하게 처리하려면 추가합니다. */
+.editor-scroll-pane .scroll-bar:horizontal {
+    -fx-pref-height: 15px;
+    -fx-padding: 0;
 }
 
 /* Syntax Highlighting */
@@ -166,41 +180,9 @@
 .text.entity-name-function { -fx-fill: #ffffa9; }
 .text.variable { -fx-fill: #a7f0fc;}
 
-/* Auto-completion Popup */
-.suggestion-item-selected .label {
-    -fx-text-fill: white!important;
-}
-.context-menu .menu-item.suggestion-item-selected {
-    -fx-background-color: #007acc!important;
-}
 
-#suggestion-list-view {
-    -fx-background-color: #151515;
-    -fx-background-radius: 0;
-    -fx-border-radius: 0;
-    -fx-border-color: #333333;
-    -fx-border-width: 1px;
-    -fx-padding: 0;
-}
+/* Suggestion List View */
 
-#suggestion-list-view .list-cell {
-    -fx-padding: 2px 12px;
-    -fx-background-radius: 0;
-    -fx-font-size: 13px;
-}
-
-#suggestion-list-view .list-cell:filled:hover {
-    -fx-background-color: #333333;
-}
-
-#suggestion-list-view .list-cell:selected {
-    -fx-background-color: #094771;
-    -fx-text-fill: white;
-}
-
-#suggestion-list-view:focused .list-cell:selected {
-    -fx-background-color: #007acc;
-}
 
 /* Error Highlighting */
 .tab-label-error { -fx-text-fill: #ff6666; }
@@ -212,7 +194,7 @@
     -fx-text-fill: #d4d4d4; /* 현재 커서 라인 색상 */
 }
 .lineno.lineno-error {
-    -fx-text-fill: #ff6666 !important; /* 에러 라인 색상 (최우선) */
+    -fx-text-fill: #ff6666 !important; /* 색상 규칙은 잠시 주석 처리 */
 }
 
 /* Error Tooltip */

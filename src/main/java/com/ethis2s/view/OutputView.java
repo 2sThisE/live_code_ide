@@ -14,7 +14,7 @@ public class OutputView {
         outputArea.setEditable(false);
         outputArea.setText("Output will be shown here...");
     }
-
+    
     public Node getView() {
         return outputArea;
     }
