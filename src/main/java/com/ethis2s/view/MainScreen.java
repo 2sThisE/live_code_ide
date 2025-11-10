@@ -165,12 +165,6 @@ public class MainScreen {
         });
 
         mainLayout.getStyleClass().add("root-pane");
-        try {
-            Path cssPath = Paths.get("plugins", "config", "top-tabs-theme.css");
-            mainLayout.getStylesheets().add(cssPath.toUri().toURL().toExternalForm());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
         mainLayout.setTop(titleBar);
 
         fileExplorer = new TreeView<>();
@@ -201,7 +195,7 @@ public class MainScreen {
         debugTab.setContent(debugView.getView());
         debugTab.setClosable(false);
 
-        bottomTabPane.getTabs().addAll(outputTab, problemsTab, debugTab);
+        bottomTabPane.getTabs().addAll(outputTab, debugTab, problemsTab);
         // --- 하단 탭 패널 생성 끝 ---
 
         TabPane safeEditorTabs = (editorTabs != null) ? editorTabs : new TabPane();
@@ -225,6 +219,16 @@ public class MainScreen {
 
         statusBar.getStyleClass().add("status-bar");
         mainLayout.setBottom(statusBar);
+
+        try {
+            String baseCssPath = "file:/" + System.getProperty("user.dir").replace("\\", "/") + "/plugins/config/";
+            fileExplorerContainer.getStylesheets().add(baseCssPath + "tree-view-theme.css");
+            safeEditorTabs.getStylesheets().add(baseCssPath + "top-tabs-theme.css");
+            bottomTabPane.getStylesheets().add(baseCssPath + "bottom-tabs-theme.css");
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("컴포넌트별 CSS 파일을 로드할 수 없습니다.");
+        }
 
         return mainLayout;
     }

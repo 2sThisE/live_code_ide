@@ -109,12 +109,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         mainScene.setFill(Color.TRANSPARENT);
         try {
             String baseCssPath = "file:/" + System.getProperty("user.dir").replace("\\", "/") + "/plugins/config/";
-            mainScene.getStylesheets().addAll(
-                baseCssPath + "main-theme.css",
-                baseCssPath + "tree-view-theme.css",
-                baseCssPath + "top-tabs-theme.css",
-                baseCssPath + "bottom-tabs-theme.css"
-            );
+            mainScene.getStylesheets().add(baseCssPath + "main-theme.css");
         } catch (Exception e) {
             e.printStackTrace();
             System.err.println("테마 파일을 로드할 수 없습니다.");

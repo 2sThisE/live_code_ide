@@ -1,5 +1,6 @@
 package com.ethis2s.view;
 
+import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.TextArea;
 
@@ -11,7 +12,7 @@ public class OutputView {
         outputArea = new TextArea();
         outputArea.getStyleClass().add("text-area");
         outputArea.setEditable(false);
-        outputArea.setPromptText("Output will be shown here...");
+        outputArea.setText("Output will be shown here...");
     }
 
     public Node getView() {

@@ -399,7 +399,8 @@ public class EditorInputManager {
         int currentParagraph = codeArea.getCurrentParagraph();
         String currentLine = codeArea.getParagraph(currentParagraph).getText();
         int caretColumn = codeArea.getCaretColumn();
-        String textBeforeCaret = currentLine.substring(0, caretColumn);
+        int endIndex = Math.min(caretColumn, currentLine.length());
+        String textBeforeCaret = currentLine.substring(0, endIndex);
 
         Matcher matcher = LEADING_WHITESPACE.matcher(currentLine);
         String indent = matcher.find() ? matcher.group() : "";

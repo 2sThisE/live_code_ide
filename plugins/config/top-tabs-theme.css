@@ -38,8 +38,25 @@
     -fx-padding: 0 10px 0 0;
 }
 
+.tab-pane .tab .tab-label {
+    -fx-text-fill: #999999;
+    -fx-font-size: 13px;
+    -fx-padding: 0 10px 0 0;
+}
+
 .tab-pane .tab:selected .tab-label {
     -fx-text-fill: #ffffff;
+}
+
+.tab-error-count {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #cccccc; /* 기본 상태에서는 일반 텍스트 색상 */
+    -fx-padding: 0 0 0 5px; /* 파일 이름과의 간격 */
+}
+
+.tab-error-count.has-errors {
+    -fx-text-fill: #ff8a8a; /* 에러가 있을 때의 색상 */
 }
 
 .tab-pane .tab .tab-close-button {
@@ -57,7 +74,7 @@
 /* RichTextFX CodeArea Styles */
 .code-area {
     -fx-background-color: #1e1e1e;
-    -fx-padding: 4px 0px;
+    -fx-padding: 0, 0, 4px, 0;
 }
 
 .code-area .text {
@@ -186,8 +203,17 @@
 }
 
 /* Error Highlighting */
+.tab-label-error { -fx-text-fill: #ff6666; }
 
-.lineno-error .text { -fx-fill: #ff6666 !important; }
+.lineno {
+    -fx-text-fill: #585858; /* 기본 라인 색상 */
+}
+.lineno.current-line {
+    -fx-text-fill: #d4d4d4; /* 현재 커서 라인 색상 */
+}
+.lineno.lineno-error {
+    -fx-text-fill: #ff6666 !important; /* 에러 라인 색상 (최우선) */
+}
 
 /* Error Tooltip */
 .error-tooltip {

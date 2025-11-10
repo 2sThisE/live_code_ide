@@ -21,6 +21,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.Tooltip;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.text.Font;
 import javafx.scene.text.Text;
@@ -149,26 +150,25 @@ public class EditorTabView {
         Tab tab = editorTabs.getTabs().stream().filter(t -> tabId.equals(t.getId())).findFirst().orElse(null);
         if (tab == null) return;
 
-        Label tabLabel = (Label) tab.getGraphic();
-        if (tabLabel == null) {
-            tabLabel = new Label();
-            tab.setGraphic(tabLabel);
-        }
-
-        if (errors.isEmpty()) {
-            tabLabel.setText(fileName);
-            tabLabel.getStyleClass().remove("tab-label-error");
-        } else {
-            tabLabel.setText(fileName + " (" + errors.size() + ")");
-            if (!tabLabel.getStyleClass().contains("tab-label-error")) {
-                tabLabel.getStyleClass().add("tab-label-error");
+        if (tab.getGraphic() instanceof HBox hbox) {
+            Label errorLabel = (Label) hbox.lookup(".tab-error-count");
+            if (errorLabel != null) {
+                if (errors.isEmpty()) {
+                    errorLabel.setText("");
+                    errorLabel.getStyleClass().remove("has-errors");
+                } else {
+                    int errorCount = errors.size();
+                    String errorText = errorCount > 9 ? "9+" : String.valueOf(errorCount);
+                    errorLabel.setText(errorText);
+                    if (!errorLabel.getStyleClass().contains("has-errors")) {
+                        errorLabel.getStyleClass().add("has-errors");
+                    }
+                }
             }
         }
 
         CodeArea codeArea = codeAreaMap.get(tabId);
         if (codeArea != null) {
-            // The existing factory now knows how to handle errors.
-            // We just need to trigger a refresh of the paragraph graphics.
             codeArea.setParagraphGraphicFactory(codeArea.getParagraphGraphicFactory());
         }
     }
@@ -215,8 +215,20 @@ public class EditorTabView {
         };
         
         Tab newTab = new Tab(null, scrollPane);
-        Label tabLabel = new Label(fileName);
-        newTab.setGraphic(tabLabel);
+        
+        // --- 탭 그래픽 생성 (HBox 사용) ---
+        Label fileNameLabel = new Label(fileName);
+        fileNameLabel.getStyleClass().add("tab-file-name"); // 파일 이름 라벨에 클래스 추가
+        
+        Label errorCountLabel = new Label("9+");
+        errorCountLabel.getStyleClass().add("tab-error-count");
+        errorCountLabel.setMinWidth(Region.USE_PREF_SIZE); // 내용에 맞게 최소 너비 설정
+        errorCountLabel.setText("");
+        HBox tabGraphic = new HBox(5, fileNameLabel, errorCountLabel); // 5px 간격
+        tabGraphic.setAlignment(Pos.CENTER_LEFT);
+        // --- 탭 그래픽 생성 끝 ---
+
+        newTab.setGraphic(tabGraphic);
         newTab.setId(tabId);
         newTab.setClosable(true);
         newTab.setOnClosed(e -> onClose.run());
@@ -331,7 +343,7 @@ public class EditorTabView {
             "    -fx-stroke-width: 2px;" +
             "}" +
             ".syntax-error {" +
-            "    -rtfx-background-color: rgba(255, 71, 71, 0.39);" +
+            "    -rtfx-background-color: rgba(255, 71, 71, 0.44);" +
             "    -fx-padding: %.1fpx 0;" + /* ★ 핵심: 계산된 수직 패딩 적용 */
             "}",
             targetLineHeight, targetLineHeight, targetLineHeight, // for .paragraph-box
