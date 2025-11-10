@@ -51,14 +51,14 @@ public class AntlrLanguageService {
         public final List<SyntaxError> errors;
         public final SymbolTable symbolTable;
         public final StyleSpans<Collection<String>> symbolSpans;
-        public final Optional<BracketPair> bracketPair; // 괄호 쌍 정보를 담을 필드 추가
+        public final BracketMapping bracketMapping;
 
-        public AnalysisResult(ParseTree ast, List<SyntaxError> errors, SymbolTable symbolTable, StyleSpans<Collection<String>> symbolSpans, Optional<BracketPair> bracketPair) {
+        public AnalysisResult(ParseTree ast, List<SyntaxError> errors, SymbolTable symbolTable, StyleSpans<Collection<String>> symbolSpans, BracketMapping bracketMapping) {
             this.ast = ast;
             this.errors = errors;
             this.symbolTable = symbolTable;
             this.symbolSpans = symbolSpans;
-            this.bracketPair = bracketPair;
+            this.bracketMapping = bracketMapping;
         }
     }
 
@@ -71,6 +71,52 @@ public class AntlrLanguageService {
             this.message = msg;
         }
         @Override public String toString() { return "Error at " + line + ":" + charPositionInLine + " - " + message; }
+    }
+
+    // +++ 새로운 BracketPair 클래스 정의 +++
+    public static class BracketPair {
+        public final Token start;
+        public final Token end;
+
+        public BracketPair(Token start, Token end) {
+            this.start = start;
+            this.end = end;
+        }
+    }
+
+    // +++ 새로운 BracketMapping 클래스 정의 +++
+    public static class BracketMapping {
+        // key: 여는 괄호 토큰의 시작 위치, value: 닫는 괄호 토큰
+        private final Map<Integer, Token> pairMap; 
+        // key: 닫는 괄호 토큰의 시작 위치, value: 여는 괄호 토큰
+        private final Map<Integer, Token> reversePairMap;
+
+        public BracketMapping(Map<Integer, Token> pairMap, Map<Integer, Token> reversePairMap) {
+            this.pairMap = pairMap;
+            this.reversePairMap = reversePairMap;
+        }
+
+        public Optional<BracketPair> findEnclosingPair(int caretPosition) {
+            // 커서 바로 앞뒤의 토큰 위치를 기반으로 괄호 쌍을 찾는다.
+            // 이 로직은 실제 구현에서 더 정교하게 다듬어질 수 있다.
+            // 여기서는 가장 가까운 여는 괄호와 닫는 괄호를 찾는 간단한 예시를 보여준다.
+
+            // 1. 커서 왼쪽에 있는 가장 가까운 여는 괄호 찾기
+            Optional<Integer> openingPos = pairMap.keySet().stream()
+                .filter(pos -> pos < caretPosition)
+                .max(Integer::compareTo);
+
+            // 2. 커서 오른쪽에 있는 가장 가까운 닫는 괄호 찾기
+            if (openingPos.isPresent()) {
+                Token closingToken = pairMap.get(openingPos.get());
+                if (closingToken.getStopIndex() + 1 >= caretPosition) {
+                    // 짝이 맞는 괄호 쌍 안에 커서가 위치함
+                    Token openingToken = reversePairMap.get(closingToken.getStartIndex());
+                    return Optional.of(new BracketPair(openingToken, closingToken));
+                }
+            }
+            return Optional.empty();
+        }
     }
 
     private static final Map<String, AntlrConfig> CONFIGS = new HashMap<>();
@@ -146,7 +192,7 @@ public class AntlrLanguageService {
         if (config == null) {
             // ANTLR 지원 안되면 비어있는 결과를 즉시 반환
             StyleSpans<Collection<String>> emptySpans = new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), text.length()).create();
-            return CompletableFuture.completedFuture(new AnalysisResult(null, Collections.emptyList(), new SymbolTable(), emptySpans, Optional.empty()));
+            return CompletableFuture.completedFuture(new AnalysisResult(null, Collections.emptyList(), new SymbolTable(), emptySpans, new BracketMapping(Collections.emptyMap(), Collections.emptyMap())));
         }
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -182,15 +228,15 @@ public class AntlrLanguageService {
 
                 List<SyntaxError> mergedErrors = mergeConsecutiveErrors(errorListener.getErrors());
 
-                // 커서 위치를 기반으로 괄호 쌍을 찾습니다.
-                Optional<BracketPair> bracketPair = findSmallestEnclosingBracket(ast, caretPosition);
+                // +++ 새로운 로직: 토큰 스트림으로 괄호 쌍 미리 계산 +++
+                BracketMapping bracketMapping = precomputeBracketPairs(tokens);
 
                 // 모든 분석 결과를 하나의 객체에 담아 반환합니다.
-                return new AnalysisResult(ast, mergedErrors, symbolTable, symbolSpans, bracketPair);
+                return new AnalysisResult(ast, mergedErrors, symbolTable, symbolSpans, bracketMapping);
             } catch (Exception e) {
                 e.printStackTrace();
                 StyleSpans<Collection<String>> emptySpans = new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), text.length()).create();
-                return new AnalysisResult(null, Collections.singletonList(new SyntaxError(0, 0, 0, "Parser failed: " + e.getMessage())), new SymbolTable(), emptySpans, Optional.empty());
+                return new AnalysisResult(null, Collections.singletonList(new SyntaxError(0, 0, 0, "Parser failed: " + e.getMessage())), new SymbolTable(), emptySpans, null);
             }
         }, executor);
     }
@@ -302,73 +348,34 @@ public class AntlrLanguageService {
 
         return filteredSuggestions;
     }
-    
-    public static class BracketPair {
-        public final Token start;
-        public final Token end;
 
-        public BracketPair(Token start, Token end) {
-            this.start = start;
-            this.end = end;
-        }
-    }
+    private BracketMapping precomputeBracketPairs(CommonTokenStream tokens) {
+        Map<Integer, Token> pairMap = new HashMap<>();
+        Map<Integer, Token> reversePairMap = new HashMap<>();
+        Stack<Token> stack = new Stack<>();
 
-    public Optional<BracketPair> findEnclosingBracketPair(AnalysisResult result, int caretPosition) {
-        if (result == null || result.ast == null) {
-            return Optional.empty();
-        }
-        return findSmallestEnclosingBracket(result.ast, caretPosition);
-    }
+        Map<String, String> tokenPairs = Map.of("(", ")", "{", "}", "[", "]");
+        Set<String> closingBrackets = new HashSet<>(tokenPairs.values());
 
-    private Optional<BracketPair> findSmallestEnclosingBracket(ParseTree tree, int caretPosition) {
-        if (tree == null) {
-            return Optional.empty();
-        }
-
-        // 1. 현재 노드가 괄호 쌍을 나타내는지 확인 (예: block, expressionInParentheses 등)
-        //    이 부분은 각 언어의 ANTLR 문법에 따라 매우 달라집니다.
-        //    여기서는 일반적인 규칙 컨텍스트를 예로 듭니다.
-        if (tree instanceof ParserRuleContext) {
-            ParserRuleContext ctx = (ParserRuleContext) tree;
-            Token start = ctx.getStart();
-            Token stop = ctx.getStop();
-
-            // 현재 노드가 커서를 포함���는지 확인
-            if (start != null && stop != null &&
-                start.getStartIndex() < caretPosition && stop.getStopIndex() + 1 > caretPosition) {
-
-                // 자식 노드들을 재귀적으로 탐색하여 더 작은(더 안쪽의) 괄호 쌍을 찾는다.
-                for (int i = 0; i < tree.getChildCount(); i++) {
-                    Optional<BracketPair> childResult = findSmallestEnclosingBracket(tree.getChild(i), caretPosition);
-                    // 더 작은 쌍을 찾았다면, 그것을 반환한다.
-                    if (childResult.isPresent()) {
-                        return childResult;
+        for (Token token : tokens.getTokens()) {
+            String tokenText = token.getText();
+            if (tokenPairs.containsKey(tokenText)) {
+                stack.push(token);
+            } else if (closingBrackets.contains(tokenText)) {
+                if (!stack.isEmpty()) {
+                    Token openToken = stack.pop();
+                    // 짝이 맞는지 확인 (예: '('와 ')')
+                    if (tokenPairs.get(openToken.getText()).equals(tokenText)) {
+                        pairMap.put(openToken.getStartIndex(), token);
+                        reversePairMap.put(token.getStartIndex(), openToken);
+                    } else {
+                        // 짝이 안맞으면 스택을 비우고 다시 시작 (에러 복구 로직)
+                        stack.clear();
                     }
                 }
-
-                // 더 이상 작게 감싸는 자식 노드가 없다면, 현재 노드가 가장 작은 단위이다.
-                // 이 노드가 실제로 괄호로 시작하고 끝나는지 확인하여 반환한다.
-                // (이 로직은 문법에 따라 더 정교해져야 합니다)
-                String startText = start.getText();
-                String stopText = stop.getText();
-                if (("(".equals(startText) && ")".equals(stopText)) ||
-                    ("{".equals(startText) && "}".equals(stopText)) ||
-                    ("[".equals(startText) && "]".equals(stopText))) {
-                    return Optional.of(new BracketPair(start, stop));
-                }
             }
         }
-        
-        // 현재 노드가 커서를 포함하지 않거나 괄호 쌍이 아니면, 자식 노드를 계속 탐색한다.
-        // (위의 로직에서 이미 처리되었지만, 안전을 위해 남겨둡니다)
-        for (int i = 0; i < tree.getChildCount(); i++) {
-            Optional<BracketPair> found = findSmallestEnclosingBracket(tree.getChild(i), caretPosition);
-            if (found.isPresent()) {
-                return found;
-            }
-        }
-
-        return Optional.empty();
+        return new BracketMapping(pairMap, reversePairMap);
     }
 
     public void shutdown() { executor.shutdown(); }

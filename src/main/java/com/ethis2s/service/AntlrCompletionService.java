@@ -1,6 +1,7 @@
 package com.ethis2s.service;
 
 import com.ethis2s.service.AntlrLanguageService.AnalysisResult;
+import com.ethis2s.service.AntlrLanguageService.BracketMapping;
 import com.ethis2s.service.AntlrLanguageService.SymbolTable;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
 
@@ -23,7 +24,7 @@ public class AntlrCompletionService implements CompletionService {
         this.antlrService = antlrService;
         // NullPointerException을 방지하기 위해, 초기 분석 결과를 안전한 빈 상태로 설정합니다.
         this.lastAnalysis = CompletableFuture.completedFuture(
-            new AnalysisResult(null, Collections.emptyList(), new SymbolTable(), new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), 0).create(), Optional.empty())
+            new AnalysisResult(null, Collections.emptyList(), new SymbolTable(), new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), 0).create(), new BracketMapping(Collections.emptyMap(), Collections.emptyMap()))
         );
     }
     

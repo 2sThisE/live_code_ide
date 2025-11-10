@@ -151,10 +151,10 @@ public class Tm4eSyntaxHighlighter {
         if (scope == null || scope.isEmpty()) {
             return "";
         }
-        // ANTLR이 담당할 사용자 정의 심볼들은 색칠하지 않는다.
-        if (scope.startsWith("entity.name.function")) return ""; // 메소드 이름
-        if (scope.startsWith("entity.name.type") || scope.startsWith("support.class")) return ""; // 클래스/타입 이름
-        if (scope.startsWith("variable") && !scope.startsWith("variable.language")) return ""; // this, super 제외 변수
+        // ANTLR이 더 정교하게 칠하기 전에, TM4E가 기본적인 색상을 제공합니다.
+        if (scope.startsWith("entity.name.function")) return "entity-name-function"; // 메소드 이름
+        if (scope.startsWith("entity.name.type") || scope.startsWith("support.class")) return "entity-name-type"; // 클래스/타입 이름
+        if (scope.startsWith("variable") && !scope.startsWith("variable.language")) return "variable"; // this, super 제외 변수
 
         // --- 나머지 규칙은 기존과 동일 ---
         if (scope.startsWith("punctuation.definition.comment")) return "comment";
@@ -165,7 +165,7 @@ public class Tm4eSyntaxHighlighter {
         if (scope.startsWith("constant.language")) return "language-constant";
         if (scope.startsWith("string")||scope.startsWith("punctuation.definition.string")) return "string";
         if (scope.startsWith("comment")) return "comment";
-        if (scope.startsWith("keyword")) return "";
+        if (scope.startsWith("keyword")) return "keyword";
         
         return "";
     }

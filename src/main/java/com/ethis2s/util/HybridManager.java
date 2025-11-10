@@ -3,26 +3,26 @@ package com.ethis2s.util;
 import com.ethis2s.service.AntlrCompletionService;
 import com.ethis2s.service.AntlrLanguageService;
 import com.ethis2s.service.AntlrLanguageService.AnalysisResult;
+import com.ethis2s.service.AntlrLanguageService.BracketPair;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
+import javafx.util.Duration;
+import org.antlr.v4.runtime.Token;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.model.StyleSpans;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
 
-import java.time.Duration;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
-import com.ethis2s.service.AntlrLanguageService.BracketPair;
-import org.antlr.v4.runtime.Token;
-/**
- * CodeArea에 대한 모든 언어 서비스(하이라이팅, 문법 검사 등)를 총괄하는 최종 지휘자 클래스.
- * TM4E로 기본 하이라이팅을, ANTLR로 심볼 하이라이팅과 오류 검사를 수행하여 결합합니다.
- */
-
-
 
 public class HybridManager {
     
@@ -31,7 +31,11 @@ public class HybridManager {
     private final AntlrLanguageService analyzer;
     private final ExecutorService analysisExecutor = Executors.newSingleThreadExecutor();
     private AntlrCompletionService completionService = null;
-    private final Consumer<List<SyntaxError>> onErrorUpdate; // 에러 정보를 UI에 전달할 콜백
+    private final Consumer<List<SyntaxError>> onErrorUpdate;
+    private final PauseTransition antlrDebouncer;
+    private StyleSpans<Collection<String>> lastTm4eSpans; // TM4E 결과를 저장할 필드
+    private AnalysisResult lastAnalysisResult; // ANTLR 분석 결과를 저장할 필드
+    private CompletableFuture<AnalysisResult> currentAntlrFuture; // 현재 진행중인 ANTLR 분석 작업
 
     public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate) {
         this.codeArea = codeArea;
@@ -51,68 +55,117 @@ public class HybridManager {
         EditorInputManager inputManager = new EditorInputManager(codeArea, enhancer, this.completionService);
         inputManager.registerEventHandlers();
 
-        // 텍스트가 변경되거나 커서 위치가 바뀔 때마다 분석 및 스타일링을 다시 실행합니다.
+        // ANTLR 분석을 1초 지연 실행하기 위한 Debouncer 설정
+        this.antlrDebouncer = new PauseTransition(Duration.millis(100));
+        this.antlrDebouncer.setOnFinished(e -> runAntlrAnalysis());
+
+        // 텍스트가 변경될 때마다 즉시 TM4E 하이라이팅을 실행하고, ANTLR 분석은 1초 뒤로 예약합니다.
         codeArea.multiPlainChanges()
-            .successionEnds(Duration.ofMillis(200))
-            .subscribe(ignore -> runAnalysesAndApplyStyling());
+            .successionEnds(java.time.Duration.ofMillis(50)) // TM4E는 더 빠르게 반응
+            .subscribe(ignore -> {
+                runTm4eHighlighting();
+                antlrDebouncer.playFromStart(); // ANTLR 분석 타이머 재시작
+            });
         
-        codeArea.caretPositionProperty()
-            .addListener((obs, oldPos, newPos) -> runAnalysesAndApplyStyling());
+        // 커서 위치가 바뀔 때마다 즉시 괄호 강조를 업데이트합니다.
+        codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> updateBracketHighlighting());
     }
 
-    /**
-     * ���든 분석을 실행하고 그 결과를 종합하여 CodeArea에 스타일을 적용하는 핵심 메소드.
-     */
-    private void runAnalysesAndApplyStyling() {
+    private void runTm4eHighlighting() {
+        String text = codeArea.getText();
+        CompletableFuture.supplyAsync(() -> highlighter.computeHighlighting(text), analysisExecutor)
+            .thenAcceptAsync(tm4eSpans -> {
+                this.lastTm4eSpans = tm4eSpans;
+                // ANTLR 분석을 기다리지 않고, TM4E 결과라도 먼저 화면에 적용합니다.
+                codeArea.setStyleSpans(0, tm4eSpans);
+            }, Platform::runLater);
+    }
+
+    private void runAntlrAnalysis() {
+        if (analyzer == null) return;
+
+        // 만약 이전 분석 작업이 아직 실행 중이라면, 가차없이 취소합니다.
+        if (currentAntlrFuture != null && !currentAntlrFuture.isDone()) {
+            System.out.println("[HybridManager] Previous analysis is running. Cancelling it now.");
+            currentAntlrFuture.cancel(true);
+        }
+
         String text = codeArea.getText();
         int caretPosition = codeArea.getCaretPosition();
 
-        // TM4E 기본 하이라이팅 (비동기)
-        CompletableFuture<StyleSpans<Collection<String>>> tm4eFuture = 
-            CompletableFuture.supplyAsync(() -> highlighter.computeHighlighting(text), analysisExecutor);
-
-        // ANTLR 심층 분석 (비동기), 커서 위치 전달
-        CompletableFuture<AnalysisResult> antlrFuture = 
-            (analyzer != null) ? analyzer.analyze(text, caretPosition) : 
-            CompletableFuture.completedFuture(new AnalysisResult(null, Collections.emptyList(), new AntlrLanguageService.SymbolTable(), new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), 0).create(), Optional.empty()));
+        // 새로운 분석 작업을 시작하고, currentAntlrFuture에 저장합니다.
+        currentAntlrFuture = analyzer.analyze(text, caretPosition);
         
         if (completionService != null) {
-            completionService.updateAnalysisResult(antlrFuture);
+            completionService.updateAnalysisResult(currentAntlrFuture);
         }
 
-        // 두 분석이 모두 끝나면 결과를 종합하여 UI 스레드에서 스타일 적용
-        tm4eFuture.thenCombineAsync(antlrFuture, (baseSpans, analysisResult) -> {
-            Platform.runLater(() -> this.onErrorUpdate.accept(analysisResult.errors));
-
-            StyleSpans<Collection<String>> symbolSpans = analysisResult.symbolSpans;
-            StyleSpans<Collection<String>> errorSpans = computeErrorSpans(analysisResult.errors);
-            StyleSpans<Collection<String>> bracketSpans = computeBracketHighlightSpans(analysisResult.bracketPair);
+        currentAntlrFuture.thenAcceptAsync(analysisResult -> {
+            this.lastAnalysisResult = analysisResult; // 최신 분석 결과를 저장합니다.
             
-            // 모든 스타일 레이어를 순서대로 겹쳐 최종 스타일을 만듭니다.
-            return baseSpans
-                .overlay(symbolSpans, (base, symbol) -> !symbol.isEmpty() ? symbol : base)
-                .overlay(errorSpans, (base, error) -> {
-                    if (!error.isEmpty()) {
-                        Set<String> combined = new HashSet<>(base);
-                        combined.addAll(error);
-                        return combined;
-                    }
-                    return base;
-                })
-                .overlay(bracketSpans, (base, bracket) -> {
-                    // 괄호 하이라이트는 다른 스타일과 겹칠 수 있으므로, 스타일을 추가합니다.
-                    if (!bracket.isEmpty()) {
-                        Set<String> combined = new HashSet<>(base);
-                        combined.addAll(bracket);
-                        return combined;
-                    }
-                    return base;
-                });
+            if (this.lastTm4eSpans == null) {
+                antlrDebouncer.playFromStart(); 
+                return;
+            }
 
+            this.onErrorUpdate.accept(analysisResult.errors);
+            
+            // 모든 스타일을 종합하여 화면에 적용합니다.
+            applyHighlighting();
         }, Platform::runLater)
-        .thenAcceptAsync(finalSpans -> {
-            codeArea.setStyleSpans(0, finalSpans);
-        }, Platform::runLater);
+        .exceptionally(ex -> {
+            // 작업이 취소되었을 때 발생하는 예외를 처리합니다.
+            if (ex.getCause() instanceof java.util.concurrent.CancellationException) {
+                System.out.println("[HybridManager] Analysis task was successfully cancelled.");
+            } else {
+                System.err.println("[HybridManager] Analysis task failed unexpectedly.");
+                ex.printStackTrace();
+            }
+            return null;
+        });
+    }
+
+    private void updateBracketHighlighting() {
+        // ANTLR 분석 결과가 없으면 아무것도 하지 않습니다.
+        if (lastAnalysisResult == null || lastTm4eSpans == null) {
+            return;
+        }
+        // 모든 스타일을 다시 계산하되, 괄호 강조만 새 커서 위치를 기준으로 다시 계산합니다.
+        applyHighlighting();
+    }
+
+    private void applyHighlighting() {
+        if (lastAnalysisResult == null || lastTm4eSpans == null) {
+            return;
+        }
+
+        int caretPosition = codeArea.getCaretPosition();
+        Optional<BracketPair> bracketPair = lastAnalysisResult.bracketMapping.findEnclosingPair(caretPosition);
+
+        StyleSpans<Collection<String>> symbolSpans = lastAnalysisResult.symbolSpans;
+        StyleSpans<Collection<String>> errorSpans = computeErrorSpans(lastAnalysisResult.errors);
+        StyleSpans<Collection<String>> bracketSpans = computeBracketHighlightSpans(bracketPair);
+        
+        StyleSpans<Collection<String>> finalSpans = this.lastTm4eSpans
+            .overlay(symbolSpans, (base, symbol) -> !symbol.isEmpty() ? symbol : base)
+            .overlay(errorSpans, (base, error) -> {
+                if (!error.isEmpty()) {
+                    Set<String> combined = new HashSet<>(base);
+                    combined.addAll(error);
+                    return combined;
+                }
+                return base;
+            })
+            .overlay(bracketSpans, (base, bracket) -> {
+                if (!bracket.isEmpty()) {
+                    Set<String> combined = new HashSet<>(base);
+                    combined.addAll(bracket);
+                    return combined;
+                }
+                return base;
+            });
+        
+        codeArea.setStyleSpans(0, finalSpans);
     }
 
     private StyleSpans<Collection<String>> computeBracketHighlightSpans(Optional<BracketPair> bracketPairOpt) {
