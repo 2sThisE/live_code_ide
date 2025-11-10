@@ -10,6 +10,7 @@ public class DebugView {
 
     public DebugView() {
         debugArea = new TextArea();
+        debugArea.getStyleClass().add("text-area");
         debugArea.setEditable(false);
         debugArea.setPromptText("Debug logs will be shown here...");
     }

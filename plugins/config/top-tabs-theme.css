@@ -186,7 +186,7 @@
 }
 
 /* Error Highlighting */
-.tab-label-error { -fx-text-fill: #ff6666; }
+
 .lineno-error .text { -fx-fill: #ff6666 !important; }
 
 /* Error Tooltip */

@@ -73,13 +73,16 @@
 }
 
 
-.text-area {
+.bottom-tab-pane .text-area {
     -fx-background-color: #252526;
-    -fx-text-fill: #d4d4d4;
-    -fx-border-color: #252526;
+    -fx-text-fill: #d4d4d4 !important; /* 우선순위를 강제로 높여 다른 스타일을 덮어쓰도록 합니다. */
+    -fx-border-color: transparent;
     -fx-border-width: 0;
     -fx-font-family: 'Consolas';
-    -fx-font-size: 13px;
+    -fx-font-size: 12px;
     -fx-focus-color: transparent;
     -fx-faint-focus-color: transparent;
+    -fx-effect: null;
 }
+
+.tab.tab-error .tab-label { -fx-text-fill: #ff6666!important; }

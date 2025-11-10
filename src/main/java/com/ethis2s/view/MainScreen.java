@@ -73,20 +73,26 @@ public class MainScreen {
     private OutputView outputView;
     private Tab problemsTab;
     private Label problemsTabLabel;
-
+    private TabPane bottomTabPane; // TabPane을 필드로 선언해서 접근 가능하게 할게요!  
+    
+    
     public void updateProblemsTab(int errorCount) {
-        if (problemsTabLabel == null) return;
+        // 이제 Tab 객체가 있는지 직접 확인합니다.
+        if (problemsTab == null) return;
 
         Platform.runLater(() -> {
             if (errorCount > 0) {
-                
-                problemsTabLabel.setText("PROBLEMS (" + errorCount + ")");
-                if (!problemsTabLabel.getStyleClass().contains("tab-label-error")) {
-                    problemsTabLabel.getStyleClass().add("tab-label-error");
+                // 2. Tab의 스타일 클래스를 직접 추가합니다.
+                if (!problemsTab.getStyleClass().contains("tab-error")) {
+                    problemsTab.getStyleClass().add("tab-error");
+                }
+
+                // 탭을 선택하는 로직은 그대로 유지합니다.
+                if (bottomTabPane != null) {
+                    bottomTabPane.getSelectionModel().select(problemsTab);
                 }
             } else {
-                problemsTabLabel.setText("PROBLEMS");
-                problemsTabLabel.getStyleClass().remove("tab-label-error");
+                problemsTab.getStyleClass().remove("tab-error");
             }
         });
     }
@@ -173,7 +179,7 @@ public class MainScreen {
         fileExplorerContainer = new BorderPane(fileExplorer);
 
         // --- 하단 탭 패널 생성 ---
-        TabPane bottomTabPane = new TabPane();
+        this.bottomTabPane = new TabPane(); // 필드에 TabPane 인스턴스를 할당해요.
         bottomTabPane.getStyleClass().add("bottom-tab-pane"); // 커스텀 스타일 적용
 
         // 'Output' 탭 생성
@@ -184,8 +190,7 @@ public class MainScreen {
 
         // 'Problems' 탭 생성
         this.problemsView = new ProblemsView(mainController); // Assign to field
-        this.problemsTabLabel = new Label("PROBLEMS");
-        this.problemsTab = new Tab();
+        this.problemsTab = new Tab("PROBLEMS");
         this.problemsTab.setGraphic(problemsTabLabel);
         problemsTab.setContent(problemsView.getView());
         problemsTab.setClosable(false);

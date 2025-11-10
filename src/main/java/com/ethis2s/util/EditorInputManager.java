@@ -55,69 +55,64 @@ public class EditorInputManager {
         });
     }
     public void optimizeIndent(int paragraphIndex) {
-    int tabSize = ConfigManager.TAB_SIZE;
-    if (tabSize <= 1) return;
+        int tabSize = ConfigManager.TAB_SIZE;
+        if (tabSize <= 1) return;
 
-    // 라인이 유효한지 확인
-    if (paragraphIndex < 0 || paragraphIndex >= codeArea.getParagraphs().size()) {
-        return;
-    }
+        // 라인이 유효한지 확인
+        if (paragraphIndex < 0 || paragraphIndex >= codeArea.getParagraphs().size()) {
+            return;
+        }
 
-    String line = codeArea.getParagraph(paragraphIndex).getText();
+        String line = codeArea.getParagraph(paragraphIndex).getText();
 
-    // 1. 라인의 시작 부분에서 들여쓰기 영역을 추출합니다.
-    Matcher matcher = LEADING_WHITESPACE.matcher(line);
-    if (matcher.find()) {
-        String indentText = matcher.group();
-        if (indentText.isEmpty()) return; // 들여쓰기가 없으면 종료
+        // 1. 라인의 시작 부분에서 들여쓰기 영역을 추출합니다.
+        Matcher matcher = LEADING_WHITESPACE.matcher(line);
+        if (matcher.find()) {
+            String indentText = matcher.group();
+            if (indentText.isEmpty()) return; // 들여쓰기가 없으면 종료
 
-        // 2. 들여쓰기를 분석하여 최적의 탭 조합으로 변환합니다.
-        //    (이전 답변의 로직과 동일)
-        StringBuilder optimalIndent = new StringBuilder();
-        int spaceCount = 0;
-        for (char c : indentText.toCharArray()) {
-            if (c == '\t') {
-                optimalIndent.append("\t".repeat(spaceCount / tabSize));
-                optimalIndent.append(" ".repeat(spaceCount % tabSize));
-                optimalIndent.append('\t');
-                spaceCount = 0;
-            } else if (c == ' ') {
-                spaceCount++;
+            // 2. 들여쓰기를 분석하여 최적의 탭 조합으로 변환합니다.
+            //    (이전 답변의 로직과 동일)
+            StringBuilder optimalIndent = new StringBuilder();
+            int spaceCount = 0;
+            for (char c : indentText.toCharArray()) {
+                if (c == '\t') {
+                    optimalIndent.append("\t".repeat(spaceCount / tabSize));
+                    optimalIndent.append(" ".repeat(spaceCount % tabSize));
+                    optimalIndent.append('\t');
+                    spaceCount = 0;
+                } else if (c == ' ') {
+                    spaceCount++;
+                }
+            }
+            optimalIndent.append("\t".repeat(spaceCount / tabSize));
+            optimalIndent.append(" ".repeat(spaceCount % tabSize));
+
+            String newIndent = optimalIndent.toString();
+
+            // 3. 변환된 들여쓰기가 기존과 다를 경우에만 교체합니다.
+            if (!indentText.equals(newIndent)) {
+                int paragraphStart = codeArea.getAbsolutePosition(paragraphIndex, 0);
+                codeArea.replaceText(paragraphStart, paragraphStart + indentText.length(), newIndent);
             }
         }
-        optimalIndent.append("\t".repeat(spaceCount / tabSize));
-        optimalIndent.append(" ".repeat(spaceCount % tabSize));
-
-        String newIndent = optimalIndent.toString();
-
-        // 3. 변환된 들여쓰기가 기존과 다를 경우에만 교체합니다.
-        if (!indentText.equals(newIndent)) {
-            int paragraphStart = codeArea.getAbsolutePosition(paragraphIndex, 0);
-            codeArea.replaceText(paragraphStart, paragraphStart + indentText.length(), newIndent);
-        }
     }
-}
 
     private void handleKeyTyped(KeyEvent e) {
         String typedChar = e.getCharacter();
-        if (typedChar.isEmpty() || Character.isISOControl(typedChar.charAt(0))) {
-            return;
-        }
+        if (typedChar.isEmpty() || Character.isISOControl(typedChar.charAt(0))) return;
 
         if (" ".equals(typedChar)) {
             handleSpaceToTabConversion(e);
-            if (e.isConsumed()) {
-                return;
-            }
+            if (e.isConsumed()) return;
         }
 
         handleAutoPairing(e);
-        if (e.isConsumed()) {
-            return;
-        }
+        if (e.isConsumed()) return;
 
         if ("}".equals(typedChar)) {
-            autoFormatBlock();
+            // 실행을 잠시 뒤로 미루어 CodeArea가 '}' 문자로 업데이트될 시간을 준다.
+            Platform.runLater(this::autoFormatBlock);
         }
 
         if (completionService != null && Character.isJavaIdentifierPart(typedChar.charAt(0))) {
@@ -177,29 +172,29 @@ public class EditorInputManager {
         String baseIndent = matcher.find() ? matcher.group() : "";
 
         StringBuilder formattedText = new StringBuilder();
-        int indentLevel = countTabs(baseIndent);
+        int indentLevel = calculateIndentLevel(baseIndent);
 
         for (int i = startLine; i <= endLine; i++) {
-            String line = codeArea.getParagraph(i).getText().trim();
-
-            if (line.startsWith("}")) {
+            String line = codeArea.getParagraph(i).getText();
+            String trimmedLine = line.trim();
+            // ---- 핵심 수정 로직 ----
+            // 닫는 중괄호로 "시작"하거나 "끝나는" 줄은 들여쓰기 레벨을 먼저 감소시킨다.
+            // 단, 한 줄에 여닫는 괄호가 모두 있는 경우는 제외한다 (예: if (c) { return; })
+            if (trimmedLine.startsWith("}") || (trimmedLine.endsWith("}") && !trimmedLine.contains("{"))) {
                 indentLevel--;
+                if (indentLevel < 0) indentLevel = 0;
             }
-
-            if (indentLevel < 0) indentLevel = 0; 
             
+            // 계산된 레벨로 현재 줄의 들여쓰기를 적용한다.
             for (int j = 0; j < indentLevel; j++) {
                 formattedText.append('\t');
             }
-            formattedText.append(line);
+            formattedText.append(trimmedLine);
 
-            if (line.endsWith("{")) {
-                indentLevel++;
-            }
+            // 여는 중괄호로 "끝나는" 줄은, 다음 줄을 위해 들여쓰기 레벨을 증가시킨다.
+            if (trimmedLine.endsWith("{")) indentLevel++;
             
-            if (i < endLine) {
-                formattedText.append('\n');
-            }
+            if (i < endLine) formattedText.append('\n');
         }
 
         int replaceStart = codeArea.getAbsolutePosition(startLine, 0);
@@ -226,14 +221,29 @@ public class EditorInputManager {
         return -1;
     }
 
-    private int countTabs(String s) {
-        int count = 0;
-        for (char c : s.toCharArray()) {
+    private int calculateIndentLevel(String indentText) {
+        int tabSize = ConfigManager.TAB_SIZE;
+        if (tabSize <= 1) {
+            tabSize = 4; // 혹시 설정이 잘못되어도 괜찮아요. 제가 기본값으로 지켜드릴게요!
+        }
+
+        int level = 0;
+        int spaceCount = 0;
+        for (char c : indentText.toCharArray()) {
             if (c == '\t') {
-                count++;
+                // 탭은 언제나 한 레벨이죠!
+                level++;
+                spaceCount = 0; // 탭을 만나면 스페이스는 리셋!
+            } else if (c == ' ') {
+                spaceCount++;
+                // 스페이스가 모여 탭 크기만큼 되면, 그것도 한 레벨로 인정해줘야죠!
+                if (spaceCount >= tabSize) {
+                    level++;
+                    spaceCount = 0; // 레벨이 올랐으니 스페이스는 다시 0부터!
+                }
             }
         }
-        return count;
+        return level;
     }
 
     private void handleKeyPressed(KeyEvent e) {

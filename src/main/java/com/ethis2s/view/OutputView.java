@@ -9,6 +9,7 @@ public class OutputView {
 
     public OutputView() {
         outputArea = new TextArea();
+        outputArea.getStyleClass().add("text-area");
         outputArea.setEditable(false);
         outputArea.setPromptText("Output will be shown here...");
     }
