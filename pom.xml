@@ -106,6 +106,13 @@
             <artifactId>antlr4-runtime</artifactId>
             <version>4.13.1</version>
         </dependency>
+
+        <!-- MaterialFX for MFXSpinner -->
+        <dependency>
+            <groupId>io.github.palexdev</groupId>
+            <artifactId>materialfx</artifactId>
+            <version>11.17.0</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -164,6 +171,22 @@
                     <version>0.0.8</version>
                     <configuration>
                         <mainClass>com.ethis2s.App</mainClass>
+                        <options>
+                            <option>--add-opens</option>
+                            <option>javafx.graphics/com.sun.javafx.scene=ALL-UNNAMED</option>
+                            
+                            <option>--add-opens</option>
+                            <option>javafx.controls/com.sun.javafx.scene.control=ALL-UNNAMED</option>
+
+                            <option>--add-opens</option>
+                            <option>javafx.controls/com.sun.javafx.scene.control.behavior=ALL-UNNAMED</option>
+
+                            <option>--add-opens</option>
+                            <option>javafx.base/com.sun.javafx.binding=ALL-UNNAMED</option>
+                            
+                            <option>--add-opens</option>
+                            <option>javafx.base/com.sun.javafx.event=ALL-UNNAMED</option>
+                        </options>
                     </configuration>
                 </plugin>
             </plugins>

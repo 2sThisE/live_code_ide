@@ -15,6 +15,8 @@ import com.ethis2s.controller.ProjectController;
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
 
+import io.github.palexdev.materialfx.controls.MFXProgressSpinner;
+import io.github.palexdev.materialfx.controls.MFXSpinner;
 import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
@@ -27,6 +29,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
@@ -51,6 +54,7 @@ public class MainScreen {
     private BorderPane fileExplorerContainer;
     private final Set<String> expandedItemPaths = new HashSet<>();
     private Label connectionStatusLabel;
+    private MFXProgressSpinner antlrIndicator; // ANTLR 분석 상태 인디케이터
     private UserProjectsInfo currentProjectForFileTree;
     private UserInfo currentUserInfo;
     private boolean isTransitioning = false;
@@ -211,9 +215,17 @@ public class MainScreen {
 
         Label safeStatusLabel = (statusLabel != null) ? statusLabel : new Label();
         connectionStatusLabel = new Label();
+        
+        // MFXProgressSpinner 생성 및 설정
+        antlrIndicator = new MFXProgressSpinner();
+        antlrIndicator.setVisible(true);
+        antlrIndicator.setRadius(6); // 크기를 작게 조절
+        
         Region statusBarSpacer = new Region();
         HBox.setHgrow(statusBarSpacer, Priority.ALWAYS);
-        HBox statusBar = new HBox(safeStatusLabel, statusBarSpacer, connectionStatusLabel);
+        HBox statusBar = new HBox(safeStatusLabel, statusBarSpacer, antlrIndicator, connectionStatusLabel);
+        statusBar.setSpacing(5);
+        statusBar.setAlignment(Pos.CENTER_RIGHT);
 
         statusBar.getStyleClass().add("status-bar");
         mainLayout.setBottom(statusBar);
@@ -229,6 +241,19 @@ public class MainScreen {
         }
 
         return mainLayout;
+    }
+    
+    /**
+     * ANTLR 분석 상태 인디케이터의 표시 여부를 설정합니다.
+     * 이 메소드는 UI 스레드에서 안전하게 실행됩니다.
+     * @param show true이면 인디케이터를 표시, false이면 숨김
+     */
+    public void showAntlrIndicator(boolean show) {
+        Platform.runLater(() -> {
+            if (antlrIndicator != null) {
+                antlrIndicator.setVisible(show);
+            }
+        });
     }
     
     private void performTransition(Runnable viewUpdateLogic) {
