@@ -16,6 +16,7 @@ import org.fxmisc.richtext.model.StyleSpansBuilder;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -24,6 +25,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
+
+import java.util.ArrayList;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class HybridManager {
     
@@ -37,6 +42,7 @@ public class HybridManager {
     private final PauseTransition analysisDebouncer;
     private List<StyleToken> lastTm4eTokens; // TM4E 결과를 저장할 필드
     private List<StyleToken> lastErrorTokens; // ANTLR 에러 결과를 저장할 필드
+    private List<StyleToken> lastBracketTokens; // 괄호 강조 결과를 저장할 필드
     private AnalysisResult lastAnalysisResult; // ANTLR 분석 결과를 저장할 필드
     private CompletableFuture<AnalysisResult> currentAntlrFuture; // 현재 진행중인 ANTLR 분석 작업
     private long tm4eRequestCounter = 0; // TM4E 요청 번호표
@@ -93,6 +99,10 @@ public class HybridManager {
                             if (lastErrorTokens != null) {
                                 shiftTokens(lastErrorTokens, change.getPosition(), diff);
                             }
+                            // ★★★ 예측 스타일링에 괄호 토큰 추가 ★★★
+                            if (lastBracketTokens != null) {
+                                shiftTokens(lastBracketTokens, change.getPosition(), diff);
+                            }
                         }
                     }
                     applyHighlighting();
@@ -137,16 +147,13 @@ public class HybridManager {
     private void runAntlrAnalysis() {
         if (analyzer == null) return;
 
-        // 만약 이전 분석 작업이 아직 실행 중이라면, 가차없이 취소합니다.
         if (currentAntlrFuture != null && !currentAntlrFuture.isDone()) {
-            System.out.println("[HybridManager] Previous analysis is running. Cancelling it now.");
             currentAntlrFuture.cancel(true);
         }
 
         String text = codeArea.getText();
         int caretPosition = codeArea.getCaretPosition();
 
-        // 새로운 분석 작업을 시작하고, currentAntlrFuture에 저장합니다.
         currentAntlrFuture = analyzer.analyze(text, caretPosition);
         
         if (completionService != null) {
@@ -154,15 +161,8 @@ public class HybridManager {
         }
 
         currentAntlrFuture.thenAcceptAsync(analysisResult -> {
-            this.lastAnalysisResult = analysisResult; // 최신 분석 결과를 저장합니다.
+            this.lastAnalysisResult = analysisResult;
             
-            // ★★★★★ 주인님, 바로 여기에 마법의 주문을 추가해요! ★★★★★
-            if (!analysisResult.errors.isEmpty()) {
-                System.out.println("!! 문법 교수님이 길을 잃었어요: " + analysisResult.errors);
-            }
-            // ★★★★★ 여기까지예요! ★★★★★
-
-            // ANTLR 에러를 StyleToken으로 변환하여 저장
             this.lastErrorTokens = new java.util.ArrayList<>();
             if (analysisResult.errors != null) {
                 for (SyntaxError error : analysisResult.errors) {
@@ -184,11 +184,11 @@ public class HybridManager {
 
             this.onErrorUpdate.accept(analysisResult.errors);
             
-            // ��든 스타일을 종합하여 화면에 적용합니다.
-            applyHighlighting();
+            // ★★★ 분석 완료 후, 괄호 강조도 새로고침 ★★★
+            updateBracketHighlighting();
+            
         }, Platform::runLater)
         .exceptionally(ex -> {
-            // 작업이 취소되었을 때 발생하는 예외를 처리합니다.
             if (ex.getCause() instanceof java.util.concurrent.CancellationException) {
                 System.out.println("[HybridManager] Analysis task was successfully cancelled.");
             } else {
@@ -212,11 +212,26 @@ public class HybridManager {
     }
 
     private void updateBracketHighlighting() {
-        // ANTLR 분석 결과가 없으면 아무것도 하지 않습니다.
-        if (lastAnalysisResult == null || lastTm4eTokens == null) {
-            return;
+        if (lastAnalysisResult == null) {
+            this.lastBracketTokens = null;
+        } else {
+            int caretPosition = codeArea.getCaretPosition();
+            Optional<BracketPair> bracketPairOpt = lastAnalysisResult.bracketMapping.findEnclosingPair(caretPosition);
+            
+            if (bracketPairOpt.isPresent()) {
+                BracketPair pair = bracketPairOpt.get();
+                Token start = pair.start;
+                Token end = pair.end;
+                
+                this.lastBracketTokens = new ArrayList<>();
+                this.lastBracketTokens.add(new StyleToken(start.getStartIndex(), start.getStopIndex() + 1, Collections.singletonList("bracket-highlight")));
+                this.lastBracketTokens.add(new StyleToken(end.getStartIndex(), end.getStopIndex() + 1, Collections.singletonList("bracket-highlight")));
+            } else {
+                this.lastBracketTokens = null;
+            }
         }
-        // 모든 스타일을 다시 계산하되, 괄호 강조만 새 커서 위치를 기준으로 다시 계산합니다.
+        
+        // 괄호 정보가 업데이트되었으니, 즉시 화면에 다시 그립니다.
         applyHighlighting();
     }
 
@@ -248,69 +263,36 @@ public class HybridManager {
             return;
         }
 
-        StyleSpans<Collection<String>> tm4eSpans = tokensToSpans(lastTm4eTokens);
+        // 1. TM4E의 기본 스타일을 기반으로 StyleSpans를 생성합니다.
+        StyleSpans<Collection<String>> finalSpans = tokensToSpans(lastTm4eTokens);
 
-        if (lastAnalysisResult == null) {
-            codeArea.setStyleSpans(0, tm4eSpans);
-            return;
+        // 2. ANTLR 분석 결과가 있다면, 심볼, 에러, 괄호 스타일을 순서대로 덧칠합니다.
+        if (lastAnalysisResult != null) {
+            StyleSpans<Collection<String>> symbolSpans = tokensToSpans(lastAnalysisResult.symbolTokens);
+            StyleSpans<Collection<String>> errorSpans = tokensToSpans(lastErrorTokens);
+            StyleSpans<Collection<String>> bracketSpans = tokensToSpans(lastBracketTokens);
+            
+            finalSpans = finalSpans
+                .overlay(symbolSpans, (base, symbol) -> !symbol.isEmpty() ? symbol : base)
+                .overlay(errorSpans, (base, error) -> {
+                    if (!error.isEmpty()) {
+                        Set<String> combined = new HashSet<>(base);
+                        combined.addAll(error);
+                        return combined;
+                    }
+                    return base;
+                })
+                .overlay(bracketSpans, (base, bracket) -> {
+                    if (!bracket.isEmpty()) {
+                        Set<String> combined = new HashSet<>(base);
+                        combined.addAll(bracket);
+                        return combined;
+                    }
+                    return base;
+                });
         }
-
-        int caretPosition = codeArea.getCaretPosition();
-        Optional<BracketPair> bracketPair = lastAnalysisResult.bracketMapping.findEnclosingPair(caretPosition);
-
-        StyleSpans<Collection<String>> symbolSpans = tokensToSpans(lastAnalysisResult.symbolTokens);
-        StyleSpans<Collection<String>> errorSpans = tokensToSpans(lastErrorTokens);
-        StyleSpans<Collection<String>> bracketSpans = computeBracketHighlightSpans(bracketPair);
-        
-        StyleSpans<Collection<String>> finalSpans = tm4eSpans
-            .overlay(symbolSpans, (base, symbol) -> !symbol.isEmpty() ? symbol : base)
-            .overlay(errorSpans, (base, error) -> {
-                if (!error.isEmpty()) {
-                    Set<String> combined = new HashSet<>(base);
-                    combined.addAll(error);
-                    return combined;
-                }
-                return base;
-            })
-            .overlay(bracketSpans, (base, bracket) -> {
-                if (!bracket.isEmpty()) {
-                    Set<String> combined = new HashSet<>(base);
-                    combined.addAll(bracket);
-                    return combined;
-                }
-                return base;
-            });
         
         codeArea.setStyleSpans(0, finalSpans);
-    }
-
-    private StyleSpans<Collection<String>> computeBracketHighlightSpans(Optional<BracketPair> bracketPairOpt) {
-        StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
-        int textLength = codeArea.getLength();
-
-        if (bracketPairOpt.isPresent()) {
-            BracketPair pair = bracketPairOpt.get();
-            Token start = pair.start;
-            Token end = pair.end;
-
-            int startPos = start.getStartIndex();
-            int endPos = end.getStartIndex();
-            
-            spansBuilder.add(Collections.emptyList(), startPos);
-            spansBuilder.add(Collections.singleton("bracket-highlight"), 1);
-            if (endPos > startPos + 1) {
-                spansBuilder.add(Collections.emptyList(), endPos - (startPos + 1));
-            }
-            spansBuilder.add(Collections.singleton("bracket-highlight"), 1);
-            
-            int remainingLength = textLength - (endPos + 1);
-            if (remainingLength > 0) {
-                spansBuilder.add(Collections.emptyList(), remainingLength);
-            }
-        } else {
-            spansBuilder.add(Collections.emptyList(), textLength);
-        }
-        return spansBuilder.create();
     }
 
     public void shutdown() {
