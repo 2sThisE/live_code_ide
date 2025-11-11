@@ -98,25 +98,32 @@ public class AntlrLanguageService {
         }
 
         public Optional<BracketPair> findEnclosingPair(int caretPosition) {
-            // 커서 바로 앞뒤의 토큰 위치를 기반으로 괄호 쌍을 찾는다.
-            // 이 로직은 실제 구현에서 더 정교하게 다듬어질 수 있다.
-            // 여기서는 가장 가까운 여는 괄호와 닫는 괄호를 찾는 간단한 예시를 보여준다.
+            BracketPair bestMatch = null;
+            int smallestSpan = Integer.MAX_VALUE;
 
-            // 1. 커서 왼쪽에 있는 가장 가까운 여는 괄호 찾기
-            Optional<Integer> openingPos = pairMap.keySet().stream()
-                .filter(pos -> pos < caretPosition)
-                .max(Integer::compareTo);
+            // 모든 괄호 쌍을 순회합니다.
+            for (Map.Entry<Integer, Token> entry : pairMap.entrySet()) {
+                int openingPos = entry.getKey();
+                Token closingToken = entry.getValue();
+                int closingPos = closingToken.getStopIndex() + 1;
 
-            // 2. 커서 오른쪽에 있는 가장 가까운 닫는 괄호 찾기
-            if (openingPos.isPresent()) {
-                Token closingToken = pairMap.get(openingPos.get());
-                if (closingToken.getStopIndex() + 1 >= caretPosition) {
-                    // 짝이 맞는 괄호 쌍 안에 커서가 위치함
-                    Token openingToken = reversePairMap.get(closingToken.getStartIndex());
-                    return Optional.of(new BracketPair(openingToken, closingToken));
+                // 1. 현재 커서 위치가 이 괄호 쌍 안에 포함되는지 확인합니다.
+                if (caretPosition > openingPos && caretPosition <= closingPos) {
+                    int currentSpan = closingPos - openingPos;
+
+                    // 2. 만약 이 괄호 쌍이 이전에 찾은 것보다 더 '안쪽'에 있다면 (즉, 범위가 더 좁다면)
+                    //    이것을 새로운 '최적의 쌍'으로 선택합니다.
+                    if (currentSpan < smallestSpan) {
+                        smallestSpan = currentSpan;
+                        // reversePairMap을 사용하여 여는 괄호의 전체 Token 객체를 가져옵니다.
+                        Token openingToken = reversePairMap.get(closingToken.getStartIndex());
+                        bestMatch = new BracketPair(openingToken, closingToken);
+                    }
                 }
             }
-            return Optional.empty();
+            
+            // 찾은 최적의 쌍을 Optional로 감싸 반환합니다.
+            return Optional.ofNullable(bestMatch);
         }
     }
 
