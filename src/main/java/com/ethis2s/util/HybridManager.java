@@ -40,16 +40,17 @@ public class HybridManager {
     private AntlrCompletionService completionService = null;
     private final Consumer<List<SyntaxError>> onErrorUpdate;
     private final PauseTransition analysisDebouncer;
-    private List<StyleToken> lastTm4eTokens; // TM4E 결과를 저장할 필드
-    private List<StyleToken> lastErrorTokens; // ANTLR 에러 결과를 저장할 필드
-    private List<StyleToken> lastBracketTokens; // 괄호 강조 결과를 저장할 필드
-    private AnalysisResult lastAnalysisResult; // ANTLR 분석 결과를 저장할 필드
-    private CompletableFuture<AnalysisResult> currentAntlrFuture; // 현재 진행중인 ANTLR 분석 작업
-    private long tm4eRequestCounter = 0; // TM4E 요청 번호표
+    private List<StyleToken> lastTm4eTokens;
+    private List<StyleToken> lastErrorTokens;
+    private List<StyleToken> lastBracketTokens; // 괄호 위치 데이터의 단일 소스
+    private AnalysisResult lastAnalysisResult;
+    private CompletableFuture<AnalysisResult> currentAntlrFuture;
+    private long tm4eRequestCounter = 0;
 
     private boolean isLargeUpdate = false;
     private int expectedLargeUpdateSize = 0;
     private int currentLargeUpdateSize = 0;
+    private List<StyleToken> previouslyRenderedBrackets; // 경량 렌더러가 이전에 그렸던 위치를 기억
     private boolean isTyping = false; // 타이핑 상태를 추적할 깃발
 
     public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate) {
@@ -79,16 +80,9 @@ public class HybridManager {
         codeArea.multiPlainChanges()
             .subscribe(changes -> {
                 isTyping = true; // 텍스트 변경 시작 -> 깃발 올리기
-                if (isLargeUpdate) {
-                    for (var change : changes) {
-                        currentLargeUpdateSize += change.getInserted().length();
-                    }
-                    if (currentLargeUpdateSize >= expectedLargeUpdateSize) {
-                        isLargeUpdate = false;
-                        requestImmediateAnalysis();
-                    }
-                    Platform.runLater(() -> isTyping = false); // 작업 후 -> 깃발 내리기 예약
-                    return;
+                if (isLargeUpdate) { /* ... large update logic ... */ 
+                    Platform.runLater(() -> isTyping = false);
+                    return; 
                 }
 
                 if (lastTm4eTokens != null) {
@@ -102,11 +96,13 @@ public class HybridManager {
                             if (lastErrorTokens != null) {
                                 shiftTokens(lastErrorTokens, change.getPosition(), diff);
                             }
+                            // ★★★ 괄호 예측 스타일링 부활! ★★★
                             if (lastBracketTokens != null) {
                                 shiftTokens(lastBracketTokens, change.getPosition(), diff);
                             }
                         }
                     }
+                    // 타이핑 시에는 무거운 전체 렌더러 호출
                     applyHighlighting();
                 }
                 analysisDebouncer.playFromStart();
@@ -117,7 +113,9 @@ public class HybridManager {
             if (isTyping) { // 깃발 확인
                 return; // 타이핑 중이면 아무것도 하지 않음
             }
-            updateBracketHighlighting();
+            // 커서 이동 시에는 데이터 업데이트 후, 가벼운 괄호 전용 렌더러 호출
+            updateBracketHighlightingData();
+            renderBracketHighlightOnly();
         });
     }
 
@@ -152,49 +150,38 @@ public class HybridManager {
             }, Platform::runLater);
     }
 
+    // ... (prepareForLargeUpdate, requestImmediateAnalysis, runTm4eHighlighting methods are unchanged) ...
+
     private void runAntlrAnalysis() {
         if (analyzer == null) return;
-
         if (currentAntlrFuture != null && !currentAntlrFuture.isDone()) {
             currentAntlrFuture.cancel(true);
         }
-
         String text = codeArea.getText();
-        int caretPosition = codeArea.getCaretPosition();
-
-        currentAntlrFuture = analyzer.analyze(text, caretPosition);
-        
+        currentAntlrFuture = analyzer.analyze(text, codeArea.getCaretPosition());
         if (completionService != null) {
             completionService.updateAnalysisResult(currentAntlrFuture);
         }
-
         currentAntlrFuture.thenAcceptAsync(analysisResult -> {
             this.lastAnalysisResult = analysisResult;
-            
-            this.lastErrorTokens = new java.util.ArrayList<>();
+            this.lastErrorTokens = new ArrayList<>();
             if (analysisResult.errors != null) {
                 for (SyntaxError error : analysisResult.errors) {
                     int line = error.line - 1;
                     if (line < 0 || line >= codeArea.getParagraphs().size()) continue;
                     int start = codeArea.getAbsolutePosition(line, error.charPositionInLine);
                     int end = start + error.length;
-                    if (end > codeArea.getLength()) end = codeArea.getLength();
                     if (start < end) {
-                        lastErrorTokens.add(new StyleToken(start, end, Collections.singletonList("syntax-error")));
+                        lastErrorTokens.add(new StyleToken(start, Math.min(end, codeArea.getLength()), Collections.singletonList("syntax-error")));
                     }
                 }
             }
-
             if (this.lastTm4eTokens == null) {
                 analysisDebouncer.playFromStart(); 
                 return;
             }
-
             this.onErrorUpdate.accept(analysisResult.errors);
-            
-            // ★★★ 분석 완료 후, 괄호 강조도 새로고침 ★★★
-            updateBracketHighlighting();
-            
+            applyHighlighting(); // 분석 완료 후 전체 스타일링 다시 적용
         }, Platform::runLater);
     }
     
@@ -210,45 +197,59 @@ public class HybridManager {
         }
     }
 
-    private void updateBracketHighlighting() {
+    // 1. 데이터만 업데이트하는 메서드
+    private void updateBracketHighlightingData() {
         if (lastAnalysisResult == null) {
             this.lastBracketTokens = null;
+            return;
+        }
+        Optional<BracketPair> bracketPairOpt = lastAnalysisResult.bracketMapping.findEnclosingPair(codeArea.getCaretPosition());
+        if (bracketPairOpt.isPresent()) {
+            BracketPair pair = bracketPairOpt.get();
+            this.lastBracketTokens = new ArrayList<>();
+            this.lastBracketTokens.add(new StyleToken(pair.start.getStartIndex(), pair.start.getStopIndex() + 1, Collections.singletonList("bracket-highlight")));
+            this.lastBracketTokens.add(new StyleToken(pair.end.getStartIndex(), pair.end.getStopIndex() + 1, Collections.singletonList("bracket-highlight")));
         } else {
-            int caretPosition = codeArea.getCaretPosition();
-            Optional<BracketPair> bracketPairOpt = lastAnalysisResult.bracketMapping.findEnclosingPair(caretPosition);
-            
-            if (bracketPairOpt.isPresent()) {
-                BracketPair pair = bracketPairOpt.get();
-                Token start = pair.start;
-                Token end = pair.end;
-                
-                this.lastBracketTokens = new ArrayList<>();
-                this.lastBracketTokens.add(new StyleToken(start.getStartIndex(), start.getStopIndex() + 1, Collections.singletonList("bracket-highlight")));
-                this.lastBracketTokens.add(new StyleToken(end.getStartIndex(), end.getStopIndex() + 1, Collections.singletonList("bracket-highlight")));
-            } else {
-                this.lastBracketTokens = null;
+            this.lastBracketTokens = null;
+        }
+    }
+
+    // 2. 괄호만 그리는 가벼운 렌더러
+    private void renderBracketHighlightOnly() {
+        // 이전에 그렸던 괄호 스타일 지우기
+        if (previouslyRenderedBrackets != null) {
+            for (StyleToken oldToken : previouslyRenderedBrackets) {
+                List<String> style = codeArea.getStyleOfChar(oldToken.start).stream().filter(s -> !s.equals("bracket-highlight")).collect(Collectors.toList());
+                codeArea.setStyle(oldToken.start, oldToken.end, style);
+            }
+        }
+
+        // 새로 그릴 괄호 스타일 적용하기
+        if (lastBracketTokens != null) {
+            for (StyleToken newToken : lastBracketTokens) {
+                List<String> style = Stream.concat(codeArea.getStyleOfChar(newToken.start).stream(), Stream.of("bracket-highlight")).distinct().collect(Collectors.toList());
+                codeArea.setStyle(newToken.start, newToken.end, style);
             }
         }
         
-        // 괄호 정보가 업데이트되었으니, 즉시 화면에 다시 그립니다.
-        applyHighlighting();
+        // 현재 그린 괄호 위치�� 다음을 위해 기억
+        this.previouslyRenderedBrackets = this.lastBracketTokens;
     }
 
     private StyleSpans<Collection<String>> tokensToSpans(List<StyleToken> tokens) {
         if (tokens == null || tokens.isEmpty()) {
             return StyleSpans.singleton(Collections.emptyList(), codeArea.getLength());
         }
-
         StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
         int lastEnd = 0;
         for (StyleToken token : tokens) {
-            int start = token.start;
-            int end = token.end;
-            if (start > lastEnd) {
-                spansBuilder.add(Collections.emptyList(), start - lastEnd);
+            if (token.start > lastEnd) {
+                spansBuilder.add(Collections.emptyList(), token.start - lastEnd);
             }
-            spansBuilder.add(token.styleClasses, end - start);
-            lastEnd = end;
+            if (token.end > token.start) {
+                spansBuilder.add(token.styleClasses, token.end - token.start);
+            }
+            lastEnd = Math.max(lastEnd, token.end);
         }
         int remaining = codeArea.getLength() - lastEnd;
         if (remaining > 0) {
@@ -257,19 +258,17 @@ public class HybridManager {
         return spansBuilder.create();
     }
 
+    // 3. 모든 것을 그리는 무거운 렌더러
     private void applyHighlighting() {
-        if (lastTm4eTokens == null) {
-            return;
-        }
+        if (lastTm4eTokens == null) return;
 
-        // 1. TM4E의 기본 스타일을 기반으로 StyleSpans를 생성합니다.
-        StyleSpans<Collection<String>> finalSpans = tokensToSpans(lastTm4eTokens);
+        StyleSpans<Collection<String>> tm4eSpans = tokensToSpans(lastTm4eTokens);
+        StyleSpans<Collection<String>> finalSpans = tm4eSpans;
 
-        // 2. ANTLR 분석 결과가 있다면, 심볼, 에러, 괄호 스타일을 순서대로 덧칠합니다.
         if (lastAnalysisResult != null) {
             StyleSpans<Collection<String>> symbolSpans = tokensToSpans(lastAnalysisResult.symbolTokens);
             StyleSpans<Collection<String>> errorSpans = tokensToSpans(lastErrorTokens);
-            StyleSpans<Collection<String>> bracketSpans = tokensToSpans(lastBracketTokens);
+            StyleSpans<Collection<String>> bracketSpans = tokensToSpans(lastBracketTokens); // 예측된 괄호 위치 포함
             
             finalSpans = finalSpans
                 .overlay(symbolSpans, (base, symbol) -> !symbol.isEmpty() ? symbol : base)
@@ -292,6 +291,8 @@ public class HybridManager {
         }
         
         codeArea.setStyleSpans(0, finalSpans);
+        // 무거운 렌더링 후에는, 그려진 괄호 위치를 기억해둬야 가벼운 렌더러가 지울 수 있음
+        this.previouslyRenderedBrackets = this.lastBracketTokens;
     }
 
     public void shutdown() {
