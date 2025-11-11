@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -53,6 +54,8 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     private UserInfo userInfo;
     private String lastLoggedInId;
     private char[] lastLoggedInPassword;
+    
+    private final AtomicInteger activeAntlrTasks = new AtomicInteger(0);
     
     private Map<String, Consumer<JSONArray>> pendingSharedListCallbacks = new HashMap<>();
     private Map<String, Consumer<Boolean>> pendingAddShareCallbacks = new HashMap<>();
@@ -328,6 +331,30 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     @Override
     public void onAddFolderResponse(boolean result) {
         projectController.handleAddFolderResponse(result);
+    }
+
+    /**
+     * ANTLR 분석 작업이 시작되었음을 알립니다.
+     * 실행 중인 작업 수를 1 증가시키고, 첫 작업인 경우 인디케이터를 표시합니다.
+     */
+    public void notifyAntlrTaskStarted() {
+        if (activeAntlrTasks.getAndIncrement() == 0) {
+            if (mainScreen != null) {
+                mainScreen.showAntlrIndicator(true);
+            }
+        }
+    }
+
+    /**
+     * ANTLR 분석 작업이 종료되었음을 알립니다.
+     * 실행 중인 작업 수를 1 감소시키고, 마지막 작업이었던 경우 인디케이터를 숨깁니다.
+     */
+    public void notifyAntlrTaskFinished() {
+        if (activeAntlrTasks.decrementAndGet() == 0) {
+            if (mainScreen != null) {
+                mainScreen.showAntlrIndicator(false);
+            }
+        }
     }
 
     public void navigateToError(Problem problem) {

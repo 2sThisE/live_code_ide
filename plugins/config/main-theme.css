@@ -178,14 +178,14 @@
 }
 
 
- .scroll-bar {
+.scroll-bar {
     -fx-background-color: transparent;
     -fx-background-insets: 0;
     -fx-border-width: 0 0 0 1px; /* 상 우 하 좌 (공백으로 구분) */
     -fx-border-color: rgb(26, 26, 26);
 }
 
- .scroll-bar .track {
+.scroll-bar .track {
     -fx-background-color: transparent;
     
     
@@ -193,18 +193,18 @@
     -fx-background-insets: 0;
 }
 
- .scroll-bar .thumb {
+.scroll-bar .thumb {
     -fx-background-color: #3838388e;
     -fx-background-insets: 0;
     -fx-background-radius: 0;
 }
 
- .scroll-bar .thumb:hover {
+.scroll-bar .thumb:hover {
     -fx-background-color: #3d3d3d; 
 }
 
- .scroll-bar .increment-button,
- .scroll-bar .decrement-button {
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
     -fx-background-color: transparent;
     -fx-background-radius: 0;
     -fx-padding: 0;
@@ -218,13 +218,13 @@
 }
 
 /* ★★★ 핵심 해결책 ★★★ */
- .scroll-bar:vertical {
+.scroll-bar:vertical {
     -fx-pref-width: 15px;
     -fx-padding: 0;
 }
 
 /* 수평 스크롤바도 동일하게 처리하려면 추가합니다. */
- .scroll-bar:horizontal {
+.scroll-bar:horizontal {
     -fx-border-width: 1 0 0 0px; /* 상 우 하 좌 (공백으로 구분) */
     -fx-border-color: rgb(26, 26, 26);
     -fx-pref-height: 15px;
@@ -285,6 +285,11 @@
     -fx-background-color: #007acc;
 }
 
-
-
-
+.mfx-progress-spinner .arc{
+    /* 선 색상을 단색으로 지정합니다. 원하는 다른 색상으로 변경 가능합니다. */
+    -fx-stroke-width: 3px!important;   /* 두께 */
+    -fx-stroke: #8A2BE2!important;
+}
+.mfx-progress-spinner {
+    -fx-stroke: #8A2BE2!important;
+}

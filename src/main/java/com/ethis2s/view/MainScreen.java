@@ -16,7 +16,6 @@ import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
 
 import io.github.palexdev.materialfx.controls.MFXProgressSpinner;
-import io.github.palexdev.materialfx.controls.MFXSpinner;
 import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
@@ -29,7 +28,6 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
-import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
@@ -44,6 +42,7 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
@@ -218,8 +217,9 @@ public class MainScreen {
         
         // MFXProgressSpinner 생성 및 설정
         antlrIndicator = new MFXProgressSpinner();
-        antlrIndicator.setVisible(true);
+        antlrIndicator.setVisible(false);
         antlrIndicator.setRadius(6); // 크기를 작게 조절
+        antlrIndicator.getStyleClass().add("mfx-progress-spinner");
         
         Region statusBarSpacer = new Region();
         HBox.setHgrow(statusBarSpacer, Priority.ALWAYS);
@@ -250,7 +250,13 @@ public class MainScreen {
      */
     public void showAntlrIndicator(boolean show) {
         Platform.runLater(() -> {
+            System.out.println("indicator: "+show);
             if (antlrIndicator != null) {
+                Color singleColor = Color.web("#0078D4"); // 예: 세련된 파란색
+                antlrIndicator.setColor1(singleColor);
+                antlrIndicator.setColor2(singleColor);
+                antlrIndicator.setColor3(singleColor);
+                antlrIndicator.setColor4(singleColor);
                 antlrIndicator.setVisible(show);
             }
         });

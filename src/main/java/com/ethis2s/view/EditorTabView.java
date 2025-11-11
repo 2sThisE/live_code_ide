@@ -199,9 +199,13 @@ public class EditorTabView {
         VirtualizedScrollPane<CodeArea> scrollPane = new VirtualizedScrollPane<>(codeArea);
         String fileExtension = getFileExtension(filePath);
 
-        HybridManager manager = new HybridManager(codeArea, fileExtension, (errors) -> {
-            Platform.runLater(() -> handleErrorUpdate(tabId, fileName, errors));
-        });
+        HybridManager manager = new HybridManager(
+            codeArea, 
+            fileExtension, 
+            (errors) -> Platform.runLater(() -> handleErrorUpdate(tabId, fileName, errors)),
+            mainController::notifyAntlrTaskStarted,
+            mainController::notifyAntlrTaskFinished
+        );
         
         activeManagers.add(manager);
         codeArea.replaceText(0, 0, content);

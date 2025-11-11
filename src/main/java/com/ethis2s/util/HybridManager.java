@@ -1,5 +1,6 @@
 package com.ethis2s.util;
 
+import com.ethis2s.controller.MainController;
 import com.ethis2s.service.AntlrCompletionService;
 import com.ethis2s.service.AntlrLanguageService;
 import com.ethis2s.service.AntlrLanguageService.AnalysisResult;
@@ -39,6 +40,8 @@ public class HybridManager {
     private final ExecutorService analysisExecutor = Executors.newSingleThreadExecutor();
     private AntlrCompletionService completionService = null;
     private final Consumer<List<SyntaxError>> onErrorUpdate;
+    private final Runnable onAnalysisStart;
+    private final Runnable onAnalysisFinish;
     private final PauseTransition analysisDebouncer;
     private List<StyleToken> lastTm4eTokens;
     private List<StyleToken> lastErrorTokens;
@@ -53,9 +56,11 @@ public class HybridManager {
     private List<StyleToken> previouslyRenderedBrackets; // 경량 렌더러가 이전에 그렸던 위치를 기억
     private boolean isTyping = false; // 타이핑 상태를 추적할 깃발
 
-    public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate) {
+    public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate, Runnable onAnalysisStart, Runnable onAnalysisFinish) {
         this.codeArea = codeArea;
         this.onErrorUpdate = onErrorUpdate;
+        this.onAnalysisStart = onAnalysisStart;
+        this.onAnalysisFinish = onAnalysisFinish;
         
         this.highlighter = new Tm4eSyntaxHighlighter(codeArea, fileExtension);
 
@@ -73,6 +78,7 @@ public class HybridManager {
 
         this.analysisDebouncer = new PauseTransition(Duration.millis(300));
         this.analysisDebouncer.setOnFinished(e -> {
+            System.err.println("[DEBUG] Debouncer finished. Calling runAntlrAnalysis().");
             runTm4eHighlighting();
             runAntlrAnalysis();
         });
@@ -153,12 +159,22 @@ public class HybridManager {
     // ... (prepareForLargeUpdate, requestImmediateAnalysis, runTm4eHighlighting methods are unchanged) ...
 
     private void runAntlrAnalysis() {
-        if (analyzer == null) return;
+        System.err.println("[DEBUG] runAntlrAnalysis() called.");
+        if (analyzer == null) {
+            System.err.println("[DEBUG] Analysis stopped: analyzer is null.");
+            return;
+        }
+        System.err.println("[DEBUG] Analysis proceeding: analyzer is not null.");
+        onAnalysisStart.run();
+
         if (currentAntlrFuture != null && !currentAntlrFuture.isDone()) {
             currentAntlrFuture.cancel(true);
         }
         String text = codeArea.getText();
         currentAntlrFuture = analyzer.analyze(text, codeArea.getCaretPosition());
+
+        currentAntlrFuture.whenComplete((result, throwable) -> onAnalysisFinish.run());
+
         if (completionService != null) {
             completionService.updateAnalysisResult(currentAntlrFuture);
         }
