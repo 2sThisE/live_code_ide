@@ -3,6 +3,7 @@ package com.ethis2s.util;
 import com.ethis2s.service.CompletionService;
 import javafx.application.Platform;
 import javafx.scene.control.IndexRange;
+import javafx.scene.input.Clipboard;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import org.fxmisc.richtext.CodeArea;
@@ -27,14 +28,16 @@ public class EditorInputManager {
     private final CodeArea codeArea;
     private final EditorEnhancer enhancer;
     private final CompletionService completionService;
+    private final HybridManager manager;
 
     private final StringBuilder currentWord = new StringBuilder();
     private boolean suggestionsHiddenManually = false;
 
-    public EditorInputManager(CodeArea codeArea, EditorEnhancer enhancer, CompletionService completionService) {
+    public EditorInputManager(CodeArea codeArea, EditorEnhancer enhancer, CompletionService completionService, HybridManager manager) {
         this.codeArea = codeArea;
         this.enhancer = enhancer;
         this.completionService = completionService;
+        this.manager = manager;
     }
 
     public void registerEventHandlers() {
@@ -42,7 +45,7 @@ public class EditorInputManager {
         codeArea.addEventFilter(KeyEvent.KEY_PRESSED, this::handleKeyPressed);
         
         codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
-            Platform.runLater(() -> this.updateWordBoxAndSuggest());
+            Platform.runLater(this::updateWordBoxAndSuggest);
         });
 
         codeArea.textProperty().addListener((obs, oldText, newText) -> {
@@ -57,6 +60,7 @@ public class EditorInputManager {
             });
         });
     }
+
     
     private void updateWordBoxAndSuggest() {
         if (completionService == null) return;

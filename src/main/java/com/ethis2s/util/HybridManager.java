@@ -27,18 +27,23 @@ import java.util.function.Consumer;
 
 public class HybridManager {
     
+    private static final int LARGE_UPDATE_THRESHOLD = 1000;
     private final CodeArea codeArea;
     private final Tm4eSyntaxHighlighter highlighter;
     private final AntlrLanguageService analyzer;
     private final ExecutorService analysisExecutor = Executors.newSingleThreadExecutor();
     private AntlrCompletionService completionService = null;
     private final Consumer<List<SyntaxError>> onErrorUpdate;
-    private final PauseTransition antlrDebouncer;
+    private final PauseTransition analysisDebouncer;
     private List<StyleToken> lastTm4eTokens; // TM4E 결과를 저장할 필드
     private List<StyleToken> lastErrorTokens; // ANTLR 에러 결과를 저장할 필드
     private AnalysisResult lastAnalysisResult; // ANTLR 분석 결과를 저장할 필드
     private CompletableFuture<AnalysisResult> currentAntlrFuture; // 현재 진행중인 ANTLR 분석 작업
     private long tm4eRequestCounter = 0; // TM4E 요청 번호표
+
+    private boolean isLargeUpdate = false;
+    private int expectedLargeUpdateSize = 0;
+    private int currentLargeUpdateSize = 0;
 
     public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate) {
         this.codeArea = codeArea;
@@ -55,17 +60,28 @@ public class HybridManager {
         }
         
         EditorEnhancer enhancer = new EditorEnhancer(codeArea, this.completionService, this);
-        EditorInputManager inputManager = new EditorInputManager(codeArea, enhancer, this.completionService);
+        EditorInputManager inputManager = new EditorInputManager(codeArea, enhancer, this.completionService, this);
         inputManager.registerEventHandlers();
 
-        // ANTLR 분석을 1초 지연 실행하기 위한 Debouncer 설정
-        this.antlrDebouncer = new PauseTransition(Duration.millis(100));
-        this.antlrDebouncer.setOnFinished(e -> runAntlrAnalysis());
+        this.analysisDebouncer = new PauseTransition(Duration.millis(300));
+        this.analysisDebouncer.setOnFinished(e -> {
+            runTm4eHighlighting();
+            runAntlrAnalysis();
+        });
 
-        // 텍스트가 변경될 때마다 즉시 TM4E 하이라이팅을 실행하고, ANTLR 분석은 1초 뒤로 예약합니다.
         codeArea.multiPlainChanges()
             .subscribe(changes -> {
-                // 1. 예측 스타일링 즉시 적용
+                if (isLargeUpdate) {
+                    for (var change : changes) {
+                        currentLargeUpdateSize += change.getInserted().length();
+                    }
+                    if (currentLargeUpdateSize >= expectedLargeUpdateSize) {
+                        isLargeUpdate = false;
+                        requestImmediateAnalysis();
+                    }
+                    return;
+                }
+
                 if (lastTm4eTokens != null) {
                     for (var change : changes) {
                         int diff = change.getInserted().length() - change.getRemoved().length();
@@ -81,14 +97,29 @@ public class HybridManager {
                     }
                     applyHighlighting();
                 }
-
-                // 2. 실제 분석 요청
-                runTm4eHighlighting();
-                antlrDebouncer.playFromStart();
+                analysisDebouncer.playFromStart();
             });
         
-        // 커서 위치가 바뀔 때마다 즉시 괄호 강조를 업데이트합니다.
         codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> updateBracketHighlighting());
+    }
+
+    public void prepareForLargeUpdate(int expectedSize) {
+        if (expectedSize < LARGE_UPDATE_THRESHOLD) {
+            return;
+        }
+        this.isLargeUpdate = true;
+        this.expectedLargeUpdateSize = expectedSize;
+        this.currentLargeUpdateSize = 0;
+        analysisDebouncer.stop();
+    }
+
+    public void requestImmediateAnalysis() {
+        analysisDebouncer.stop();
+        if (currentAntlrFuture != null && !currentAntlrFuture.isDone()) {
+            currentAntlrFuture.cancel(true);
+        }
+        runTm4eHighlighting();
+        runAntlrAnalysis();
     }
 
     private void runTm4eHighlighting() {
@@ -125,6 +156,12 @@ public class HybridManager {
         currentAntlrFuture.thenAcceptAsync(analysisResult -> {
             this.lastAnalysisResult = analysisResult; // 최신 분석 결과를 저장합니다.
             
+            // ★★★★★ 주인님, 바로 여기에 마법의 주문을 추가해요! ★★★★★
+            if (!analysisResult.errors.isEmpty()) {
+                System.out.println("!! 문법 교수님이 길을 잃었어요: " + analysisResult.errors);
+            }
+            // ★★★★★ 여기까지예요! ★★★★★
+
             // ANTLR 에러를 StyleToken으로 변환하여 저장
             this.lastErrorTokens = new java.util.ArrayList<>();
             if (analysisResult.errors != null) {
@@ -141,7 +178,7 @@ public class HybridManager {
             }
 
             if (this.lastTm4eTokens == null) {
-                antlrDebouncer.playFromStart(); 
+                analysisDebouncer.playFromStart(); 
                 return;
             }
 
