@@ -314,38 +314,12 @@ public class AntlrLanguageService {
         return symbolTokens;
     }
     
-    public List<String> getCompletions(AnalysisResult result, String text, int caretPosition) {
-        if (result == null) return Collections.emptyList();
-        
-        // 1. 사용자가 자동 완성을 요청한 단어의 "시작 부분"을 알아냅니다.
-        int start = caretPosition - 1;
-        while (start >= 0 && Character.isJavaIdentifierPart(text.charAt(start))) {
-            start--;
-        }
-        String prefix = text.substring(start + 1, caretPosition).toLowerCase();
+    public String getFileExtension() {
+        return fileExtension;
+    }
 
-        Set<String> suggestions = new HashSet<>();
-        
-        // 2. 심볼 테이블과 키워드 목록을 모두 수집합니다 (기존과 동일).
-        if (result.symbolTable != null) {
-            suggestions.addAll(result.symbolTable.symbols.keySet());
-        }
-        List<String> keywords = LANGUAGE_KEYWORDS.get(this.fileExtension);
-        if (keywords != null) {
-            suggestions.addAll(keywords);
-        }
-        
-        // 3. [핵심] 수집된 모든 제안 목록을 "필터링"하고 "정렬"합니다.
-        List<String> filteredSuggestions = suggestions.stream()
-            // 3a. 사용자가 입력한 'prefix'로 시작하는 단어만 남깁니다.
-            .filter(s -> s.toLowerCase().startsWith(prefix))
-            // 3b. (선택적) 더 정교한 정렬 로직을 추가할 수 있습니다.
-            //      예: 키워드보다 변수 이름을 더 위로, 짧은 단어를 더 위로 등
-            .sorted() 
-            .toList(); // Java 16+
-            // .collect(Collectors.toList()); // Java 8+
-
-        return filteredSuggestions;
+    public Map<String, List<String>> getLanguageKeywords() {
+        return LANGUAGE_KEYWORDS;
     }
 
     private BracketMapping precomputeBracketPairs(CommonTokenStream tokens) {

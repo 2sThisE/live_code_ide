@@ -50,6 +50,7 @@ public class HybridManager {
     private boolean isLargeUpdate = false;
     private int expectedLargeUpdateSize = 0;
     private int currentLargeUpdateSize = 0;
+    private boolean isTyping = false; // 타이핑 상태를 추적할 깃발
 
     public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate) {
         this.codeArea = codeArea;
@@ -77,6 +78,7 @@ public class HybridManager {
 
         codeArea.multiPlainChanges()
             .subscribe(changes -> {
+                isTyping = true; // 텍스트 변경 시작 -> 깃발 올리기
                 if (isLargeUpdate) {
                     for (var change : changes) {
                         currentLargeUpdateSize += change.getInserted().length();
@@ -85,6 +87,7 @@ public class HybridManager {
                         isLargeUpdate = false;
                         requestImmediateAnalysis();
                     }
+                    Platform.runLater(() -> isTyping = false); // 작업 후 -> 깃발 내리기 예약
                     return;
                 }
 
@@ -99,7 +102,6 @@ public class HybridManager {
                             if (lastErrorTokens != null) {
                                 shiftTokens(lastErrorTokens, change.getPosition(), diff);
                             }
-                            // ★★★ 예측 스타일링에 괄호 토큰 추가 ★★★
                             if (lastBracketTokens != null) {
                                 shiftTokens(lastBracketTokens, change.getPosition(), diff);
                             }
@@ -108,9 +110,15 @@ public class HybridManager {
                     applyHighlighting();
                 }
                 analysisDebouncer.playFromStart();
+                Platform.runLater(() -> isTyping = false); // 모든 작업 후 -> 깃발 내리기 예약
             });
         
-        codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> updateBracketHighlighting());
+        codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
+            if (isTyping) { // 깃발 확인
+                return; // 타이핑 중이면 아무것도 하지 않음
+            }
+            updateBracketHighlighting();
+        });
     }
 
     public void prepareForLargeUpdate(int expectedSize) {
@@ -187,18 +195,9 @@ public class HybridManager {
             // ★★★ 분석 완료 후, 괄호 강조도 새로고침 ★★★
             updateBracketHighlighting();
             
-        }, Platform::runLater)
-        .exceptionally(ex -> {
-            if (ex.getCause() instanceof java.util.concurrent.CancellationException) {
-                System.out.println("[HybridManager] Analysis task was successfully cancelled.");
-            } else {
-                System.err.println("[HybridManager] Analysis task failed unexpectedly.");
-                ex.printStackTrace();
-            }
-            return null;
-        });
+        }, Platform::runLater);
     }
-
+    
     private void shiftTokens(List<StyleToken> tokens, int position, int diff) {
         if (tokens == null) return;
         for (StyleToken token : tokens) {

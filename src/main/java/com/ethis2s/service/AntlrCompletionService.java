@@ -3,63 +3,75 @@ package com.ethis2s.service;
 import com.ethis2s.service.AntlrLanguageService.AnalysisResult;
 import com.ethis2s.service.AntlrLanguageService.BracketMapping;
 import com.ethis2s.service.AntlrLanguageService.SymbolTable;
-import org.fxmisc.richtext.model.StyleSpansBuilder;
-
-import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
-/**
- * AntlrLanguageService의 분석 결과를 EditorEnhancer가 이해할 수 있는 형태로 변환해주는
- * "어댑터(Adapter)" 또는 "중개인" 클래스. CompletionService 인터페이스를 구현합니다.
- */
 public class AntlrCompletionService implements CompletionService {
 
     private final AntlrLanguageService antlrService;
-    private CompletableFuture<AnalysisResult> lastAnalysis;
+    private AnalysisResult lastKnownResult; // 과거 분석 결과를 저장할 캐시
+    private Consumer<List<String>> onCompletionUpdated; // 분석 완료 후 호출할 콜백
 
     public AntlrCompletionService(AntlrLanguageService antlrService) {
         this.antlrService = antlrService;
-        // NullPointerException을 방지하기 위해, 초기 분석 결과를 안전한 빈 상태로 설정합니다.
-        this.lastAnalysis = CompletableFuture.completedFuture(
-            new AnalysisResult(null, Collections.emptyList(), new SymbolTable(), Collections.emptyList(), new BracketMapping(Collections.emptyMap(), Collections.emptyMap()))
-        );
-    }
-    
-    /**
-     * HybridManager가 백그라운드에서 새로운 분석을 완료할 때마다
-     * 이 메소드를 호출하여 최신 분석 결과를 업데이트해 줍니다.
-     * @param newResult 새로운 분석 결과를 담은 CompletableFuture
-     */
-    public void updateAnalysisResult(CompletableFuture<AnalysisResult> newResult) {
-        this.lastAnalysis = newResult;
+        this.lastKnownResult = new AnalysisResult(null, Collections.emptyList(), new SymbolTable(), Collections.emptyList(), new BracketMapping(Collections.emptyMap(), Collections.emptyMap()));
     }
 
-    /**
-     * EditorEnhancer가 자동 완성 제안이 필요할 때 호출하는 메소드.
-     * @param code 전체 코드 텍스트
-     * @param caretPosition 현재 커서의 절대 위치
-     * @return 제안 목록
-     */
+    public void setOnCompletionUpdated(Consumer<List<String>> onCompletionUpdated) {
+        this.onCompletionUpdated = onCompletionUpdated;
+    }
+
+    public void updateAnalysisResult(CompletableFuture<AnalysisResult> newResultFuture) {
+        newResultFuture.thenAccept(newResult -> {
+            this.lastKnownResult = newResult;
+            // 분석이 완료되면, 콜백을 호출하여 EditorEnhancer에게 알림
+            if (onCompletionUpdated != null) {
+                // 현재 상태에서 유효한 제안 목록을 다시 계산하여 전달
+                // 이 부분은 실제 사용 시점의 코드와 커서 위치를 알아야 더 정확해짐
+                // 지금은 일단 빈 값으로 트리거만 해주는 방식으로 구현
+                onCompletionUpdated.accept(Collections.emptyList()); 
+            }
+        });
+    }
+
     @Override
     public List<String> getSuggestions(String code, int caretPosition) {
-        // 이 메소드는 UI 스레드에서 호출될 수 있으므로, 절대 오래 걸리는 작업을 하면 안 됩니다.
-        try {
-            // lastAnalysis.get()을 사용하면 UI가 멈출 수 있으므로,
-            // getNow(null)을 사용하여 "즉시" 결과를 가져오고, 아직 분석 중이면 null을 받습니다.
-            AnalysisResult result = lastAnalysis.getNow(null); 
-            
-            if (result != null && antlrService != null) {
-                return antlrService.getCompletions(result, code, caretPosition);
-            }
-        } catch (Exception e) {
-            // 만약의 사태에 대비한 예외 처리
-            e.printStackTrace();
+        // 항상 캐시된 과거의 결과(lastKnownResult)를 사용하여 즉시 반환
+        return getCompletions(lastKnownResult, code, caretPosition);
+    }
+
+    // AntlrLanguageService에서 가져온 로직
+    private List<String> getCompletions(AnalysisResult result, String text, int caretPosition) {
+        if (result == null) return Collections.emptyList();
+        
+        int start = caretPosition - 1;
+        while (start >= 0 && Character.isJavaIdentifierPart(text.charAt(start))) {
+            start--;
+        }
+        String prefix = text.substring(start + 1, caretPosition).toLowerCase();
+
+        Set<String> suggestions = new HashSet<>();
+        
+        if (result.symbolTable != null) {
+            suggestions.addAll(result.symbolTable.symbols.keySet());
         }
         
-        // 준비가 안됐거나 오류가 발생하면 빈 목록을 반환합니다.
-        return Collections.emptyList();
+        if (antlrService != null) {
+            String fileExtension = antlrService.getFileExtension(); 
+            List<String> keywords = antlrService.getLanguageKeywords().get(fileExtension);
+            if (keywords != null) {
+                suggestions.addAll(keywords);
+            }
+        }
+        
+        return suggestions.stream()
+            .filter(s -> s.toLowerCase().startsWith(prefix))
+            .sorted()
+            .collect(Collectors.toList());
     }
 }

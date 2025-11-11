@@ -43,10 +43,6 @@ public class EditorInputManager {
     public void registerEventHandlers() {
         codeArea.addEventFilter(KeyEvent.KEY_TYPED, this::handleKeyTyped);
         codeArea.addEventFilter(KeyEvent.KEY_PRESSED, this::handleKeyPressed);
-        
-        codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
-            Platform.runLater(this::updateWordBoxAndSuggest);
-        });
 
         codeArea.textProperty().addListener((obs, oldText, newText) -> {
             int currentParagraph = codeArea.getCurrentParagraph();
@@ -136,7 +132,14 @@ public class EditorInputManager {
 
     private void handleKeyTyped(KeyEvent e) {
         String typedChar = e.getCharacter();
-        if (typedChar.isEmpty() || Character.isISOControl(typedChar.charAt(0))) return;
+        if (typedChar.isEmpty() || Character.isISOControl(typedChar.charAt(0))) {
+            // 제어 문자가 입력되면 자동 완성을 시도하지 않고 바로 종료합니다.
+            return;
+        }
+
+        // 자동 완성 로직을 다른 기능보다 먼저, 그리고 즉시 호출합니다.
+        // Platform.runLater를 사용하여 UI 변경이 완료된 후에 실행되도록 합니다.
+        Platform.runLater(this::updateWordBoxAndSuggest);
 
         if (" ".equals(typedChar)) {
             handleSpaceToTabConversion(e);
@@ -149,9 +152,6 @@ public class EditorInputManager {
         if ("}".equals(typedChar)) {
             Platform.runLater(this::autoFormatBlock);
         }
-        
-        // 텍스트 변경 후 단어 박스 업데이트 예약
-        Platform.runLater(() -> this.updateWordBoxAndSuggest());
     }
 
     private void handleSpaceToTabConversion(KeyEvent e) {
