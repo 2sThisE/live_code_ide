@@ -78,8 +78,9 @@ public class App extends Application {
             try {
                 socketManager.connect();
             } catch (Exception e) {
-                // Handle connection error, e.g., show an error message
+                // Handle connection error by triggering the reconnection logic
                 e.printStackTrace();
+                socketManager.initiateReconnection();
             }
         }).start();
     }

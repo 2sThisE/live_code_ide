@@ -214,5 +214,84 @@
     -fx-padding: 5px;
 }
 
+/* Settings View Styles */
+.settings-view,
+.settings-left-menu,
+.settings-content-area,
+.settings-button-bar {
+    -fx-background-color: #1e1e1e; /* Unified VS Code Dark Background */
+}
 
 
+.settings-left-menu {
+    -fx-padding: 10px ,0;
+    -fx-min-width: 150;
+    -fx-border-color: #333333;
+    -fx-border-width: 0 1px 0 0 ;
+}
+
+.settings-menu-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #cccccc;
+    -fx-font-size: 12px;
+    /* -fx-padding: 8 12; */
+    -fx-alignment: center-left;
+    -fx-pref-width: 130; /* Fill width of the VBox */
+    -fx-background-radius: 4;
+}
+
+.settings-menu-button:hover {
+    -fx-background-color: #2a2d2e; /* Slightly lighter hover */
+}
+
+.settings-menu-button.active {
+    -fx-background-color: #0078D4; /* VS Code blue */
+    -fx-text-fill: white;
+}
+
+.settings-content-area .label {
+    -fx-text-fill: #cccccc;
+    -fx-font-size: 13px;
+    -fx-alignment: center-right;
+    -fx-pref-width: 100; /* Provide enough width for alignment */
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+}
+
+.settings-content-area .text-field {
+    -fx-background-color: #3c3c3c;
+    -fx-text-fill: #cccccc;
+    -fx-border-color: #3c3c3c;
+    -fx-border-width: 1;
+}
+
+.settings-view .scroll-pane, .settings-view .scroll-pane:focused {
+    -fx-border-color: transparent;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+
+
+.label, .text, .button, .menu-item .label, .menu .label {
+    -fx-text-fill: #cccccc;
+}
+
+.settings-content-area .text-field {
+    -fx-background-color: #3c3c3c;
+    -fx-text-fill: #cccccc;
+    -fx-border-color: #3c3c3c;
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-insets: 0;
+    -fx-border-insets: 0;
+    -fx-background-radius: 8px;
+}
+
+.settings-content-area .text-field:focused {
+    -fx-border-color: #007acc;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+}

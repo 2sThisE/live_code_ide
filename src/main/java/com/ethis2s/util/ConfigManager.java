@@ -68,42 +68,56 @@ public class ConfigManager {
                 .findFirst()
                 .ifPresent(m -> ((Map<String, Object>) m.get("settings")).put(key, value));
     }
-    
-    public String getCurrentTheme() {
-        return getSetting("editor", "theme").orElse("light-theme").toString();
+
+    @SuppressWarnings("unchecked")
+    public Optional<Map<String, Object>> getFeatureSettings(String feature) {
+        if (config == null) {
+            return Optional.empty();
+        }
+        return config.stream()
+                .filter(m -> feature.equals(m.get("feature")))
+                .findFirst()
+                .map(m -> (Map<String, Object>) m.get("settings"));
     }
 
+    public List<Map<String, Object>> getAllFeatures() {
+        return config;
+    }
+    
     public int getTabSize() {
         return ((Number) getSetting("editor", "tabSize").orElse(4)).intValue();
     }
 
-    public String getSyntaxThemePath() {
-        String themeName = getCurrentTheme();
-        return toUrl(Paths.get(THEMES_BASE_PATH, themeName + ".css").toString());
+    public int getFontSize() {
+        return ((Number) getSetting("editor", "fontSize").orElse(15)).intValue();
+    }
+
+    public String getFontFamily() {
+        return getSetting("editor", "fontFamily").orElse("Consolas").toString();
     }
 
     public String getMainThemePath() {
-        return toUrl(Paths.get(THEMES_BASE_PATH, "main-theme.css").toString());
+        return getSetting("IDE 디자인", "메인 테마").map(Object::toString).flatMap(this::toUrl).orElse(null);
     }
 
     public String getTreeViewThemePath() {
-        return toUrl(Paths.get(THEMES_BASE_PATH, "tree-view-theme.css").toString());
+        return getSetting("IDE 디자인", "트리 뷰 테마").map(Object::toString).flatMap(this::toUrl).orElse(null);
     }
 
     public String getTopTabsThemePath() {
-        return toUrl(Paths.get(THEMES_BASE_PATH, "top-tabs-theme.css").toString());
+        return getSetting("IDE 디자인", "상단 탭 테마").map(Object::toString).flatMap(this::toUrl).orElse(null);
     }
 
     public String getBottomTabsThemePath() {
-        return toUrl(Paths.get(THEMES_BASE_PATH, "bottom-tabs-theme.css").toString());
+        return getSetting("IDE 디자인", "하단 탭 테마").map(Object::toString).flatMap(this::toUrl).orElse(null);
     }
 
-    private String toUrl(String path) {
+    private Optional<String> toUrl(String path) {
         try {
-            return Paths.get(path).toUri().toURL().toExternalForm();
+            return Optional.of(Paths.get(path).toUri().toURL().toExternalForm());
         } catch (Exception e) {
             e.printStackTrace();
-            return null;
+            return Optional.empty();
         }
     }
 }

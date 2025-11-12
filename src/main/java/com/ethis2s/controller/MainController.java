@@ -14,6 +14,7 @@ import org.json.JSONObject;
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
 import com.ethis2s.service.ClientSocketManager;
+import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.ProtocolConstants;
 import com.ethis2s.util.ReSizeHelper;
 import com.ethis2s.view.DebugView;
@@ -24,6 +25,7 @@ import com.ethis2s.view.ProblemsView;
 import com.ethis2s.view.ProblemsView.Problem;
 import com.ethis2s.view.ProjectPropertiesScreen;
 import com.ethis2s.view.RegisterScreen;
+import com.ethis2s.view.SettingsView;
 import com.ethis2s.view.SharedOptionScreen;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
@@ -225,6 +227,47 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
 
         editorTabView.openTabWithCloseCallback(tabId, title, content, onClose);
     }
+
+    public void showSettingsView() {
+        String tabId = "settings-tab";
+        String title = "설정";
+
+        if (editorTabView.hasTab(tabId)) {
+            editorTabView.selectTab(tabId);
+            return;
+        }
+
+        Runnable reloadStylesCallback = () -> {
+            // 1. Reload main scene's stylesheets
+            mainScene.getStylesheets().clear();
+            ConfigManager configManager = ConfigManager.getInstance();
+            String mainThemePath = configManager.getMainThemePath();
+            if (mainThemePath != null) {
+                mainScene.getStylesheets().add(mainThemePath);
+            }
+
+            // 2. Reload component-specific stylesheets
+            if (mainScreen != null) {
+                mainScreen.reloadComponentCss();
+            }
+
+            // 3. Re-apply settings to all open editor tabs
+            if (editorTabView != null) {
+                editorTabView.reapplyAllEditorSettings();
+            }
+        };
+
+        Runnable closeTabCallback = () -> {
+            if (editorTabView != null) {
+                editorTabView.closeTab(tabId);
+            }
+        };
+
+        SettingsView settingsView = new SettingsView(reloadStylesCallback, closeTabCallback);
+        Node content = settingsView.createView();
+        editorTabView.openTab(tabId, title, content);
+    }
+
 
     @Override
     public void onConnected() {

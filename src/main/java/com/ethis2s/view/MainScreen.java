@@ -76,6 +76,7 @@ public class MainScreen {
     private Tab problemsTab;
     private Label problemsTabLabel;
     private TabPane bottomTabPane; // TabPane을 필드로 선언해서 접근 가능하게 할게요!  
+    private TabPane editorTabs;
     
     
     public void updateProblemsTab(int errorCount) {
@@ -117,10 +118,7 @@ public class MainScreen {
         MenuBar menuBar = new MenuBar();
         Menu fileMenu = new Menu("File");
         MenuItem settingsItem = new MenuItem("설정");
-        settingsItem.setOnAction(e -> {
-            SettingsView settingsView = new SettingsView(stage);
-            settingsView.show();
-        });
+        settingsItem.setOnAction(e -> mainController.showSettingsView());
         MenuItem logoutItem = new MenuItem("로그아웃");
         logoutItem.setOnAction(e -> mainController.performLogout());
         MenuItem exitItem = new MenuItem("Exit");
@@ -205,8 +203,8 @@ public class MainScreen {
         bottomTabPane.getTabs().addAll(outputTab, debugTab, problemsTab);
         // --- 하단 탭 패널 생성 끝 ---
 
-        TabPane safeEditorTabs = (editorTabs != null) ? editorTabs : new TabPane();
-        SplitPane centerSplit = new SplitPane(safeEditorTabs, bottomTabPane);
+        this.editorTabs = (editorTabs != null) ? editorTabs : new TabPane();
+        SplitPane centerSplit = new SplitPane(this.editorTabs, bottomTabPane);
         
         centerSplit.setOrientation(Orientation.VERTICAL);
         centerSplit.setDividerPositions(0.75);
@@ -243,7 +241,7 @@ public class MainScreen {
             String bottomTabsCss = configManager.getBottomTabsThemePath();
 
             if (treeViewCss != null) fileExplorerContainer.getStylesheets().add(treeViewCss);
-            if (topTabsCss != null) safeEditorTabs.getStylesheets().add(topTabsCss);
+            if (topTabsCss != null) this.editorTabs.getStylesheets().add(topTabsCss);
             if (bottomTabsCss != null) bottomTabPane.getStylesheets().add(bottomTabsCss);
         } catch (Exception e) {
             e.printStackTrace();
@@ -251,6 +249,31 @@ public class MainScreen {
         }
 
         return mainLayout;
+    }
+
+    public void reloadComponentCss() {
+        try {
+            ConfigManager configManager = ConfigManager.getInstance();
+            String treeViewCss = configManager.getTreeViewThemePath();
+            String topTabsCss = configManager.getTopTabsThemePath();
+            String bottomTabsCss = configManager.getBottomTabsThemePath();
+
+            if (fileExplorerContainer != null) {
+                fileExplorerContainer.getStylesheets().clear();
+                if (treeViewCss != null) fileExplorerContainer.getStylesheets().add(treeViewCss);
+            }
+            if (this.editorTabs != null) { 
+                this.editorTabs.getStylesheets().clear();
+                if (topTabsCss != null) this.editorTabs.getStylesheets().add(topTabsCss);
+            }
+            if (bottomTabPane != null) {
+                bottomTabPane.getStylesheets().clear();
+                if (bottomTabsCss != null) bottomTabPane.getStylesheets().add(bottomTabsCss);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("컴포넌트별 CSS 파일을 다시 로드할 수 없습니다.");
+        }
     }
     
     /**

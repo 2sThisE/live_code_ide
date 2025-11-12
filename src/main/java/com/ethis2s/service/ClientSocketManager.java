@@ -132,6 +132,12 @@ public class ClientSocketManager {
         System.out.println("DEBUG: startReceiving() thread finished.");
     }
 
+    public void initiateReconnection() {
+        if (isRunning) {
+            handleDisconnection();
+        }
+    }
+
     private void handleDisconnection() {
         if (!isRunning || isReconnecting) {
             return;

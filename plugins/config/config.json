@@ -1,8 +1,19 @@
 [
   {
-    "feature": "editor",
+    "feature": "에디터 설정",
     "settings": {
-      "tabSize": 4
+      "폰트": "Consolas",
+      "폰트 크기": 15.0,
+      "탭 간격": 4.0
+    }
+  },
+  {
+    "feature": "IDE 디자인",
+    "settings": {
+      "메인 테마": "plugins/config/main-theme.css",
+      "상단 탭 테마": "plugins/config/top-tabs-theme.css",
+      "하단 탭 테마": "plugins/config/bottom-tabs-theme.css",
+      "트리 뷰 테마": "plugins/config/tree-view-theme.css"
     }
   }
 ]
