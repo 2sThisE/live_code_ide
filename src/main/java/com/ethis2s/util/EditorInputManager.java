@@ -87,7 +87,7 @@ public class EditorInputManager {
     
     public void optimizeIndent(int paragraphIndex) {
 
-        int tabSize = ConfigManager.TAB_SIZE;
+        int tabSize = ConfigManager.getInstance().getTabSize();
         if (tabSize <= 1) return;
 
         // 라인이 유효한지 확인
@@ -253,7 +253,7 @@ public class EditorInputManager {
     }
 
     private int calculateIndentLevel(String indentText) {
-        int tabSize = ConfigManager.TAB_SIZE;
+        int tabSize = ConfigManager.getInstance().getTabSize();
         if (tabSize <= 1) {
             tabSize = 4; // 혹시 설정이 잘못되어도 괜찮아요. 제가 기본값으로 지켜드릴게요!
         }

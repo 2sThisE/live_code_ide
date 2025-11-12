@@ -185,7 +185,7 @@ public class EditorTabView {
         CodeArea codeArea = new CodeArea();
         codeArea.getStyleClass().add("code-area");
         
-        String dynamicCSS = String.format(".paragraph-text { -fx-tab-size: %d; }", ConfigManager.TAB_SIZE);
+        String dynamicCSS = String.format(".paragraph-text { -fx-tab-size: %d; }", com.ethis2s.util.ConfigManager.getInstance().getTabSize());
         String dataUri = "data:text/css;base64," + Base64.getEncoder().encodeToString(dynamicCSS.getBytes());
         codeArea.getStylesheets().add(dataUri);
         codeAreaMap.put(tabId, codeArea);

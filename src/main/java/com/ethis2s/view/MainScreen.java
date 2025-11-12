@@ -14,6 +14,7 @@ import com.ethis2s.controller.MainController;
 import com.ethis2s.controller.ProjectController;
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
+import com.ethis2s.util.ConfigManager;
 
 import io.github.palexdev.materialfx.controls.MFXProgressSpinner;
 import javafx.animation.FadeTransition;
@@ -115,11 +116,16 @@ public class MainScreen {
         editorTabs.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
         MenuBar menuBar = new MenuBar();
         Menu fileMenu = new Menu("File");
+        MenuItem settingsItem = new MenuItem("설정");
+        settingsItem.setOnAction(e -> {
+            SettingsView settingsView = new SettingsView(stage);
+            settingsView.show();
+        });
         MenuItem logoutItem = new MenuItem("로그아웃");
         logoutItem.setOnAction(e -> mainController.performLogout());
         MenuItem exitItem = new MenuItem("Exit");
         exitItem.setOnAction(e -> Platform.exit());
-        fileMenu.getItems().addAll(logoutItem, new SeparatorMenuItem(), exitItem);
+        fileMenu.getItems().addAll(settingsItem, new SeparatorMenuItem(), logoutItem, new SeparatorMenuItem(), exitItem);
         menuBar.getMenus().add(fileMenu);
 
         Region spacer = new Region();
@@ -231,10 +237,14 @@ public class MainScreen {
         mainLayout.setBottom(statusBar);
 
         try {
-            String baseCssPath = Paths.get(System.getProperty("user.dir"), "plugins", "config").toUri().toString();
-            fileExplorerContainer.getStylesheets().add(baseCssPath + "/tree-view-theme.css");
-            safeEditorTabs.getStylesheets().add(baseCssPath + "/top-tabs-theme.css");
-            bottomTabPane.getStylesheets().add(baseCssPath + "/bottom-tabs-theme.css");
+            com.ethis2s.util.ConfigManager configManager = com.ethis2s.util.ConfigManager.getInstance();
+            String treeViewCss = configManager.getTreeViewThemePath();
+            String topTabsCss = configManager.getTopTabsThemePath();
+            String bottomTabsCss = configManager.getBottomTabsThemePath();
+
+            if (treeViewCss != null) fileExplorerContainer.getStylesheets().add(treeViewCss);
+            if (topTabsCss != null) safeEditorTabs.getStylesheets().add(topTabsCss);
+            if (bottomTabsCss != null) bottomTabPane.getStylesheets().add(bottomTabsCss);
         } catch (Exception e) {
             e.printStackTrace();
             System.err.println("컴포넌트별 CSS 파일을 로드할 수 없습니다.");

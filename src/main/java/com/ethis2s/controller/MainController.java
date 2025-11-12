@@ -113,8 +113,10 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         this.mainScene = new Scene(rootPane, 1280, 720);
         mainScene.setFill(Color.TRANSPARENT);
         try {
-            String cssPath = Paths.get(System.getProperty("user.dir"), "plugins", "config", "main-theme.css").toUri().toString();
-            mainScene.getStylesheets().add(cssPath);
+            String cssPath = com.ethis2s.util.ConfigManager.getInstance().getMainThemePath();
+            if (cssPath != null) {
+                mainScene.getStylesheets().add(cssPath);
+            }
         } catch (Exception e) {
             e.printStackTrace();
             System.err.println("테마 파일을 로드할 수 없습니다.");
