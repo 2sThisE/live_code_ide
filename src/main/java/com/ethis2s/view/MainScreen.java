@@ -216,12 +216,21 @@ public class MainScreen {
         final boolean[] isDragging = {false};
 
         topPane.setOnMousePressed(event -> {
-            Node target = (Node) event.getTarget();
+            // Double-click to maximize/restore
+            if (event.getClickCount() == 2) {
+                stage.setMaximized(!stage.isMaximized());
+                isDragging[0] = false; // Prevent dragging on double-click
+                return;
+            }
+
             // Prevent dragging when clicking inside the searchBox
+            Node target = (Node) event.getTarget();
             if (searchBox.equals(target) || searchBox.getChildren().contains(target)) {
                  isDragging[0] = false;
                  return;
             }
+            
+            // Single-click to drag
             if (event.getY() > resizeBorder) {
                 isDragging[0] = true;
                 xOffset = event.getSceneX();
@@ -233,6 +242,41 @@ public class MainScreen {
 
         topPane.setOnMouseDragged(event -> {
             if (isDragging[0]) {
+                javafx.stage.Screen screen = javafx.stage.Screen.getPrimary();
+                javafx.geometry.Rectangle2D bounds = screen.getVisualBounds();
+
+                // Restore window if it's dragged from a maximized state
+                if (stage.isMaximized()) {
+                    // Retain proportional position of cursor inside the window
+                    double mouseX_ratio = event.getSceneX() / stage.getWidth();
+                    stage.setMaximized(false);
+                    // After restoring, the width changes, so we update the offset
+                    xOffset = stage.getWidth() * mouseX_ratio;
+                }
+
+                // Snap to top -> Maximize
+                if (event.getScreenY() <= bounds.getMinY()) {
+                    stage.setMaximized(true);
+                    return;
+                }
+                // Snap to left
+                if (event.getScreenX() <= bounds.getMinX()) {
+                    stage.setX(bounds.getMinX());
+                    stage.setY(bounds.getMinY());
+                    stage.setWidth(bounds.getWidth() / 2);
+                    stage.setHeight(bounds.getHeight());
+                    return;
+                }
+                // Snap to right
+                if (event.getScreenX() >= bounds.getMaxX() - 1) {
+                    stage.setX(bounds.getMinX() + (bounds.getWidth() / 2));
+                    stage.setY(bounds.getMinY());
+                    stage.setWidth(bounds.getWidth() / 2);
+                    stage.setHeight(bounds.getHeight());
+                    return;
+                }
+
+                // Normal drag
                 stage.setX(event.getScreenX() - xOffset);
                 stage.setY(event.getScreenY() - yOffset);
             }
