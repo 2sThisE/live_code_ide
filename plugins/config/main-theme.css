@@ -284,12 +284,3 @@
 #suggestion-list-view:focused .list-cell:selected {
     -fx-background-color: #007acc;
 }
-
-.mfx-progress-spinner .arc{
-    /* 선 색상을 단색으로 지정합니다. 원하는 다른 색상으로 변경 가능합니다. */
-    -fx-stroke-width: 3px!important;   /* 두께 */
-    -fx-stroke: #8A2BE2!important;
-}
-.mfx-progress-spinner {
-    -fx-stroke: #8A2BE2!important;
-}

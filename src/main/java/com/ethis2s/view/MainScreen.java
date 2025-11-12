@@ -231,10 +231,10 @@ public class MainScreen {
         mainLayout.setBottom(statusBar);
 
         try {
-            String baseCssPath = "file:/" + System.getProperty("user.dir").replace("\\", "/") + "/plugins/config/";
-            fileExplorerContainer.getStylesheets().add(baseCssPath + "tree-view-theme.css");
-            safeEditorTabs.getStylesheets().add(baseCssPath + "top-tabs-theme.css");
-            bottomTabPane.getStylesheets().add(baseCssPath + "bottom-tabs-theme.css");
+            String baseCssPath = Paths.get(System.getProperty("user.dir"), "plugins", "config").toUri().toString();
+            fileExplorerContainer.getStylesheets().add(baseCssPath + "/tree-view-theme.css");
+            safeEditorTabs.getStylesheets().add(baseCssPath + "/top-tabs-theme.css");
+            bottomTabPane.getStylesheets().add(baseCssPath + "/bottom-tabs-theme.css");
         } catch (Exception e) {
             e.printStackTrace();
             System.err.println("컴포넌트별 CSS 파일을 로드할 수 없습니다.");

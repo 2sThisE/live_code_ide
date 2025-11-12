@@ -1,6 +1,8 @@
 package com.ethis2s.controller;
 
+import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -111,8 +113,8 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         this.mainScene = new Scene(rootPane, 1280, 720);
         mainScene.setFill(Color.TRANSPARENT);
         try {
-            String baseCssPath = "file:/" + System.getProperty("user.dir").replace("\\", "/") + "/plugins/config/";
-            mainScene.getStylesheets().add(baseCssPath + "main-theme.css");
+            String cssPath = Paths.get(System.getProperty("user.dir"), "plugins", "config", "main-theme.css").toUri().toString();
+            mainScene.getStylesheets().add(cssPath);
         } catch (Exception e) {
             e.printStackTrace();
             System.err.println("테마 파일을 로드할 수 없습니다.");

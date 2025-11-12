@@ -94,6 +94,15 @@ public class HybridManager {
                 if (lastTm4eTokens != null) {
                     for (var change : changes) {
                         int diff = change.getInserted().length() - change.getRemoved().length();
+                        int endOfRemoval = change.getPosition() + change.getRemoved().length();
+
+                        // 삭제된 영역과 겹치는 에러 토큰을 미리 제거
+                        if (lastErrorTokens != null && change.getRemoved().length() > 0) {
+                            lastErrorTokens.removeIf(token -> 
+                                token.start < endOfRemoval && token.end > change.getPosition()
+                            );
+                        }
+
                         if (diff != 0) {
                             shiftTokens(lastTm4eTokens, change.getPosition(), diff);
                             if (lastAnalysisResult != null && lastAnalysisResult.symbolTokens != null) {
@@ -156,8 +165,6 @@ public class HybridManager {
             }, Platform::runLater);
     }
 
-    // ... (prepareForLargeUpdate, requestImmediateAnalysis, runTm4eHighlighting methods are unchanged) ...
-
     private void runAntlrAnalysis() {
         System.err.println("[DEBUG] runAntlrAnalysis() called.");
         if (analyzer == null) {
@@ -213,7 +220,6 @@ public class HybridManager {
         }
     }
 
-    // 1. 데이터만 업데이트하는 메서드
     private void updateBracketHighlightingData() {
         if (lastAnalysisResult == null) {
             this.lastBracketTokens = null;
@@ -230,9 +236,7 @@ public class HybridManager {
         }
     }
 
-    // 2. 괄호만 그리는 가벼운 렌더러
     private void renderBracketHighlightOnly() {
-        // 이전에 그렸던 괄호 스타일 지우기
         if (previouslyRenderedBrackets != null) {
             for (StyleToken oldToken : previouslyRenderedBrackets) {
                 List<String> style = codeArea.getStyleOfChar(oldToken.start).stream().filter(s -> !s.equals("bracket-highlight")).collect(Collectors.toList());
@@ -240,7 +244,6 @@ public class HybridManager {
             }
         }
 
-        // 새로 그릴 괄호 스타일 적용하기
         if (lastBracketTokens != null) {
             for (StyleToken newToken : lastBracketTokens) {
                 List<String> style = Stream.concat(codeArea.getStyleOfChar(newToken.start).stream(), Stream.of("bracket-highlight")).distinct().collect(Collectors.toList());
@@ -248,7 +251,6 @@ public class HybridManager {
             }
         }
         
-        // 현재 그린 괄호 위치�� 다음을 위해 기억
         this.previouslyRenderedBrackets = this.lastBracketTokens;
     }
 
@@ -274,7 +276,6 @@ public class HybridManager {
         return spansBuilder.create();
     }
 
-    // 3. 모든 것을 그리는 무거운 렌더러
     private void applyHighlighting() {
         if (lastTm4eTokens == null) return;
 
@@ -284,7 +285,7 @@ public class HybridManager {
         if (lastAnalysisResult != null) {
             StyleSpans<Collection<String>> symbolSpans = tokensToSpans(lastAnalysisResult.symbolTokens);
             StyleSpans<Collection<String>> errorSpans = tokensToSpans(lastErrorTokens);
-            StyleSpans<Collection<String>> bracketSpans = tokensToSpans(lastBracketTokens); // 예측된 괄호 위치 포함
+            StyleSpans<Collection<String>> bracketSpans = tokensToSpans(lastBracketTokens);
             
             finalSpans = finalSpans
                 .overlay(symbolSpans, (base, symbol) -> !symbol.isEmpty() ? symbol : base)
@@ -307,7 +308,6 @@ public class HybridManager {
         }
         
         codeArea.setStyleSpans(0, finalSpans);
-        // 무거운 렌더링 후에는, 그려진 괄호 위치를 기억해둬야 가벼운 렌더러가 지울 수 있음
         this.previouslyRenderedBrackets = this.lastBracketTokens;
     }
 
