@@ -27,11 +27,20 @@ import com.ethis2s.view.ProjectPropertiesScreen;
 import com.ethis2s.view.RegisterScreen;
 import com.ethis2s.view.SettingsView;
 import com.ethis2s.view.SharedOptionScreen;
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.paint.Color;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
@@ -63,7 +72,9 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     
     private Map<String, Consumer<JSONArray>> pendingSharedListCallbacks = new HashMap<>();
     private Map<String, Consumer<Boolean>> pendingAddShareCallbacks = new HashMap<>();
-
+    private boolean isSearchActive = false;
+    private final double SEARCH_FIELD_NARROW_WIDTH = 200;
+    private final double SEARCH_FIELD_WIDE_WIDTH = 400;
 
     public MainController(Stage primaryStage) {
         this.primaryStage = primaryStage;
@@ -125,10 +136,109 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         }
         
         primaryStage.setScene(mainScene);
+        
+        // --- 단축키 설정 ---
+        mainScene.getAccelerators().put(
+            new javafx.scene.input.KeyCodeCombination(javafx.scene.input.KeyCode.F, javafx.scene.input.KeyCombination.CONTROL_DOWN),
+            () -> {
+                String selectedText = editorTabView.getCurrentSelectedText();
+                if (selectedText != null && !selectedText.isEmpty()) {
+                    mainScreen.getSearchField().setText(selectedText);
+                }
+                mainScreen.getSearchField().requestFocus();
+            }
+        );
+
+        // --- 검색창 리스너 설정 ---
+        javafx.scene.control.TextField searchField = mainScreen.getSearchField();
+        javafx.scene.control.ToggleButton caseSensitiveCheck = mainScreen.getCaseSensitiveCheck();
+
+        if (searchField != null) {
+            
+            searchField.promptTextProperty().bind(editorTabView.activeTabTitleProperty());
+
+            Runnable searchAction = () -> {
+                if (editorTabView != null) {
+                    editorTabView.performSearchOnActiveTab(
+                        searchField.getText(), 
+                        caseSensitiveCheck.isSelected()
+                    );
+                }
+            };
+
+            searchField.textProperty().addListener((obs, oldText, newText) -> {
+                searchAction.run();
+                updateSearchButtonVisibility();
+            });
+            caseSensitiveCheck.setOnAction(e -> searchAction.run());
+
+            // Add Enter key press handler for search field
+            searchField.setOnAction(e -> editorTabView.goToNextMatchOnActiveTab());
+
+            mainScreen.getPrevButton().setOnAction(e -> editorTabView.goToPreviousMatchOnActiveTab());
+            mainScreen.getNextButton().setOnAction(e -> editorTabView.goToNextMatchOnActiveTab());
+            
+            // Add a listener to the text field's focus property
+            searchField.focusedProperty().addListener((obs, wasFocused, isNowFocused) -> {
+                if (isNowFocused) {
+                    mainScreen.getSearchBox().getStyleClass().add("search-field-focused");
+                } else {
+                    mainScreen.getSearchBox().getStyleClass().remove("search-field-focused");
+                }
+                updateSearchButtonVisibility();
+            });
+
+            mainScreen.getSearchBox().hoverProperty().addListener((obs, wasHovered, isNowHovered) -> {
+                updateSearchButtonVisibility();
+            });
+
+            // Add a listener for tab changes to re-run the search
+            editorTabView.getTabPane().getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+                searchAction.run();
+            });
+
+            // Bind the result label to the search properties
+            Label resultLabel = mainScreen.getResultLabel();
+            if (resultLabel != null) {
+                resultLabel.textProperty().bind(
+                    Bindings.createStringBinding(() -> {
+                        int total = editorTabView.totalMatchesProperty().get();
+                        int current = editorTabView.currentMatchIndexProperty().get();
+                        if (total == 0) {
+                            return "";
+                        }
+                        return String.format("%d / %d", current, total);
+                    },
+                    editorTabView.totalMatchesProperty(),
+                    editorTabView.currentMatchIndexProperty())
+                );
+            }
+        }
+
         primaryStage.show();
         ReSizeHelper.addResizeListener(primaryStage);
 
         showLoginView();
+    }
+
+    private void updateSearchButtonVisibility() {
+        boolean isTextPresent = !mainScreen.getSearchField().getText().isEmpty();
+        boolean isHovering = mainScreen.getSearchBox().isHover();
+        boolean isFocused = mainScreen.getSearchField().isFocused();
+
+        boolean shouldBeVisible = isTextPresent || isHovering || isFocused;
+
+        List<Node> searchTools = List.of(
+            mainScreen.getPrevButton(),
+            mainScreen.getNextButton(),
+            mainScreen.getCaseSensitiveCheck(),
+            mainScreen.getResultLabel()
+        );
+
+        searchTools.forEach(node -> {
+            node.setVisible(shouldBeVisible);
+            node.setManaged(shouldBeVisible);
+        });
     }
 
     public void performLogin(String id, char[] password) {
@@ -411,5 +521,12 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         if (editorTabView != null && problem != null) {
             editorTabView.navigateTo(problem.filePath, problem.error.line, problem.error.charPositionInLine);
         }
+    }
+
+    public String getSearchQuery() {
+        if (mainScreen != null && mainScreen.getSearchField() != null) {
+            return mainScreen.getSearchField().getText();
+        }
+        return "";
     }
 }

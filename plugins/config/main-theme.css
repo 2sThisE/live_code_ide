@@ -257,6 +257,75 @@
     -fx-background-color: #007acc!important;
 }
 
+.centered-search-field{
+    -fx-font-size: 13px;
+    -fx-padding: 1px 5px 1px 5px;
+    -fx-max-height: 10px;
+    -fx-border-width: 1px;
+    -fx-border-color: #535353;
+    -fx-background-radius: 5px;
+    -fx-border-radius: 5px;
+}
+.centered-search-field:hover{
+    -fx-background-color: #474747;
+}
+.centered-search-field:focused{
+    -fx-border-width: 1px;
+    -fx-background-radius: 5px;
+    -fx-border-radius: 5px;
+}
+
+.search-field-focused {
+    -fx-border-color: #007acc;
+}
+
+.transparent-textfield {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-prompt-text-fill: #888888;
+}
+
+.search-tool-button {
+    
+    -fx-font-size: 12px;
+    -fx-padding: 0 4px;
+    -fx-min-height: 16px;
+    -fx-max-height: 16px;
+    -fx-background-color: transparent;
+    -fx-background-radius: 3px;
+}
+.search-tool-button .text{
+    -fx-fill: #b6b6b6;
+    -fx-font-weight: bold;
+}
+.search-tool-button:hover {
+    -fx-background-color: #64646491;
+}
+.search-tool-toggle-button .text{
+    -fx-fill: #b6b6b6;
+    -fx-font-weight: bold;
+}
+.search-tool-toggle-button {
+    -fx-font-size: 12px;
+    -fx-padding: 0 4px;
+    -fx-min-height: 16px;
+    -fx-max-height: 16px;
+    -fx-background-color: transparent; /* Default state */
+    -fx-background-radius: 3px;
+    -fx-border-width: 0; /* Ensure no extra border */
+}
+
+.search-tool-toggle-button:hover {
+    -fx-background-color: #64646491;
+}
+
+.search-tool-toggle-button:selected {
+    -fx-background-color: #666666; /* Selected state */
+    -fx-text-fill: white;
+}
+
 #suggestion-list-view {
     -fx-background-color: #151515;
     -fx-background-radius: 0;

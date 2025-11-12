@@ -9,7 +9,9 @@ import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleDoubleProperty;
+import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.collections.ListChangeListener;
@@ -41,6 +43,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.BorderPane;
+import org.fxmisc.richtext.model.StyleSpans;
+import org.fxmisc.richtext.model.StyleSpansBuilder;
+import com.ethis2s.util.Tm4eSyntaxHighlighter.StyleToken;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javafx.scene.layout.StackPane;
+import java.util.stream.Stream;
+import java.util.Collection;
 
 public class EditorTabView {
 
@@ -52,9 +66,16 @@ public class EditorTabView {
     private final Map<String, List<SyntaxError>> tabErrors = new HashMap<>();
     private final Map<String, String> tabFileNames = new HashMap<>();
     private final Map<String, CodeArea> codeAreaMap = new HashMap<>();
+    private final Map<String, HybridManager> hybridManagerMap = new HashMap<>();
+    private final Map<String, List<Integer>> searchResultsMap = new HashMap<>();
+    private final Map<String, Integer> currentMatchIndexMap = new HashMap<>();
     
+    private final IntegerProperty totalMatches = new SimpleIntegerProperty(0);
+    private final IntegerProperty currentMatchIndex = new SimpleIntegerProperty(0);
+
     private final Tooltip errorTooltip = new Tooltip();
     private final PauseTransition tooltipDelay = new PauseTransition(Duration.millis(500));
+    private final StringProperty activeTabTitle = new SimpleStringProperty("검색...");
 
     public EditorTabView(MainController mainController) {
         this.mainController = mainController;
@@ -63,6 +84,31 @@ public class EditorTabView {
         this.editorTabs = new TabPane(this.welcomeTab);
         this.editorTabs.setTabDragPolicy(TabDragPolicy.REORDER);
         errorTooltip.getStyleClass().add("error-tooltip");
+
+        // Listen for changes in the selected tab
+        editorTabs.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            if (newTab != null && newTab.isClosable() && newTab.getGraphic() instanceof HBox) {
+                // Assuming the file name is in a Label within the HBox
+                Label tabLabel = (Label) ((HBox) newTab.getGraphic()).getChildren().get(0);
+                if (tabLabel != null) {
+                    activeTabTitle.set(tabLabel.getText() + "에서 검색");
+                }
+            } else {
+                activeTabTitle.set("검색...");
+            }
+        });
+    }
+
+    public StringProperty activeTabTitleProperty() {
+        return activeTabTitle;
+    }
+
+    public IntegerProperty totalMatchesProperty() {
+        return totalMatches;
+    }
+
+    public IntegerProperty currentMatchIndexProperty() {
+        return currentMatchIndex;
     }
 
     public void shutdownAllManagers() {
@@ -189,6 +235,7 @@ public class EditorTabView {
             return;
         }
         
+        
         CodeArea codeArea = new CodeArea();
         codeArea.getStyleClass().add("code-area");
         
@@ -201,6 +248,7 @@ public class EditorTabView {
         setupErrorTooltip(codeArea, tabId);
 
         VirtualizedScrollPane<CodeArea> scrollPane = new VirtualizedScrollPane<>(codeArea);
+
         String fileExtension = getFileExtension(filePath);
 
         HybridManager manager = new HybridManager(
@@ -212,13 +260,17 @@ public class EditorTabView {
         );
         
         activeManagers.add(manager);
+        hybridManagerMap.put(tabId, manager);
         codeArea.replaceText(0, 0, content);
 
         Runnable onClose = () -> {
             manager.shutdown();
             activeManagers.remove(manager);
+            hybridManagerMap.remove(tabId);
             tabErrors.remove(tabId);
             codeAreaMap.remove(tabId);
+            searchResultsMap.remove(tabId);
+            currentMatchIndexMap.remove(tabId);
             mainController.updateProblems(new ArrayList<>());
         };
         
@@ -441,5 +493,139 @@ public class EditorTabView {
                 lineLabel.setStyle(DEFAULT_LINE_STYLE);
             }
         }
+    }
+
+    // --- New Public Search API for MainController ---
+
+    public String getCurrentSelectedText() {
+        Tab selectedTab = editorTabs.getSelectionModel().getSelectedItem();
+        if (selectedTab != null && selectedTab.getId() != null) {
+            CodeArea codeArea = codeAreaMap.get(selectedTab.getId());
+            if (codeArea != null) {
+                return codeArea.getSelectedText();
+            }
+        }
+        return "";
+    }
+
+    public void performSearchOnActiveTab(String query, boolean caseSensitive) {
+        Tab selectedTab = editorTabs.getSelectionModel().getSelectedItem();
+        if (selectedTab != null && selectedTab.getId() != null) {
+            CodeArea codeArea = codeAreaMap.get(selectedTab.getId());
+            if (codeArea != null) {
+                performSearch(codeArea, selectedTab.getId(), query, caseSensitive);
+            }
+        }
+    }
+
+    public void goToNextMatchOnActiveTab() {
+        Tab selectedTab = editorTabs.getSelectionModel().getSelectedItem();
+        if (selectedTab != null && selectedTab.getId() != null) {
+            CodeArea codeArea = codeAreaMap.get(selectedTab.getId());
+            if (codeArea != null) {
+                goToNextMatch(codeArea, selectedTab.getId());
+            }
+        }
+    }
+
+    public void goToPreviousMatchOnActiveTab() {
+        Tab selectedTab = editorTabs.getSelectionModel().getSelectedItem();
+        if (selectedTab != null && selectedTab.getId() != null) {
+            CodeArea codeArea = codeAreaMap.get(selectedTab.getId());
+            if (codeArea != null) {
+                goToPreviousMatch(codeArea, selectedTab.getId());
+            }
+        }
+    }
+
+    // --- Private Core Search Logic ---
+
+    private void performSearch(CodeArea codeArea, String tabId, String query, boolean caseSensitive) {
+        searchResultsMap.put(tabId, new ArrayList<>());
+        currentMatchIndexMap.put(tabId, -1);
+
+        if (query.isEmpty()) {
+            highlightMatches(codeArea, tabId, query);
+            totalMatches.set(0);
+            currentMatchIndex.set(0);
+            return;
+        }
+
+        String text = codeArea.getText();
+        List<Integer> results = searchResultsMap.get(tabId);
+
+        Pattern pattern = caseSensitive ? Pattern.compile(Pattern.quote(query)) : Pattern.compile(Pattern.quote(query), Pattern.CASE_INSENSITIVE);
+        Matcher matcher = pattern.matcher(text);
+
+        while (matcher.find()) {
+            results.add(matcher.start());
+        }
+
+        totalMatches.set(results.size());
+        highlightMatches(codeArea, tabId, query);
+
+        if (!results.isEmpty()) {
+            currentMatchIndexMap.put(tabId, 0);
+            currentMatchIndex.set(1);
+            goToMatch(codeArea, tabId, 0);
+        } else {
+            currentMatchIndex.set(0);
+        }
+    }
+
+    private void highlightMatches(CodeArea codeArea, String tabId, String query) {
+        HybridManager manager = hybridManagerMap.get(tabId);
+        if (manager == null) {
+            return;
+        }
+
+        List<Integer> searchResults = searchResultsMap.get(tabId);
+        if (query.isEmpty() || searchResults == null || searchResults.isEmpty()) {
+            manager.updateSearchHighlights(Collections.emptyList());
+            return;
+        }
+
+        List<StyleToken> searchTokens = new ArrayList<>();
+        for (Integer start : searchResults) {
+            int end = start + query.length();
+            searchTokens.add(new StyleToken(start, end, Collections.singletonList("search-highlight")));
+        }
+        
+        manager.updateSearchHighlights(searchTokens);
+    }
+
+    private void goToNextMatch(CodeArea codeArea, String tabId) {
+        List<Integer> results = searchResultsMap.get(tabId);
+        if (results == null || results.isEmpty()) return;
+
+        int currentIndex = currentMatchIndexMap.getOrDefault(tabId, -1);
+        currentIndex = (currentIndex + 1) % results.size();
+        currentMatchIndexMap.put(tabId, currentIndex);
+        currentMatchIndex.set(currentIndex + 1);
+        goToMatch(codeArea, tabId, currentIndex);
+    }
+
+    private void goToPreviousMatch(CodeArea codeArea, String tabId) {
+        List<Integer> results = searchResultsMap.get(tabId);
+        if (results == null || results.isEmpty()) return;
+
+        int currentIndex = currentMatchIndexMap.getOrDefault(tabId, 0);
+        currentIndex = (currentIndex - 1 + results.size()) % results.size();
+        currentMatchIndexMap.put(tabId, currentIndex);
+        currentMatchIndex.set(currentIndex + 1);
+        goToMatch(codeArea, tabId, currentIndex);
+    }
+
+    private void goToMatch(CodeArea codeArea, String tabId, int index) {
+        List<Integer> results = searchResultsMap.get(tabId);
+        if (results == null || index < 0 || index >= results.size()) return;
+
+        int pos = results.get(index);
+        
+        String query = mainController.getSearchQuery();
+        if (query.isEmpty()) return;
+
+        codeArea.selectRange(pos, pos + query.length());
+        codeArea.requestFollowCaret();
     }
 }

@@ -188,12 +188,15 @@
 .text.bracket-pair-2 { -fx-fill: #FFD700; } /* Yellow */
 .text.bracket-pair-3 { -fx-fill: #C586C0; } /* Purple */
 
+.text.search-highlight {
+    -rtfx-background-color: rgba(255, 145, 0, 0.479);
+}
+
 .predictive-highlight-test {
     -rtfx-background-color: yellow; /* 눈에 확 띄는 노란색 배경 */
     -fx-text-fill: black;
 }
 
-/* Suggestion List View */
 
 
 /* Error Highlighting */

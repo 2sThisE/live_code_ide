@@ -18,12 +18,17 @@ import com.ethis2s.util.ConfigManager;
 
 import io.github.palexdev.materialfx.controls.MFXProgressSpinner;
 import javafx.animation.FadeTransition;
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
 import javafx.animation.PauseTransition;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
+import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
@@ -34,6 +39,7 @@ import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
@@ -43,6 +49,7 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.util.Duration;
@@ -58,6 +65,9 @@ public class MainScreen {
     private UserProjectsInfo currentProjectForFileTree;
     private UserInfo currentUserInfo;
     private boolean isTransitioning = false;
+    private final double SEARCH_FIELD_NARROW_WIDTH = 200;
+    private final double SEARCH_FIELD_WIDE_WIDTH = 400;
+    private HBox searchToolsContainer; // 이 필드를 추가해주세요.
 
     private double xOffset = 0;
     private double yOffset = 0;
@@ -77,6 +87,12 @@ public class MainScreen {
     private Label problemsTabLabel;
     private TabPane bottomTabPane; // TabPane을 필드로 선언해서 접근 가능하게 할게요!  
     private TabPane editorTabs;
+    private TextField searchField;
+    private HBox searchBox;
+    private Button prevButton;
+    private Button nextButton;
+    private ToggleButton caseSensitiveCheck;
+    private Label resultLabel;
     
     
     public void updateProblemsTab(int errorCount) {
@@ -112,6 +128,15 @@ public class MainScreen {
         return debugView;
     }
 
+    public TextField getSearchField() {
+        return searchField;
+    }
+    public HBox getSearchBox() { return searchBox; }
+    public Button getPrevButton() { return prevButton; }
+    public Button getNextButton() { return nextButton; }
+    public ToggleButton getCaseSensitiveCheck() { return caseSensitiveCheck; }
+    public Label getResultLabel() { return resultLabel; }
+
     public BorderPane createMainScreen(Stage stage, TabPane editorTabs, Label statusLabel, MainController mainController) {
         BorderPane mainLayout = new BorderPane();
         editorTabs.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
@@ -126,9 +151,43 @@ public class MainScreen {
         fileMenu.getItems().addAll(settingsItem, new SeparatorMenuItem(), logoutItem, new SeparatorMenuItem(), exitItem);
         menuBar.getMenus().add(fileMenu);
 
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
+        // --- New Search Bar Implementation ---
 
+        // 1. Create the container that looks like a TextField
+        this.searchBox = new HBox();
+        searchBox.getStyleClass().add("centered-search-field"); // Use existing style
+        searchBox.setAlignment(Pos.CENTER_LEFT);
+        searchBox.setSpacing(5);
+        searchBox.setMaxWidth(500);
+        searchBox.setPrefWidth(400);
+
+        // 2. Create the actual transparent TextField
+        this.searchField = new TextField();
+        searchField.setPromptText("검색...");
+        searchField.getStyleClass().add("transparent-textfield"); // New style for transparency
+        HBox.setHgrow(searchField, Priority.ALWAYS); // Make the text field take up available space
+
+        // 3. Create the buttons
+        this.prevButton = new Button("↑");
+        this.nextButton = new Button("↓");
+        this.caseSensitiveCheck = new ToggleButton("Aa");
+        this.resultLabel = new Label();
+        
+        // Style the buttons to be smaller
+        List.of(prevButton, nextButton).forEach(btn -> btn.getStyleClass().add("search-tool-button"));
+        caseSensitiveCheck.getStyleClass().add("search-tool-toggle-button");
+
+        // Hide buttons by default
+        List.of(resultLabel, caseSensitiveCheck, prevButton, nextButton).forEach(node -> {
+            node.setVisible(false);
+            node.setManaged(false);
+        });
+
+        // 4. Add the transparent textfield and buttons to the container
+        searchBox.getChildren().addAll(searchField, resultLabel, caseSensitiveCheck, prevButton, nextButton);
+
+
+        // --- Window Buttons and Title Bar ---
         Button minimizeButton = new Button("—");
         minimizeButton.getStyleClass().add("window-button");
         minimizeButton.setOnAction(e -> stage.setIconified(true));
@@ -137,18 +196,32 @@ public class MainScreen {
         maximizeButton.getStyleClass().add("window-button");
         maximizeButton.setOnAction(e -> stage.setMaximized(!stage.isMaximized()));
 
-        Button closeButton = new Button("✕");
-        closeButton.getStyleClass().addAll("window-button", "close-button");
-        closeButton.setOnAction(e -> Platform.exit());
+        Button windowCloseButton = new Button("✕");
+        windowCloseButton.getStyleClass().addAll("window-button", "close-button");
+        windowCloseButton.setOnAction(e -> Platform.exit());
 
-        HBox titleBar = new HBox(menuBar, spacer, minimizeButton, maximizeButton, closeButton);
-        titleBar.setAlignment(Pos.CENTER);
-        titleBar.getStyleClass().add("custom-title-bar");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        
+        // Background bar contains menu and window buttons, but not the search box
+        HBox backgroundBar = new HBox(menuBar, spacer, minimizeButton, maximizeButton, windowCloseButton);
+        backgroundBar.setAlignment(Pos.CENTER);
 
+        // Layer the search box on top of the background bar using a StackPane
+        StackPane topPane = new StackPane(backgroundBar, searchBox);
+        topPane.getStyleClass().add("custom-title-bar");
+
+        // Dragging logic
         final int resizeBorder = 8; 
         final boolean[] isDragging = {false};
 
-        titleBar.setOnMousePressed(event -> {
+        topPane.setOnMousePressed(event -> {
+            Node target = (Node) event.getTarget();
+            // Prevent dragging when clicking inside the searchBox
+            if (searchBox.equals(target) || searchBox.getChildren().contains(target)) {
+                 isDragging[0] = false;
+                 return;
+            }
             if (event.getY() > resizeBorder) {
                 isDragging[0] = true;
                 xOffset = event.getSceneX();
@@ -158,19 +231,19 @@ public class MainScreen {
             }
         });
 
-        titleBar.setOnMouseDragged(event -> {
+        topPane.setOnMouseDragged(event -> {
             if (isDragging[0]) {
                 stage.setX(event.getScreenX() - xOffset);
                 stage.setY(event.getScreenY() - yOffset);
             }
         });
         
-        titleBar.setOnMouseReleased(event -> {
+        topPane.setOnMouseReleased(event -> {
             isDragging[0] = false;
         });
 
         mainLayout.getStyleClass().add("root-pane");
-        mainLayout.setTop(titleBar);
+        mainLayout.setTop(topPane);
 
         fileExplorer = new TreeView<>();
         fileExplorer.setShowRoot(false);
@@ -283,7 +356,6 @@ public class MainScreen {
      */
     public void showAntlrIndicator(boolean show) {
         Platform.runLater(() -> {
-            System.out.println("indicator: "+show);
             if (antlrIndicator != null) {
                 Color singleColor = Color.web("#0078D4"); // 예: 세련된 파란색
                 antlrIndicator.setColor1(singleColor);

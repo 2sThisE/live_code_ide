@@ -49,6 +49,7 @@ public class HybridManager {
     private List<StyleToken> lastErrorTokens;
     private List<StyleToken> lastBracketTokens; // 괄호 위치 데이터의 단일 소스
     private List<StyleToken> lastBracketColorTokens;
+    private List<StyleToken> lastSearchHighlightTokens;
     private AnalysisResult lastAnalysisResult;
     private CompletableFuture<AnalysisResult> currentAntlrFuture;
     private long tm4eRequestCounter = 0;
@@ -115,6 +116,9 @@ public class HybridManager {
                             }
                             if (lastBracketColorTokens != null) {
                                 shiftTokens(lastBracketColorTokens, change.getPosition(), diff);
+                            }
+                            if (lastSearchHighlightTokens != null) {
+                                shiftTokens(lastSearchHighlightTokens, change.getPosition(), diff);
                             }
                             // ★★★ 괄호 예측 스타일링 부활! ★★★
                             if (lastBracketTokens != null) {
@@ -345,11 +349,29 @@ public class HybridManager {
         return spansBuilder.create();
     }
 
+    public void updateSearchHighlights(List<StyleToken> searchTokens) {
+        this.lastSearchHighlightTokens = searchTokens;
+        applyHighlighting();
+    }
+
     private void applyHighlighting() {
         if (lastTm4eTokens == null) return;
 
         StyleSpans<Collection<String>> tm4eSpans = tokensToSpans(lastTm4eTokens);
         StyleSpans<Collection<String>> finalSpans = tm4eSpans;
+
+        // Overlay search highlights first, so they are below other styles if needed
+        if (lastSearchHighlightTokens != null) {
+            StyleSpans<Collection<String>> searchSpans = tokensToSpans(lastSearchHighlightTokens);
+            finalSpans = finalSpans.overlay(searchSpans, (base, search) -> {
+                if (!search.isEmpty()) {
+                    Set<String> combined = new HashSet<>(base);
+                    combined.addAll(search);
+                    return combined;
+                }
+                return base;
+            });
+        }
 
         if (lastAnalysisResult != null) {
             StyleSpans<Collection<String>> symbolSpans = tokensToSpans(lastAnalysisResult.symbolTokens);
