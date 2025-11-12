@@ -1,10 +1,10 @@
 [
   {
-    "feature": "에디터 설정",
+    "feature": "editor",
     "settings": {
-      "폰트": "Consolas",
-      "폰트 크기": 15.0,
-      "탭 간격": 4.0
+      "fontFamily": "Consolas",
+      "fontSize": 13.0,
+      "tabSize": 4.0
     }
   },
   {

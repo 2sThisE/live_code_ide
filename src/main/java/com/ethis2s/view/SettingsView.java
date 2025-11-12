@@ -20,15 +20,15 @@ import java.util.Map;
 
 public class SettingsView {
 
-    private final Runnable onReloadStyles;
+    private final Runnable onSave;
     private final Runnable onClose;
     private final ConfigManager configManager;
     private final Map<String, Map<String, TextField>> featureFields = new HashMap<>();
     private final Map<String, Node> settingsPanes = new HashMap<>();
     private final Map<String, Button> featureButtons = new HashMap<>();
 
-    public SettingsView(Runnable onReloadStyles, Runnable onClose) {
-        this.onReloadStyles = onReloadStyles;
+    public SettingsView(Runnable onSave, Runnable onClose) {
+        this.onSave = onSave;
         this.onClose = onClose;
         this.configManager = ConfigManager.getInstance();
     }
@@ -69,6 +69,7 @@ public class SettingsView {
         Button saveButton = new Button("저장");
         saveButton.setOnAction(e -> {
             saveSettings();
+            if (onSave != null) onSave.run();
             if (onClose != null) onClose.run();
         });
 
@@ -77,12 +78,7 @@ public class SettingsView {
             if (onClose != null) onClose.run();
         });
 
-        Button reloadButton = new Button("스타일 새로고침");
-        reloadButton.setOnAction(e -> {
-            if (onReloadStyles != null) onReloadStyles.run();
-        });
-
-        HBox buttonBox = new HBox(10, saveButton, cancelButton, reloadButton);
+        HBox buttonBox = new HBox(10, saveButton, cancelButton);
         buttonBox.setAlignment(Pos.CENTER_RIGHT);
         buttonBox.getStyleClass().add("settings-button-bar");
         buttonBox.setPadding(new Insets(10));
@@ -162,8 +158,5 @@ public class SettingsView {
         }
         configManager.saveConfig();
         System.out.println("Settings saved to config.json!");
-        if (onReloadStyles != null) {
-            onReloadStyles.run();
-        }
     }
 }

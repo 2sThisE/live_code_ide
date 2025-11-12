@@ -30,7 +30,7 @@ public class ConfigManager {
         return instance;
     }
 
-    private void loadConfig() {
+    public void loadConfig() {
         try (FileReader reader = new FileReader(CONFIG_FILE_PATH)) {
             Type type = new TypeToken<List<Map<String, Object>>>() {}.getType();
             config = new Gson().fromJson(reader, type);

@@ -382,6 +382,9 @@ public class EditorTabView {
         
         String tabSizeCss = String.format(".paragraph-text { -fx-tab-size: %d; }", configManager.getTabSize());
         String dynamicStylingCss = String.format(
+            ".text {" +
+            "    -fx-font-family: '%s'; -fx-font-size: %dpx;" +
+            "}" +
             ".paragraph-box {" +
             "    -fx-min-height: %.1fpx; -fx-max-height: %.1fpx; -fx-pref-height: %.1fpx;" +
             "    -fx-display: flex;" +
@@ -396,6 +399,7 @@ public class EditorTabView {
             "    -rtfx-background-color: rgba(255, 71, 71, 0.44);" +
             "    -fx-padding: %.1fpx 0;" +
             "}",
+            FONT_FAMILY, FONT_SIZE,
             targetLineHeight, targetLineHeight, targetLineHeight,
             caretHeight,
             verticalPadding
@@ -406,15 +410,6 @@ public class EditorTabView {
         
         codeArea.getStylesheets().clear();
         codeArea.getStylesheets().add(dataUri);
-
-        codeArea.setStyle(String.format(
-            "-fx-font-family: '%s'; -fx-font-size: %dpx;",
-            FONT_FAMILY,
-            FONT_SIZE
-        ));
-        
-        // Force re-render of paragraph graphics
-        codeArea.setParagraphGraphicFactory(codeArea.getParagraphGraphicFactory());
     }
 
     private Label getLineNumberLabel(CodeArea codeArea, int paragraphIndex) {

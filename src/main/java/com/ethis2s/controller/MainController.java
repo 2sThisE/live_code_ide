@@ -237,8 +237,11 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             return;
         }
 
-        Runnable reloadStylesCallback = () -> {
-            // 1. Reload main scene's stylesheets
+        Runnable saveCallback = () -> {
+            // 1. Reload config from file
+            ConfigManager.getInstance().loadConfig();
+
+            // 2. Reload main scene's stylesheets
             mainScene.getStylesheets().clear();
             ConfigManager configManager = ConfigManager.getInstance();
             String mainThemePath = configManager.getMainThemePath();
@@ -246,12 +249,12 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                 mainScene.getStylesheets().add(mainThemePath);
             }
 
-            // 2. Reload component-specific stylesheets
+            // 3. Reload component-specific stylesheets
             if (mainScreen != null) {
                 mainScreen.reloadComponentCss();
             }
 
-            // 3. Re-apply settings to all open editor tabs
+            // 4. Re-apply settings to all open editor tabs
             if (editorTabView != null) {
                 editorTabView.reapplyAllEditorSettings();
             }
@@ -263,7 +266,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             }
         };
 
-        SettingsView settingsView = new SettingsView(reloadStylesCallback, closeTabCallback);
+        SettingsView settingsView = new SettingsView(saveCallback, closeTabCallback);
         Node content = settingsView.createView();
         editorTabView.openTab(tabId, title, content);
     }

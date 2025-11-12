@@ -1,12 +1,12 @@
 package com.ethis2s.util;
 
-import com.ethis2s.controller.MainController;
 import com.ethis2s.service.AntlrCompletionService;
 import com.ethis2s.service.AntlrLanguageService;
 import com.ethis2s.service.AntlrLanguageService.AnalysisResult;
 import com.ethis2s.service.AntlrLanguageService.BracketPair;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
 import com.ethis2s.util.Tm4eSyntaxHighlighter.StyleToken;
+
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.util.Duration;
@@ -22,12 +22,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Stack;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -46,6 +48,7 @@ public class HybridManager {
     private List<StyleToken> lastTm4eTokens;
     private List<StyleToken> lastErrorTokens;
     private List<StyleToken> lastBracketTokens; // 괄호 위치 데이터의 단일 소스
+    private List<StyleToken> lastBracketColorTokens;
     private AnalysisResult lastAnalysisResult;
     private CompletableFuture<AnalysisResult> currentAntlrFuture;
     private long tm4eRequestCounter = 0;
@@ -78,7 +81,6 @@ public class HybridManager {
 
         this.analysisDebouncer = new PauseTransition(Duration.millis(300));
         this.analysisDebouncer.setOnFinished(e -> {
-            System.err.println("[DEBUG] Debouncer finished. Calling runAntlrAnalysis().");
             runTm4eHighlighting();
             runAntlrAnalysis();
         });
@@ -110,6 +112,9 @@ public class HybridManager {
                             }
                             if (lastErrorTokens != null) {
                                 shiftTokens(lastErrorTokens, change.getPosition(), diff);
+                            }
+                            if (lastBracketColorTokens != null) {
+                                shiftTokens(lastBracketColorTokens, change.getPosition(), diff);
                             }
                             // ★★★ 괄호 예측 스타일링 부활! ★★★
                             if (lastBracketTokens != null) {
@@ -166,12 +171,9 @@ public class HybridManager {
     }
 
     private void runAntlrAnalysis() {
-        System.err.println("[DEBUG] runAntlrAnalysis() called.");
         if (analyzer == null) {
-            System.err.println("[DEBUG] Analysis stopped: analyzer is null.");
             return;
         }
-        System.err.println("[DEBUG] Analysis proceeding: analyzer is not null.");
         onAnalysisStart.run();
 
         if (currentAntlrFuture != null && !currentAntlrFuture.isDone()) {
@@ -187,6 +189,7 @@ public class HybridManager {
         }
         currentAntlrFuture.thenAcceptAsync(analysisResult -> {
             this.lastAnalysisResult = analysisResult;
+            computeBracketColors(); // 괄호 색상 계산
             this.lastErrorTokens = new ArrayList<>();
             if (analysisResult.errors != null) {
                 for (SyntaxError error : analysisResult.errors) {
@@ -208,6 +211,72 @@ public class HybridManager {
         }, Platform::runLater);
     }
     
+    private void computeBracketColors() {
+        if (lastAnalysisResult == null || lastAnalysisResult.bracketMapping == null) {
+            this.lastBracketColorTokens = Collections.emptyList();
+            return;
+        }
+
+        final List<String> colors = Arrays.asList("bracket-pair-2", "bracket-pair-1", "bracket-pair-3");
+        List<StyleToken> colorTokens = new ArrayList<>();
+        
+        // 모든 여는 괄호와 닫는 괄호 토큰을 하나의 리스트에 넣고 위치 순으로 정렬합니다.
+        List<Token> allBrackets = new ArrayList<>();
+        allBrackets.addAll(lastAnalysisResult.bracketMapping.getPairMap().keySet().stream()
+            .map(pos -> lastAnalysisResult.bracketMapping.getReversePairMap().get(lastAnalysisResult.bracketMapping.getPairMap().get(pos).getStartIndex()))
+            .collect(Collectors.toList()));
+        allBrackets.addAll(lastAnalysisResult.bracketMapping.getPairMap().values());
+        allBrackets.sort(Comparator.comparingInt(Token::getStartIndex));
+
+        Stack<String> parenStack = new Stack<>();
+        Stack<String> braceStack = new Stack<>();
+        Stack<String> squareStack = new Stack<>();
+
+        for (Token token : allBrackets) {
+            String text = token.getText();
+            int level = 0;
+            String styleClass = "";
+
+            switch (text) {
+                case "(":
+                    level = parenStack.size();
+                    styleClass = colors.get(level % colors.size());
+                    parenStack.push(text);
+                    break;
+                case "{":
+                    level = braceStack.size();
+                    styleClass = colors.get(level % colors.size());
+                    braceStack.push(text);
+                    break;
+                case "[":
+                    level = squareStack.size();
+                    styleClass = colors.get(level % colors.size());
+                    squareStack.push(text);
+                    break;
+                case ")":
+                    if (!parenStack.isEmpty()) parenStack.pop();
+                    level = parenStack.size();
+                    styleClass = colors.get(level % colors.size());
+                    break;
+                case "}":
+                    if (!braceStack.isEmpty()) braceStack.pop();
+                    level = braceStack.size();
+                    styleClass = colors.get(level % colors.size());
+                    break;
+                case "]":
+                    if (!squareStack.isEmpty()) squareStack.pop();
+                    level = squareStack.size();
+                    styleClass = colors.get(level % colors.size());
+                    break;
+            }
+            if (!styleClass.isEmpty()) {
+                colorTokens.add(new StyleToken(token.getStartIndex(), token.getStopIndex() + 1, Collections.singletonList(styleClass)));
+            }
+        }
+
+        this.lastBracketColorTokens = colorTokens;
+    }
+
     private void shiftTokens(List<StyleToken> tokens, int position, int diff) {
         if (tokens == null) return;
         for (StyleToken token : tokens) {
@@ -286,8 +355,17 @@ public class HybridManager {
             StyleSpans<Collection<String>> symbolSpans = tokensToSpans(lastAnalysisResult.symbolTokens);
             StyleSpans<Collection<String>> errorSpans = tokensToSpans(lastErrorTokens);
             StyleSpans<Collection<String>> bracketSpans = tokensToSpans(lastBracketTokens);
+            StyleSpans<Collection<String>> bracketColorSpans = tokensToSpans(lastBracketColorTokens);
             
             finalSpans = finalSpans
+                .overlay(bracketColorSpans, (base, color) -> {
+                    if (!color.isEmpty()) {
+                        Set<String> combined = new HashSet<>(base);
+                        combined.addAll(color);
+                        return combined;
+                    }
+                    return base;
+                }) // 괄호 색상을 먼저 적용
                 .overlay(symbolSpans, (base, symbol) -> !symbol.isEmpty() ? symbol : base)
                 .overlay(errorSpans, (base, error) -> {
                     if (!error.isEmpty()) {

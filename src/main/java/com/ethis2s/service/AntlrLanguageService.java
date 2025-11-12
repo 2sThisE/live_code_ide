@@ -125,6 +125,14 @@ public class AntlrLanguageService {
             // 찾은 최적의 쌍을 Optional로 감싸 반환합니다.
             return Optional.ofNullable(bestMatch);
         }
+
+        public Map<Integer, Token> getPairMap() {
+            return pairMap;
+        }
+
+        public Map<Integer, Token> getReversePairMap() {
+            return reversePairMap;
+        }
     }
 
     private static final Map<String, AntlrConfig> CONFIGS = new HashMap<>();
