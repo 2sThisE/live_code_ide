@@ -89,6 +89,10 @@ public class ReSizeHelper {
 
         @Override
         public void handle(MouseEvent mouseEvent) {
+            if (stage.isFullScreen()) {
+                stage.getScene().setCursor(Cursor.DEFAULT);
+                return;
+            }
             EventType<? extends MouseEvent> mouseEventType = mouseEvent.getEventType();
             Scene scene = stage.getScene();
 
