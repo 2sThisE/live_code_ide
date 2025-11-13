@@ -17,7 +17,6 @@ public class ReSizeHelper {
     private static double savedHeight;
     private static double savedX;
     private static double savedY;
-    private static boolean toggleFlag;
 
     public static void toggleFullScreen(Stage stage, HBox trafficLights) {
         if (!stage.isFullScreen()) {
