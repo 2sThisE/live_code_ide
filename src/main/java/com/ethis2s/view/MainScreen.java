@@ -85,8 +85,8 @@ public class MainScreen {
     private OutputView outputView;
     private Tab problemsTab;
     private Label problemsTabLabel;
-    private TabPane bottomTabPane; // TabPane을 필드로 선언해서 접근 가능하게 할게요!  
-    private TabPane editorTabs;
+    private TabPane bottomTabPane; // TabPane을 필드로 선언해서 접근 가능하게 할게요!
+    private SplitPane editorArea;
     private TextField searchField;
     private HBox searchBox;
     private Button prevButton;
@@ -137,9 +137,9 @@ public class MainScreen {
     public ToggleButton getCaseSensitiveCheck() { return caseSensitiveCheck; }
     public Label getResultLabel() { return resultLabel; }
 
-    public BorderPane createMainScreen(Stage stage, TabPane editorTabs, Label statusLabel, MainController mainController) {
+    public BorderPane createMainScreen(Stage stage, SplitPane editorArea, Label statusLabel, MainController mainController) {
         BorderPane mainLayout = new BorderPane();
-        editorTabs.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
+        this.editorArea = editorArea;
         MenuBar menuBar = new MenuBar();
         Menu fileMenu = new Menu("File");
         MenuItem settingsItem = new MenuItem("설정");
@@ -320,8 +320,7 @@ public class MainScreen {
         bottomTabPane.getTabs().addAll(outputTab, debugTab, problemsTab);
         // --- 하단 탭 패널 생성 끝 ---
 
-        this.editorTabs = (editorTabs != null) ? editorTabs : new TabPane();
-        SplitPane centerSplit = new SplitPane(this.editorTabs, bottomTabPane);
+        SplitPane centerSplit = new SplitPane(this.editorArea, bottomTabPane);
         
         centerSplit.setOrientation(Orientation.VERTICAL);
         centerSplit.setDividerPositions(0.75);
@@ -358,7 +357,7 @@ public class MainScreen {
             String bottomTabsCss = configManager.getBottomTabsThemePath();
 
             if (treeViewCss != null) fileExplorerContainer.getStylesheets().add(treeViewCss);
-            if (topTabsCss != null) this.editorTabs.getStylesheets().add(topTabsCss);
+            // if (topTabsCss != null) this.editorTabs.getStylesheets().add(topTabsCss);
             if (bottomTabsCss != null) bottomTabPane.getStylesheets().add(bottomTabsCss);
         } catch (Exception e) {
             e.printStackTrace();
@@ -379,10 +378,10 @@ public class MainScreen {
                 fileExplorerContainer.getStylesheets().clear();
                 if (treeViewCss != null) fileExplorerContainer.getStylesheets().add(treeViewCss);
             }
-            if (this.editorTabs != null) { 
-                this.editorTabs.getStylesheets().clear();
-                if (topTabsCss != null) this.editorTabs.getStylesheets().add(topTabsCss);
-            }
+            // if (this.editorTabs != null) { 
+            //     this.editorTabs.getStylesheets().clear();
+            //     if (topTabsCss != null) this.editorTabs.getStylesheets().add(topTabsCss);
+            // }
             if (bottomTabPane != null) {
                 bottomTabPane.getStylesheets().clear();
                 if (bottomTabsCss != null) bottomTabPane.getStylesheets().add(bottomTabsCss);

@@ -37,6 +37,7 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
@@ -55,7 +56,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     private final MainScreen mainScreen;
     private final LoginScreen loginScreen;
     private final RegisterScreen registerScreen;
-    private final EditorTabView editorTabView;
+    private EditorTabView editorTabView;
     
     private ProjectController projectController;
     private ProblemsView problemsView; // ProblemsView에 접근하기 위한 참조
@@ -81,7 +82,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         this.mainScreen = new MainScreen();
         this.loginScreen = new LoginScreen();
         this.registerScreen = new RegisterScreen();
-        this.editorTabView = new EditorTabView(this); // EditorTabView에 자신을 전달
+        this.editorTabView = null; // Will be initialized in initMainScreen
         primaryStage.setTitle("Live Code IDE");
     }
 
@@ -119,7 +120,11 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         primaryStage.setMinWidth(600);
         primaryStage.setMinHeight(400);
         
-        BorderPane rootPane = mainScreen.createMainScreen(primaryStage, editorTabView.getTabPane(), statusBarLabel, this);
+        // Create the container for the editor tabs
+        SplitPane editorArea = new SplitPane();
+        this.editorTabView = new EditorTabView(this, editorArea);
+
+        BorderPane rootPane = mainScreen.createMainScreen(primaryStage, editorArea, statusBarLabel, this);
         this.problemsView = mainScreen.getProblemsView(); // MainScreen으로부터 ProblemsView 참조를 얻음
         this.debugView = mainScreen.getDebugView(); // MainScreen으로부터 DebugView 참조를 얻음
 
@@ -192,10 +197,10 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                 updateSearchButtonVisibility();
             });
 
-            // Add a listener for tab changes to re-run the search
-            editorTabView.getTabPane().getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
-                searchAction.run();
-            });
+            // The listener for tab changes is now managed within EditorTabView itself.
+            // editorTabView.getTabPane().getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            //     searchAction.run();
+            // });
 
             // Bind the result label to the search properties
             Label resultLabel = mainScreen.getResultLabel();
@@ -284,13 +289,35 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     }
 
     public void showLoginView() {
-        editorTabView.setWelcomeTabContent(loginScreen.createLoginView(this));
-        editorTabView.selectWelcomeTab();
+        String tabId = "login-tab";
+        
+        // Close the register tab if it's open
+        if (editorTabView.hasTab("register-tab")) {
+            editorTabView.closeTab("register-tab");
+        }
+
+        if (editorTabView.hasTab(tabId)) {
+            editorTabView.selectTab(tabId);
+            return;
+        }
+        Node loginView = loginScreen.createLoginView(this);
+        editorTabView.openTab(tabId, "로그인", loginView);
     }
 
     public void showRegisterView() {
-        editorTabView.setWelcomeTabContent(registerScreen.createRegisterView(socketManager, this));
-        editorTabView.selectWelcomeTab();
+        String tabId = "register-tab";
+
+        // Close the login tab if it's open
+        if (editorTabView.hasTab("login-tab")) {
+            editorTabView.closeTab("login-tab");
+        }
+
+        if (editorTabView.hasTab(tabId)) {
+            editorTabView.selectTab(tabId);
+            return;
+        }
+        Node registerView = registerScreen.createRegisterView(socketManager, this);
+        editorTabView.openTab(tabId, "회원가입", registerView);
     }
 
     public void showProjectPropertiesView(UserProjectsInfo userProjectsInfo) {
@@ -348,10 +375,8 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         }
 
         Runnable saveCallback = () -> {
-            // 1. Reload config from file
             ConfigManager.getInstance().loadConfig();
 
-            // 2. Reload main scene's stylesheets
             mainScene.getStylesheets().clear();
             ConfigManager configManager = ConfigManager.getInstance();
             String mainThemePath = configManager.getMainThemePath();
@@ -359,12 +384,10 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                 mainScene.getStylesheets().add(mainThemePath);
             }
 
-            // 3. Reload component-specific stylesheets
             if (mainScreen != null) {
                 mainScreen.reloadComponentCss();
             }
 
-            // 4. Re-apply settings to all open editor tabs
             if (editorTabView != null) {
                 editorTabView.reapplyAllEditorSettings();
             }
@@ -426,10 +449,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         this.userInfo = userInfo;
         projectController.setUserInfo(userInfo);
         Platform.runLater(() -> {
-            VBox successView = new VBox(20, new Label("환영합니다, " + userInfo.getNickname() + "#" + userInfo.getTag() + "님!"), new Label("파일 탐색기에서 워크스페이스를 확인하세요."));
-            successView.setAlignment(Pos.CENTER);
-            editorTabView.getWelcomeTab().setContent(successView);
-            editorTabView.getWelcomeTab().setClosable(true);
+            editorTabView.closeTab("login-tab");
             statusBarLabel.setText("로그인됨: " + userInfo.getNickname() + "#" + userInfo.getTag());
             projectController.projectListRequest();
         });

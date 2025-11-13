@@ -16,10 +16,15 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
+import javafx.geometry.Orientation;
 import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.Parent;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.Tooltip;
@@ -39,9 +44,11 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -58,8 +65,10 @@ import java.util.Collection;
 
 public class EditorTabView {
 
-    private final TabPane editorTabs;
-    private Tab welcomeTab;
+    private final SplitPane rootContainer;
+    private final Set<TabPane> managedTabPanes = new HashSet<>();
+    private TabPane activeTabPane;
+    private CodeArea activeCodeArea; // 새 필드 추가
     private final List<HybridManager> activeManagers = new ArrayList<>();
     private final MainController mainController;
     
@@ -77,26 +86,67 @@ public class EditorTabView {
     private final PauseTransition tooltipDelay = new PauseTransition(Duration.millis(500));
     private final StringProperty activeTabTitle = new SimpleStringProperty("검색...");
 
-    public EditorTabView(MainController mainController) {
+    public EditorTabView(MainController mainController, SplitPane rootContainer) {
         this.mainController = mainController;
-        this.welcomeTab = new Tab("Welcome");
-        this.welcomeTab.setClosable(false);
-        this.editorTabs = new TabPane(this.welcomeTab);
-        this.editorTabs.setTabDragPolicy(TabDragPolicy.REORDER);
+        this.rootContainer = rootContainer;
         errorTooltip.getStyleClass().add("error-tooltip");
 
-        // Listen for changes in the selected tab
-        editorTabs.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
-            if (newTab != null && newTab.isClosable() && newTab.getGraphic() instanceof HBox) {
-                // Assuming the file name is in a Label within the HBox
-                Label tabLabel = (Label) ((HBox) newTab.getGraphic()).getChildren().get(0);
+        // Create the initial, empty TabPane
+        TabPane primaryTabPane = createNewTabPane();
+        this.rootContainer.getItems().add(primaryTabPane);
+        this.activeTabPane = primaryTabPane;
+
+        // Listen for changes in the selected tab to update the search prompt
+        primaryTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            updateSearchPrompt(newTab);
+        });
+    }
+
+    private void updateSearchPrompt(Tab tab) {
+        if (tab != null && tab.isClosable()) {
+            if (tab.getGraphic() instanceof HBox) {
+                Label tabLabel = (Label) ((HBox) tab.getGraphic()).getChildren().get(0);
                 if (tabLabel != null) {
                     activeTabTitle.set(tabLabel.getText() + "에서 검색");
                 }
-            } else {
-                activeTabTitle.set("검색...");
+            } else if (tab.getText() != null) {
+                activeTabTitle.set(tab.getText() + "에서 검색");
+            }
+        } else {
+            activeTabTitle.set("검색...");
+        }
+    }
+
+    private TabPane createNewTabPane() {
+        TabPane tabPane = new TabPane();
+        tabPane.setTabDragPolicy(TabDragPolicy.REORDER);
+        managedTabPanes.add(tabPane);
+
+        // Track the focused TabPane
+        tabPane.focusedProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal) {
+                // activeTabPane = tabPane; // 이 줄을 제거합니다.
             }
         });
+
+        // Update search prompt when tab selection changes in any pane
+        tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            if (tabPane.isFocused()) {
+                updateSearchPrompt(newTab);
+            }
+        });
+        
+        try {
+            String topTabsCss = ConfigManager.getInstance().getTopTabsThemePath();
+            if (topTabsCss != null) {
+                tabPane.getStylesheets().add(topTabsCss);
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to load top tabs CSS for new TabPane.");
+            e.printStackTrace();
+        }
+
+        return tabPane;
     }
 
     public StringProperty activeTabTitleProperty() {
@@ -116,63 +166,131 @@ public class EditorTabView {
         activeManagers.clear();
     }
 
-    public TabPane getTabPane() {
-        return editorTabs;
-    }
-    
-    public Tab getWelcomeTab() { return welcomeTab; }
-    public void setWelcomeTabContent(Node content) { welcomeTab.setContent(content); }
-    public void selectWelcomeTab() { editorTabs.getSelectionModel().select(welcomeTab); }
-
     public void closeAllClosableTabs() {
         shutdownAllManagers();
-        editorTabs.getTabs().removeIf(Tab::isClosable);
-        tabErrors.clear();
-        codeAreaMap.clear();
-        if (editorTabs.getTabs().isEmpty()) {
-            this.welcomeTab = new Tab("Welcome");
-            this.welcomeTab.setClosable(false);
-            editorTabs.getTabs().add(welcomeTab);
-        } else if (!editorTabs.getTabs().contains(welcomeTab)) {
-            this.welcomeTab = editorTabs.getTabs().get(0);
-            this.welcomeTab.setClosable(false);
+        
+        List<Tab> allTabs = new ArrayList<>();
+        for (TabPane pane : managedTabPanes) {
+            allTabs.addAll(pane.getTabs());
+        }
+
+        for (Tab tab : allTabs) {
+            if (tab.isClosable()) {
+                // This will trigger the setOnClosed event for each tab
+                tab.getTabPane().getTabs().remove(tab);
+            }
+        }
+
+        // The onClosed handlers should have cleaned up empty panes.
+        // This is just a final check for any panes that might have been missed.
+        List<TabPane> toRemove = new ArrayList<>();
+        for (TabPane pane : new ArrayList<>(managedTabPanes)) {
+            if (pane.getTabs().isEmpty()) {
+                 if (managedTabPanes.size() - toRemove.size() > 1) {
+                    toRemove.add(pane);
+                }
+            }
+        }
+        toRemove.forEach(this::cleanupEmptyPane);
+
+        if (managedTabPanes.isEmpty()) {
+            TabPane primaryTabPane = createNewTabPane();
+            this.rootContainer.getItems().add(primaryTabPane);
+            this.activeTabPane = primaryTabPane;
         }
     }
 
     public boolean hasTab(String tabId) {
-        return editorTabs.getTabs().stream().anyMatch(tab -> tabId.equals(tab.getId()));
+        for (TabPane pane : managedTabPanes) {
+            if (pane.getTabs().stream().anyMatch(tab -> tabId.equals(tab.getId()))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void selectTab(String tabId) {
-        editorTabs.getTabs().stream()
-            .filter(tab -> tabId.equals(tab.getId()))
-            .findFirst()
-            .ifPresent(tab -> editorTabs.getSelectionModel().select(tab));
-    }
-
-    public void openTab(String tabId, String title, Node content) {
-        Tab newTab = new Tab(title);
-        newTab.setId(tabId);
-        newTab.setContent(content);
-        newTab.setClosable(true);
-        editorTabs.getTabs().add(newTab);
-        editorTabs.getSelectionModel().select(newTab);
-    }
-    public void openTabWithCloseCallback(String tabId, String title, Node content, Runnable onClose) {
-        Tab newTab = new Tab(title);
-        newTab.setId(tabId);
-        newTab.setContent(content);
-        newTab.setClosable(true);
-        newTab.setOnClosed(e -> onClose.run());
-        editorTabs.getTabs().add(newTab);
-        editorTabs.getSelectionModel().select(newTab);
+        for (TabPane pane : managedTabPanes) {
+            Optional<Tab> tabOpt = pane.getTabs().stream()
+                .filter(tab -> tabId.equals(tab.getId()))
+                .findFirst();
+            
+            if (tabOpt.isPresent()) {
+                pane.getSelectionModel().select(tabOpt.get());
+                pane.requestFocus();
+                return;
+            }
+        }
     }
 
     public void closeTab(String tabId) {
-        editorTabs.getTabs().stream()
-            .filter(tab -> tabId.equals(tab.getId()))
-            .findFirst()
-            .ifPresent(tab -> editorTabs.getTabs().remove(tab));
+        for (TabPane pane : managedTabPanes) {
+            pane.getTabs().stream()
+                .filter(tab -> tabId.equals(tab.getId()))
+                .findFirst()
+                .ifPresent(tab -> pane.getTabs().remove(tab));
+        }
+    }
+
+    public void openTab(String tabId, String title, Node content) {
+        createTab(tabId, title, content, null);
+    }
+
+    public void openTabWithCloseCallback(String tabId, String title, Node content, Runnable onClose) {
+        createTab(tabId, title, content, onClose);
+    }
+
+    private Tab createTab(String tabId, String title, Node content, Runnable customOnClose) {
+        if (hasTab(tabId)) {
+            selectTab(tabId);
+            return findTabById(tabId).orElse(null);
+        }
+
+        Tab newTab = new Tab(title, content);
+        newTab.setId(tabId);
+        newTab.setClosable(true);
+
+        newTab.setOnClosed(e -> {
+            if (customOnClose != null) {
+                customOnClose.run();
+            }
+            // Defer the cleanup check to a new, global method.
+            // This ensures we check the correct state of all panes after the tab has been fully removed.
+            Platform.runLater(this::checkAndCleanupAllPanes);
+        });
+
+        TabPane targetPane = activeTabPane;
+        if (targetPane == null && !managedTabPanes.isEmpty()) {
+            targetPane = managedTabPanes.iterator().next();
+        }
+        
+        if (targetPane != null) {
+            targetPane.getTabs().add(newTab);
+            targetPane.getSelectionModel().select(newTab);
+            targetPane.requestFocus();
+        }
+        
+        return newTab;
+    }
+    
+    /**
+     * Scans all managed TabPanes and cleans up any that are empty.
+     * This is a robust way to handle cleanup after a tab is closed, regardless of
+     * which pane it was in (especially after being moved via split).
+     */
+    private void checkAndCleanupAllPanes() {
+        // Iterate over a copy to avoid ConcurrentModificationException, as cleanupEmptyPane modifies the set.
+        List<TabPane> panesToCheck = new ArrayList<>(managedTabPanes);
+        
+        for (TabPane pane : panesToCheck) {
+            // We must re-check the size inside the loop, as a previous cleanup can change the count.
+            if (pane.getTabs().isEmpty() && managedTabPanes.size() > 1) {
+                // Also ensure the pane hasn't already been removed by a cascading cleanup.
+                if (managedTabPanes.contains(pane)) {
+                    cleanupEmptyPane(pane);
+                }
+            }
+        }
     }
 
     private void aggregateAndSendProblems() {
@@ -200,25 +318,24 @@ public class EditorTabView {
         tabErrors.put(tabId, errors);
         aggregateAndSendProblems();
 
-        Tab tab = editorTabs.getTabs().stream().filter(t -> tabId.equals(t.getId())).findFirst().orElse(null);
-        if (tab == null) return;
-
-        if (tab.getGraphic() instanceof HBox hbox) {
-            Label errorLabel = (Label) hbox.lookup(".tab-error-count");
-            if (errorLabel != null) {
-                if (errors.isEmpty()) {
-                    errorLabel.setText("");
-                    errorLabel.getStyleClass().remove("has-errors");
-                } else {
-                    int errorCount = errors.size();
-                    String errorText = errorCount > 9 ? "9+" : String.valueOf(errorCount);
-                    errorLabel.setText(errorText);
-                    if (!errorLabel.getStyleClass().contains("has-errors")) {
-                        errorLabel.getStyleClass().add("has-errors");
+        findTabById(tabId).ifPresent(tab -> {
+            if (tab.getGraphic() instanceof HBox hbox) {
+                Label errorLabel = (Label) hbox.lookup(".tab-error-count");
+                if (errorLabel != null) {
+                    if (errors.isEmpty()) {
+                        errorLabel.setText("");
+                        errorLabel.getStyleClass().remove("has-errors");
+                    } else {
+                        int errorCount = errors.size();
+                        String errorText = errorCount > 9 ? "9+" : String.valueOf(errorCount);
+                        errorLabel.setText(errorText);
+                        if (!errorLabel.getStyleClass().contains("has-errors")) {
+                            errorLabel.getStyleClass().add("has-errors");
+                        }
                     }
                 }
             }
-        }
+        });
 
         CodeArea codeArea = codeAreaMap.get(tabId);
         if (codeArea != null) {
@@ -235,7 +352,6 @@ public class EditorTabView {
             return;
         }
         
-        
         CodeArea codeArea = new CodeArea();
         codeArea.getStyleClass().add("code-area");
         
@@ -244,11 +360,9 @@ public class EditorTabView {
         tabFileNames.put(tabId, fileName);
 
         setupEditorFeatures(codeArea, tabId);
-        
         setupErrorTooltip(codeArea, tabId);
 
         VirtualizedScrollPane<CodeArea> scrollPane = new VirtualizedScrollPane<>(codeArea);
-
         String fileExtension = getFileExtension(filePath);
 
         HybridManager manager = new HybridManager(
@@ -273,27 +387,153 @@ public class EditorTabView {
             currentMatchIndexMap.remove(tabId);
             mainController.updateProblems(new ArrayList<>());
         };
+
+        Tab newTab = createTab(tabId, null, scrollPane, onClose);
+        if (newTab == null) return;
         
-        Tab newTab = new Tab(null, scrollPane);
-        
-        // --- 탭 그래픽 생성 (HBox 사용) ---
         Label fileNameLabel = new Label(fileName);
-        fileNameLabel.getStyleClass().add("tab-file-name"); // 파일 이름 라벨에 클래스 추가
+        fileNameLabel.getStyleClass().add("tab-file-name");
         
-        Label errorCountLabel = new Label("9+");
+        Label errorCountLabel = new Label("");
         errorCountLabel.getStyleClass().add("tab-error-count");
-        errorCountLabel.setMinWidth(Region.USE_PREF_SIZE); // 내용에 맞게 최소 너비 설정
-        errorCountLabel.setText("");
-        HBox tabGraphic = new HBox(5, fileNameLabel, errorCountLabel); // 5px 간격
+        errorCountLabel.setMinWidth(Region.USE_PREF_SIZE);
+        
+        HBox tabGraphic = new HBox(5, fileNameLabel, errorCountLabel);
         tabGraphic.setAlignment(Pos.CENTER_LEFT);
-        // --- 탭 그래픽 생성 끝 ---
+
+        ContextMenu contextMenu = new ContextMenu();
+        MenuItem splitRight = new MenuItem("우측으로 분할");
+        splitRight.setOnAction(e -> splitTab(newTab, Orientation.HORIZONTAL));
+        MenuItem splitDown = new MenuItem("하단으로 분할");
+        splitDown.setOnAction(e -> splitTab(newTab, Orientation.VERTICAL));
+        contextMenu.getItems().addAll(splitRight, splitDown);
+        
+        tabGraphic.setOnContextMenuRequested(e -> contextMenu.show(tabGraphic, e.getScreenX(), e.getScreenY()));
 
         newTab.setGraphic(tabGraphic);
-        newTab.setId(tabId);
-        newTab.setClosable(true);
-        newTab.setOnClosed(e -> onClose.run());
-        editorTabs.getTabs().add(newTab);
-        editorTabs.getSelectionModel().select(newTab);
+    }
+
+    private void splitTab(Tab tab, Orientation orientation) {
+        TabPane sourcePane = tab.getTabPane();
+        if (sourcePane == null) {
+            return;
+        }
+
+        TabPane newPane = createNewTabPane();
+
+        Parent container = findContainerOf(sourcePane);
+        if (container == null || !(container instanceof SplitPane)) {
+            managedTabPanes.remove(newPane);
+            return;
+        }
+        SplitPane parentSplitPane = (SplitPane) container;
+
+        if (parentSplitPane.getOrientation() == orientation) {
+            int sourceIndex = parentSplitPane.getItems().indexOf(sourcePane);
+            parentSplitPane.getItems().add(sourceIndex + 1, newPane);
+
+            int itemCount = parentSplitPane.getItems().size();
+            double[] positions = new double[itemCount - 1];
+            for (int i = 0; i < positions.length; i++) {
+                positions[i] = (double) (i + 1) / itemCount;
+            }
+            parentSplitPane.setDividerPositions(positions);
+        }
+        else {
+            int sourceIndex = parentSplitPane.getItems().indexOf(sourcePane);
+            if (sourceIndex == -1) {
+                managedTabPanes.remove(newPane);
+                return;
+            }
+
+            SplitPane newSplitPane = new SplitPane();
+            newSplitPane.setOrientation(orientation);
+            newSplitPane.getItems().addAll(sourcePane, newPane);
+            newSplitPane.setDividerPositions(0.5);
+
+            parentSplitPane.getItems().set(sourceIndex, newSplitPane);
+        }
+
+        Platform.runLater(() -> {
+            if (!sourcePane.getTabs().contains(tab)) {
+                 return;
+            }
+            sourcePane.getTabs().remove(tab);
+            newPane.getTabs().add(tab);
+            newPane.getSelectionModel().select(tab);
+            newPane.requestFocus();
+
+            if (sourcePane.getTabs().isEmpty()) {
+                cleanupEmptyPane(sourcePane);
+            }
+        });
+    }
+
+    private void cleanupEmptyPane(TabPane pane) {
+        if (managedTabPanes.size() <= 1) {
+            return;
+        }
+
+        Parent container = findContainerOf(pane);
+        managedTabPanes.remove(pane); 
+
+        if (activeTabPane == pane) {
+            activeTabPane = managedTabPanes.stream().findFirst().orElse(null);
+        }
+
+        if (container instanceof SplitPane) {
+            SplitPane parentSplitPane = (SplitPane) container;
+            
+            parentSplitPane.getItems().remove(pane);
+
+            if (parentSplitPane.getItems().size() == 1) {
+                Node survivor = parentSplitPane.getItems().get(0);
+                
+                Parent grandParent = findContainerOf(parentSplitPane);
+                if (grandParent instanceof SplitPane) {
+                    SplitPane grandParentSplitPane = (SplitPane) grandParent;
+                    int parentIndex = grandParentSplitPane.getItems().indexOf(parentSplitPane);
+                    if (parentIndex != -1) {
+                        grandParentSplitPane.getItems().set(parentIndex, survivor);
+                    }
+                }
+            }
+        }
+    }
+
+    private Parent findContainerOf(Node target) {
+        if (rootContainer.getItems().contains(target)) {
+            return rootContainer;
+        }
+        return findContainerRecursive(rootContainer, target);
+    }
+
+    private Parent findContainerRecursive(Parent parent, Node target) {
+        if (parent instanceof SplitPane) {
+            SplitPane sp = (SplitPane) parent;
+            if (sp.getItems().contains(target)) {
+                return sp;
+            }
+            for (Node child : sp.getItems()) {
+                if (child instanceof Parent) {
+                    Parent found = findContainerRecursive((Parent) child, target);
+                    if (found != null) {
+                        return found;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private Optional<Tab> findTabById(String tabId) {
+        for (TabPane pane : managedTabPanes) {
+            Optional<Tab> tabOpt = pane.getTabs().stream().filter(t -> tabId.equals(t.getId())).findFirst();
+            if (tabOpt.isPresent()) {
+                return tabOpt;
+            }
+        }
+        return Optional.empty();
     }
 
     private void setupErrorTooltip(CodeArea codeArea, String tabId) {
@@ -308,6 +548,10 @@ public class EditorTabView {
                 if (errors == null) return;
 
                 Optional<SyntaxError> errorOpt = errors.stream().filter(err -> {
+                    // Validate line number before getting absolute position
+                    if (err.line <= 0 || err.line > codeArea.getParagraphs().size()) {
+                        return false;
+                    }
                     int start = codeArea.getAbsolutePosition(err.line - 1, err.charPositionInLine);
                     int end = start + err.length;
                     return charIndex >= start && charIndex < end;
@@ -354,11 +598,41 @@ public class EditorTabView {
         for (CodeArea codeArea : codeAreaMap.values()) {
             applyStylesToCodeArea(codeArea);
         }
+        for (TabPane pane : managedTabPanes) {
+            try {
+                String topTabsCss = ConfigManager.getInstance().getTopTabsThemePath();
+                pane.getStylesheets().clear();
+                if (topTabsCss != null) {
+                    pane.getStylesheets().add(topTabsCss);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     private void setupEditorFeatures(CodeArea codeArea, String tabId) {
         applyStylesToCodeArea(codeArea);
         
+        // 첫 번째 CodeArea를 기본 활성 CodeArea로 설정
+        if (activeCodeArea == null) {
+            activeCodeArea = codeArea;
+        }
+
+        // CodeArea에 포커스 리스너 추가
+        codeArea.focusedProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal) {
+                activeCodeArea = codeArea;
+                // 현재 CodeArea가 포함된 TabPane을 찾아 활성 TabPane으로 설정 및 프롬프트 업데이트
+                findTabById(tabId).ifPresent(tab -> {
+                    if (tab.getTabPane() != null) {
+                        activeTabPane = tab.getTabPane();
+                    }
+                    updateSearchPrompt(tab); // 프롬프트 업데이트 호출 추가
+                });
+            }
+        });
+
         final double MIN_INITIAL_WIDTH = 60.0;
         final double RIGHT_PADDING_NUM = 15.0;
         final double LEFT_PADDING_NUM = 5.0;
@@ -498,44 +772,41 @@ public class EditorTabView {
     // --- New Public Search API for MainController ---
 
     public String getCurrentSelectedText() {
-        Tab selectedTab = editorTabs.getSelectionModel().getSelectedItem();
-        if (selectedTab != null && selectedTab.getId() != null) {
-            CodeArea codeArea = codeAreaMap.get(selectedTab.getId());
-            if (codeArea != null) {
-                return codeArea.getSelectedText();
-            }
+        if (activeCodeArea != null) {
+            return activeCodeArea.getSelectedText();
         }
         return "";
     }
 
     public void performSearchOnActiveTab(String query, boolean caseSensitive) {
-        Tab selectedTab = editorTabs.getSelectionModel().getSelectedItem();
-        if (selectedTab != null && selectedTab.getId() != null) {
-            CodeArea codeArea = codeAreaMap.get(selectedTab.getId());
-            if (codeArea != null) {
-                performSearch(codeArea, selectedTab.getId(), query, caseSensitive);
-            }
-        }
+        if (activeCodeArea == null) return;
+
+        findTabIdForCodeArea(activeCodeArea).ifPresent(tabId -> {
+            performSearch(activeCodeArea, tabId, query, caseSensitive);
+        });
     }
 
     public void goToNextMatchOnActiveTab() {
-        Tab selectedTab = editorTabs.getSelectionModel().getSelectedItem();
-        if (selectedTab != null && selectedTab.getId() != null) {
-            CodeArea codeArea = codeAreaMap.get(selectedTab.getId());
-            if (codeArea != null) {
-                goToNextMatch(codeArea, selectedTab.getId());
-            }
-        }
+        if (activeCodeArea == null) return;
+
+        findTabIdForCodeArea(activeCodeArea).ifPresent(tabId -> {
+            goToNextMatch(activeCodeArea, tabId);
+        });
     }
 
     public void goToPreviousMatchOnActiveTab() {
-        Tab selectedTab = editorTabs.getSelectionModel().getSelectedItem();
-        if (selectedTab != null && selectedTab.getId() != null) {
-            CodeArea codeArea = codeAreaMap.get(selectedTab.getId());
-            if (codeArea != null) {
-                goToPreviousMatch(codeArea, selectedTab.getId());
-            }
-        }
+        if (activeCodeArea == null) return;
+        
+        findTabIdForCodeArea(activeCodeArea).ifPresent(tabId -> {
+            goToPreviousMatch(activeCodeArea, tabId);
+        });
+    }
+
+    private Optional<String> findTabIdForCodeArea(CodeArea codeArea) {
+        return codeAreaMap.entrySet().stream()
+            .filter(entry -> entry.getValue().equals(codeArea))
+            .map(Map.Entry::getKey)
+            .findFirst();
     }
 
     // --- Private Core Search Logic ---
