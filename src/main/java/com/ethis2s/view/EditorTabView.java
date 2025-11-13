@@ -80,6 +80,7 @@ public class EditorTabView {
     private TabPane activeTabPane;
     private CodeArea activeCodeArea; // 새 필드 추가
     private Tab draggingTab = null; // 드래그 중인 탭을 추적
+    private TabPane dropTargetPane = null;
     private TabPane sourcePaneForDrag = null; // 드래그 시작 TabPane
     private int sourceIndexForDrag = -1; // 드래그 시작 인덱스
     private Node originalGraphic = null; // 드래그 시작 시 원래 그래픽을 저장
@@ -181,7 +182,7 @@ public class EditorTabView {
         });
 
         feedbackPane.addEventFilter(DragEvent.DRAG_DROPPED, event -> {
-            if (draggingTab == null) return;
+            if (draggingTab == null || dropTargetPane == null) return;
 
             Object target = event.getTarget();
             if (target instanceof Node) {
@@ -189,6 +190,7 @@ public class EditorTabView {
                 if (userData instanceof String) {
                     String zoneId = (String) userData;
                     Orientation orientation = null;
+                    boolean isMerge = false;
 
                     switch (zoneId) {
                         case "split-top":
@@ -200,15 +202,25 @@ public class EditorTabView {
                             orientation = Orientation.HORIZONTAL;
                             break;
                         case "merge-center":
-                            // Let the TabPane's own handler deal with this
+                            isMerge = true;
                             break;
                     }
 
                     if (orientation != null) {
-                        splitTab(draggingTab, orientation);
+                        splitTab(draggingTab, dropTargetPane, orientation);
                         event.setDropCompleted(true);
-                        event.consume(); // Consume AFTER drop is handled
+                    } else if (isMerge) {
+                        // Perform the merge by adding the tab to the target pane
+                        if (previewTab != null && previewTab.getTabPane() != null) {
+                            previewTab.getTabPane().getTabs().remove(previewTab);
+                        }
+                        int dropIndex = calculateDropIndex(dropTargetPane, event.getSceneX());
+                        dropTargetPane.getTabs().add(dropIndex, draggingTab);
+                        dropTargetPane.getSelectionModel().select(draggingTab);
+                        Platform.runLater(this::checkAndCleanupAllPanes);
+                        event.setDropCompleted(true);
                     }
+                    event.consume();
                 }
             }
         });
@@ -245,6 +257,24 @@ public class EditorTabView {
         tabPane.setOnDragOver(event -> {
             if (event.getDragboard().hasString() && draggingTab != null) {
                 event.acceptTransferModes(TransferMode.MOVE);
+                this.dropTargetPane = tabPane;
+
+                // --- Reposition feedbackPane over the current TabPane ---
+                if (feedbackPane.isVisible()) {
+                    Node contentArea = tabPane.lookup(".tab-content-area");
+                    Bounds bounds;
+                    if (contentArea != null) {
+                        bounds = contentArea.localToScene(contentArea.getLayoutBounds());
+                    } else {
+                        bounds = tabPane.localToScene(tabPane.getLayoutBounds());
+                    }
+
+                    feedbackPane.setLayoutX(bounds.getMinX());
+                    feedbackPane.setLayoutY(bounds.getMinY());
+                    feedbackPane.setPrefSize(bounds.getWidth(), bounds.getHeight());
+                    feedbackPane.resize(bounds.getWidth(), bounds.getHeight());
+                }
+                // --- End of Repositioning ---
 
                 // [안전장치 1] 계산된 인덱스를 사용하기 전에 항상 유효성을 검사합니다.
                 int dropIndex = calculateDropIndex(tabPane, event.getSceneX());
@@ -280,30 +310,6 @@ public class EditorTabView {
             if (previewTab != null && previewTab.getTabPane() == tabPane) {
                 tabPane.getTabs().remove(previewTab);
             }
-        });
-
-        tabPane.setOnDragDropped(event -> {
-            Dragboard db = event.getDragboard();
-            boolean success = false;
-            if (db.hasString() && draggingTab != null) {
-                // Remove the preview tab first
-                if (previewTab != null && previewTab.getTabPane() != null) {
-                    previewTab.getTabPane().getTabs().remove(previewTab);
-                }
-                
-                // Perform the actual move by adding the tab to this pane
-                int dropIndex = calculateDropIndex(tabPane, event.getSceneX());
-                tabPane.getTabs().add(dropIndex, draggingTab);
-                tabPane.getSelectionModel().select(draggingTab);
-                
-                // The onDragDone handler on the source tab's graphic will restore its appearance
-                // and handle cleanup if the drag is cancelled.
-                
-                Platform.runLater(this::checkAndCleanupAllPanes);
-                success = true;
-            }
-            event.setDropCompleted(success);
-            event.consume();
         });
 
         // Track the focused TabPane
@@ -625,7 +631,14 @@ public class EditorTabView {
                 Platform.runLater(() -> {
                     if (sourcePaneForDrag == null) return;
 
-                    Bounds bounds = sourcePaneForDrag.localToScene(sourcePaneForDrag.getLayoutBounds());
+                    Node contentArea = sourcePaneForDrag.lookup(".tab-content-area");
+                    Bounds bounds;
+                    if (contentArea != null) {
+                        bounds = contentArea.localToScene(contentArea.getLayoutBounds());
+                    } else {
+                        // Fallback to original behavior if content area is not found
+                        bounds = sourcePaneForDrag.localToScene(sourcePaneForDrag.getLayoutBounds());
+                    }
                     
                     feedbackPane.setLayoutX(bounds.getMinX());
                     feedbackPane.setLayoutY(bounds.getMinY());
@@ -680,6 +693,7 @@ public class EditorTabView {
             sourcePaneForDrag = null;
             sourceIndexForDrag = -1;
             originalGraphic = null;
+            dropTargetPane = null;
             
             event.consume();
         });
@@ -699,55 +713,54 @@ public class EditorTabView {
     private void splitTab(Tab tab, Orientation orientation) {
         TabPane sourcePane = tab.getTabPane();
         if (sourcePane == null) {
-            if (tab != draggingTab || sourcePaneForDrag == null) {
-                return;
-            }
-            sourcePane = sourcePaneForDrag;
+            return;
         }
+        splitTab(tab, sourcePane, orientation);
+    }
 
+    private void splitTab(Tab tab, TabPane targetPane, Orientation orientation) {
         // If the source pane has only one tab, we are essentially just moving the pane.
         // But for simplicity, we'll treat it as a split and let the cleanup logic handle the empty pane.
 
         TabPane newPane = createNewTabPane();
 
-        Parent container = findContainerOf(sourcePane);
+        Parent container = findContainerOf(targetPane);
         if (!(container instanceof SplitPane)) {
             // This case should ideally not happen if the root is a SplitPane
             managedTabPanes.remove(newPane); // Don't leak a new pane
-            System.err.println("Cannot split: source pane is not in a SplitPane.");
+            System.err.println("Cannot split: target pane is not in a SplitPane.");
             return;
         }
         SplitPane parentSplitPane = (SplitPane) container;
 
-        int sourceIndex = parentSplitPane.getItems().indexOf(sourcePane);
-        if (sourceIndex == -1) {
+        int targetIndex = parentSplitPane.getItems().indexOf(targetPane);
+        if (targetIndex == -1) {
              managedTabPanes.remove(newPane);
-             System.err.println("Cannot split: could not find source pane in its parent.");
+             System.err.println("Cannot split: could not find target pane in its parent.");
              return;
         }
 
         if (parentSplitPane.getOrientation() == orientation) {
             // Same orientation: add the new pane next to the source pane
-            parentSplitPane.getItems().add(sourceIndex + 1, newPane);
-            parentSplitPane.setDividerPosition(sourceIndex, 0.5);
+            parentSplitPane.getItems().add(targetIndex + 1, newPane);
+            parentSplitPane.setDividerPosition(targetIndex, 0.5);
         } else {
             // Different orientation: replace the source pane with a new SplitPane
             SplitPane nestedSplitPane = new SplitPane();
             nestedSplitPane.setOrientation(orientation);
-            nestedSplitPane.getItems().addAll(sourcePane, newPane);
+            nestedSplitPane.getItems().addAll(targetPane, newPane);
             
             // Replace the original source pane with the new nested split pane
-            parentSplitPane.getItems().set(sourceIndex, nestedSplitPane);
+            parentSplitPane.getItems().set(targetIndex, nestedSplitPane);
             
             // Set divider position after the scene graph is updated
             Platform.runLater(() -> nestedSplitPane.setDividerPosition(0, 0.5));
         }
 
         // The actual tab move is done last, in Platform.runLater
-        final TabPane finalSourcePane = sourcePane;
         Platform.runLater(() -> {
-            if (finalSourcePane.getTabs().contains(tab)) {
-                finalSourcePane.getTabs().remove(tab);
+            if (tab.getTabPane() != null) {
+                tab.getTabPane().getTabs().remove(tab);
             }
             newPane.getTabs().add(tab);
             newPane.getSelectionModel().select(tab);
