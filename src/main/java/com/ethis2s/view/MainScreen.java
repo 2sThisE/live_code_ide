@@ -566,9 +566,6 @@ public class MainScreen {
                         String pathString = getItemPath(selectedItem);
                         if (pathString != null && !pathString.isEmpty()) {
                             String path = pathString.replace('\\', '/');
-                            // TODO: Controller에서 실제 삭제 로직 구현 필요
-                            System.out.println("Delete action triggered for: " + path);
-                            // projectController.deleteItem(userProjectsInfo.getProjectID(), path, nodeType.getType());
                             if(nodeType.getType().equals("file")){
                                 projectController.delFileRequest(userProjectsInfo.getProjectID(), path, userProjectsInfo.getOwner());
                                 projectController.fileListRequest(userProjectsInfo);

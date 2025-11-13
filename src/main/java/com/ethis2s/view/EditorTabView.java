@@ -21,6 +21,7 @@ import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.SnapshotParameters;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
@@ -28,7 +29,14 @@ import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.Tooltip;
+import javafx.scene.image.WritableImage;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.Dragboard;
+import javafx.scene.input.DragEvent;
+import javafx.scene.input.TransferMode;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.text.Font;
 import javafx.scene.text.Text;
@@ -43,6 +51,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -69,6 +78,11 @@ public class EditorTabView {
     private final Set<TabPane> managedTabPanes = new HashSet<>();
     private TabPane activeTabPane;
     private CodeArea activeCodeArea; // 새 필드 추가
+    private Tab draggingTab = null; // 드래그 중인 탭을 추적
+    private TabPane sourcePaneForDrag = null; // 드래그 시작 TabPane
+    private int sourceIndexForDrag = -1; // 드래그 시작 인덱스
+    private Node originalGraphic = null; // 드래그 시작 시 원래 그래픽을 저장
+    private Tab previewTab = null; // 드래그 미리보기 탭
     private final List<HybridManager> activeManagers = new ArrayList<>();
     private final MainController mainController;
     
@@ -84,22 +98,168 @@ public class EditorTabView {
 
     private final Tooltip errorTooltip = new Tooltip();
     private final PauseTransition tooltipDelay = new PauseTransition(Duration.millis(500));
-    private final StringProperty activeTabTitle = new SimpleStringProperty("검색...");
+        private final StringProperty activeTabTitle = new SimpleStringProperty("검색...");
+    
+        // --- Visual Feedback for Drag and Drop ---
+        private Pane feedbackPane;
+        private Region splitIndicatorTop, splitIndicatorBottom, splitIndicatorLeft, splitIndicatorRight, mergeIndicatorCenter;
+    
+        public EditorTabView(MainController mainController, SplitPane rootContainer) {
+            this.mainController = mainController;
+            this.rootContainer = rootContainer;
+            errorTooltip.getStyleClass().add("error-tooltip");
+    
+                    initializeFeedbackPane();
+                    setupDragAndDropHandlers(); // Will be implemented in steps    
+            // Create the initial, empty TabPane
+            TabPane primaryTabPane = createNewTabPane();
+            this.rootContainer.getItems().add(primaryTabPane);
+            this.activeTabPane = primaryTabPane;
+    
+            // Listen for changes in the selected tab to update the search prompt
+            primaryTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+                updateSearchPrompt(newTab);
+            });
+        }
+    
+    private void initializeFeedbackPane() {
+        feedbackPane = new Pane();
+        feedbackPane.setMouseTransparent(true);
+        feedbackPane.setVisible(false);
 
-    public EditorTabView(MainController mainController, SplitPane rootContainer) {
-        this.mainController = mainController;
-        this.rootContainer = rootContainer;
-        errorTooltip.getStyleClass().add("error-tooltip");
+        String feedbackStyle = "-fx-background-color: rgba(0, 100, 255, 0.3); -fx-border-color: rgba(0, 100, 255, 0.8); -fx-border-width: 1.5px; -fx-border-style: dashed;";
+        splitIndicatorTop = new Region();
+        splitIndicatorBottom = new Region();
+        splitIndicatorLeft = new Region();
+        splitIndicatorRight = new Region();
+        mergeIndicatorCenter = new Region();
 
-        // Create the initial, empty TabPane
-        TabPane primaryTabPane = createNewTabPane();
-        this.rootContainer.getItems().add(primaryTabPane);
-        this.activeTabPane = primaryTabPane;
+        Stream.of(splitIndicatorTop, splitIndicatorBottom, splitIndicatorLeft, splitIndicatorRight, mergeIndicatorCenter)
+              .forEach(r -> {
+                  r.setStyle(feedbackStyle);
+                  r.setVisible(false);
+              });
 
-        // Listen for changes in the selected tab to update the search prompt
-        primaryTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
-            updateSearchPrompt(newTab);
-        });
+        feedbackPane.getChildren().addAll(splitIndicatorTop, splitIndicatorBottom, splitIndicatorLeft, splitIndicatorRight, mergeIndicatorCenter);
+    }
+
+            private void setupDragAndDropHandlers() {
+
+                rootContainer.addEventFilter(DragEvent.DRAG_OVER, event -> {
+
+                    if (event.getDragboard().hasString() && draggingTab != null) {
+
+                        updateFeedback(event.getX(), event.getY());
+
+                        event.acceptTransferModes(TransferMode.MOVE);
+
+                    }
+
+                });
+
+        
+
+                rootContainer.addEventFilter(DragEvent.DRAG_DROPPED, event -> {
+
+                    if (draggingTab == null) return;
+
+        
+
+                    boolean handled = false;
+
+                    double dropX = event.getX();
+
+                    double dropY = event.getY();
+
+                    double width = rootContainer.getWidth();
+
+                    double height = rootContainer.getHeight();
+
+                    final double BORDER_RATIO = 0.15; // Reduced for better usability
+
+                    double hBorder = width * BORDER_RATIO;
+
+                    double vBorder = height * BORDER_RATIO;
+
+                    Orientation orientation = null;
+
+        
+
+                    if (dropX < hBorder) orientation = Orientation.HORIZONTAL;
+
+                    else if (dropX > width - hBorder) orientation = Orientation.HORIZONTAL;
+
+                    else if (dropY < vBorder) orientation = Orientation.VERTICAL;
+
+                    else if (dropY > height - vBorder) orientation = Orientation.VERTICAL;
+
+        
+
+                    if (orientation != null) {
+
+                        splitTab(draggingTab, orientation);
+
+                        handled = true;
+
+                    }
+
+                    // REMOVED the incorrect 'else' block.
+
+                    // If it's not a split, we do nothing and let the event propagate
+
+                    // to the TabPane's own onDragDropped handler.
+
+        
+
+                    if (handled) {
+
+                        event.setDropCompleted(true);
+
+                        event.consume();
+
+                    }
+
+                });
+
+            }
+
+    private TabPane findContainingPane(Node node) {
+        while (node != null) {
+            if (node instanceof TabPane) return (TabPane) node;
+            node = node.getParent();
+        }
+        return null;
+    }
+
+    private void updateFeedback(double x, double y) {
+        if (feedbackPane == null) return;
+        feedbackPane.setVisible(true); // Ensure feedback is visible on drag over
+
+        Stream.of(splitIndicatorTop, splitIndicatorBottom, splitIndicatorLeft, splitIndicatorRight, mergeIndicatorCenter)
+            .forEach(r -> r.setVisible(false));
+
+        double width = rootContainer.getWidth();
+        double height = rootContainer.getHeight();
+        final double BORDER_RATIO = 0.15;
+        double hBorder = width * BORDER_RATIO;
+        double vBorder = height * BORDER_RATIO;
+
+        if (x < hBorder) {
+            splitIndicatorLeft.setVisible(true);
+            splitIndicatorLeft.resizeRelocate(0, 0, hBorder, height);
+        } else if (x > width - hBorder) {
+            splitIndicatorRight.setVisible(true);
+            splitIndicatorRight.resizeRelocate(width - hBorder, 0, hBorder, height);
+        } else if (y < vBorder) {
+            splitIndicatorTop.setVisible(true);
+            splitIndicatorTop.resizeRelocate(0, 0, width, vBorder);
+        } else if (y > height - vBorder) {
+            splitIndicatorBottom.setVisible(true);
+            splitIndicatorBottom.resizeRelocate(0, height - vBorder, width, vBorder);
+        } else {
+            mergeIndicatorCenter.setVisible(true);
+            mergeIndicatorCenter.resizeRelocate(hBorder, vBorder, width - 2 * hBorder, height - 2 * vBorder);
+        }
     }
 
     private void updateSearchPrompt(Tab tab) {
@@ -122,10 +282,75 @@ public class EditorTabView {
         tabPane.setTabDragPolicy(TabDragPolicy.REORDER);
         managedTabPanes.add(tabPane);
 
+        // --- Drag and Drop v5: Flicker-Free Preview Logic ---
+        tabPane.setOnDragOver(event -> {
+            if (event.getDragboard().hasString() && draggingTab != null) {
+                event.acceptTransferModes(TransferMode.MOVE);
+
+                // [안전장치 1] 계산된 인덱스를 사용하기 전에 항상 유효성을 검사합니다.
+                int dropIndex = calculateDropIndex(tabPane, event.getSceneX());
+                int safeIndex = Math.max(0, Math.min(dropIndex, tabPane.getTabs().size()));
+
+                if (previewTab == null) {
+                    previewTab = new Tab();
+                    previewTab.setClosable(false);
+                    previewTab.setDisable(true);
+                    previewTab.getStyleClass().add("drag-preview-tab");
+                }
+
+                if (previewTab.getTabPane() != tabPane) {
+                    if (previewTab.getTabPane() != null) {
+                        previewTab.getTabPane().getTabs().remove(previewTab);
+                    }
+                    // `safeIndex`를 사용하여 절대 범위를 벗어나지 않도록 보장합니다.
+                    tabPane.getTabs().add(safeIndex, previewTab);
+                } else {
+                    int currentPreviewIndex = tabPane.getTabs().indexOf(previewTab);
+                    if (currentPreviewIndex != safeIndex) {
+                        tabPane.getTabs().remove(previewTab);
+                        // 미리보기 탭 제거 후, 리스트 크기가 변경되었으므로 인덱스가 유효한지 다시 확인합니다.
+                        int newSafeIndex = Math.min(safeIndex, tabPane.getTabs().size());
+                        tabPane.getTabs().add(newSafeIndex, previewTab);
+                    }
+                }
+            }
+            event.consume();
+        });
+
+        tabPane.setOnDragExited(event -> {
+            if (previewTab != null && previewTab.getTabPane() == tabPane) {
+                tabPane.getTabs().remove(previewTab);
+            }
+        });
+
+        tabPane.setOnDragDropped(event -> {
+            Dragboard db = event.getDragboard();
+            boolean success = false;
+            if (db.hasString() && draggingTab != null) {
+                // Remove the preview tab first
+                if (previewTab != null && previewTab.getTabPane() != null) {
+                    previewTab.getTabPane().getTabs().remove(previewTab);
+                }
+                
+                // Perform the actual move by adding the tab to this pane
+                int dropIndex = calculateDropIndex(tabPane, event.getSceneX());
+                tabPane.getTabs().add(dropIndex, draggingTab);
+                tabPane.getSelectionModel().select(draggingTab);
+                
+                // The onDragDone handler on the source tab's graphic will restore its appearance
+                // and handle cleanup if the drag is cancelled.
+                
+                Platform.runLater(this::checkAndCleanupAllPanes);
+                success = true;
+            }
+            event.setDropCompleted(success);
+            event.consume();
+        });
+
         // Track the focused TabPane
         tabPane.focusedProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal) {
-                // activeTabPane = tabPane; // 이 줄을 제거합니다.
+                // activeTabPane = tabPane; // This line is intentionally commented out
             }
         });
 
@@ -254,8 +479,6 @@ public class EditorTabView {
             if (customOnClose != null) {
                 customOnClose.run();
             }
-            // Defer the cleanup check to a new, global method.
-            // This ensures we check the correct state of all panes after the tab has been fully removed.
             Platform.runLater(this::checkAndCleanupAllPanes);
         });
 
@@ -400,6 +623,85 @@ public class EditorTabView {
         
         HBox tabGraphic = new HBox(5, fileNameLabel, errorCountLabel);
         tabGraphic.setAlignment(Pos.CENTER_LEFT);
+        // Make the HBox fill the available width of the tab header
+        tabGraphic.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(fileNameLabel, Priority.ALWAYS);
+
+        tabGraphic.setOnDragDetected(event -> {
+            if (!newTab.isClosable()) return;
+
+            draggingTab = newTab;
+            sourcePaneForDrag = newTab.getTabPane();
+            sourceIndexForDrag = sourcePaneForDrag.getTabs().indexOf(newTab);
+            originalGraphic = newTab.getGraphic();
+
+            Dragboard db = tabGraphic.startDragAndDrop(TransferMode.MOVE);
+            
+            Node tabHeaderNode = tabGraphic;
+            Node parent = tabGraphic.getParent();
+            while (parent != null) {
+                if (parent.getStyleClass().contains("tab")) {
+                    tabHeaderNode = parent;
+                    break;
+                }
+                parent = parent.getParent();
+            }
+
+            SnapshotParameters params = new SnapshotParameters();
+            params.setFill(javafx.scene.paint.Color.TRANSPARENT);
+            WritableImage snapshot = tabHeaderNode.snapshot(params, null);
+
+            db.setDragView(snapshot, 0, 0);
+
+            ClipboardContent clipboardContent = new ClipboardContent();
+            clipboardContent.putString(newTab.getId());
+            db.setContent(clipboardContent);
+
+            if (rootContainer.getScene() != null && rootContainer.getScene().getRoot() instanceof Pane) {
+                Pane sceneRoot = (Pane) rootContainer.getScene().getRoot();
+                if (!sceneRoot.getChildren().contains(feedbackPane)) {
+                    sceneRoot.getChildren().add(feedbackPane);
+                    feedbackPane.prefWidthProperty().bind(rootContainer.widthProperty());
+                    feedbackPane.prefHeightProperty().bind(rootContainer.heightProperty());
+                }
+                // --- FIX: Position the feedback pane correctly over the rootContainer ---
+                Point2D containerCoordsInScene = rootContainer.localToScene(0, 0);
+                feedbackPane.setLayoutX(containerCoordsInScene.getX());
+                feedbackPane.setLayoutY(containerCoordsInScene.getY());
+                // --- End of FIX ---
+
+                System.out.println("DRAG DETECTED: Drag started. Setting feedbackPane visible.");
+                feedbackPane.setVisible(true);
+            }
+
+            sourcePaneForDrag.getTabs().remove(newTab);
+            
+            event.consume();
+        });
+
+        tabGraphic.setOnDragDone(event -> {
+            if (feedbackPane != null) {
+                feedbackPane.setVisible(false);
+            }
+            
+            if (event.getTransferMode() != TransferMode.MOVE) {
+                if (sourcePaneForDrag != null && draggingTab != null) {
+                    int addIndex = Math.min(sourceIndexForDrag, sourcePaneForDrag.getTabs().size());
+                    sourcePaneForDrag.getTabs().add(addIndex, draggingTab);
+                }
+            }
+
+            if (draggingTab != null && originalGraphic != null) {
+                draggingTab.setGraphic(originalGraphic);
+            }
+
+            draggingTab = null;
+            sourcePaneForDrag = null;
+            sourceIndexForDrag = -1;
+            originalGraphic = null;
+            
+            event.consume();
+        });
 
         ContextMenu contextMenu = new ContextMenu();
         MenuItem splitRight = new MenuItem("우측으로 분할");
@@ -416,56 +718,62 @@ public class EditorTabView {
     private void splitTab(Tab tab, Orientation orientation) {
         TabPane sourcePane = tab.getTabPane();
         if (sourcePane == null) {
-            return;
+            if (tab != draggingTab || sourcePaneForDrag == null) {
+                return;
+            }
+            sourcePane = sourcePaneForDrag;
         }
+
+        // If the source pane has only one tab, we are essentially just moving the pane.
+        // But for simplicity, we'll treat it as a split and let the cleanup logic handle the empty pane.
 
         TabPane newPane = createNewTabPane();
 
         Parent container = findContainerOf(sourcePane);
-        if (container == null || !(container instanceof SplitPane)) {
-            managedTabPanes.remove(newPane);
+        if (!(container instanceof SplitPane)) {
+            // This case should ideally not happen if the root is a SplitPane
+            managedTabPanes.remove(newPane); // Don't leak a new pane
+            System.err.println("Cannot split: source pane is not in a SplitPane.");
             return;
         }
         SplitPane parentSplitPane = (SplitPane) container;
 
+        int sourceIndex = parentSplitPane.getItems().indexOf(sourcePane);
+        if (sourceIndex == -1) {
+             managedTabPanes.remove(newPane);
+             System.err.println("Cannot split: could not find source pane in its parent.");
+             return;
+        }
+
         if (parentSplitPane.getOrientation() == orientation) {
-            int sourceIndex = parentSplitPane.getItems().indexOf(sourcePane);
+            // Same orientation: add the new pane next to the source pane
             parentSplitPane.getItems().add(sourceIndex + 1, newPane);
-
-            int itemCount = parentSplitPane.getItems().size();
-            double[] positions = new double[itemCount - 1];
-            for (int i = 0; i < positions.length; i++) {
-                positions[i] = (double) (i + 1) / itemCount;
-            }
-            parentSplitPane.setDividerPositions(positions);
-        }
-        else {
-            int sourceIndex = parentSplitPane.getItems().indexOf(sourcePane);
-            if (sourceIndex == -1) {
-                managedTabPanes.remove(newPane);
-                return;
-            }
-
-            SplitPane newSplitPane = new SplitPane();
-            newSplitPane.setOrientation(orientation);
-            newSplitPane.getItems().addAll(sourcePane, newPane);
-            newSplitPane.setDividerPositions(0.5);
-
-            parentSplitPane.getItems().set(sourceIndex, newSplitPane);
+            parentSplitPane.setDividerPosition(sourceIndex, 0.5);
+        } else {
+            // Different orientation: replace the source pane with a new SplitPane
+            SplitPane nestedSplitPane = new SplitPane();
+            nestedSplitPane.setOrientation(orientation);
+            nestedSplitPane.getItems().addAll(sourcePane, newPane);
+            
+            // Replace the original source pane with the new nested split pane
+            parentSplitPane.getItems().set(sourceIndex, nestedSplitPane);
+            
+            // Set divider position after the scene graph is updated
+            Platform.runLater(() -> nestedSplitPane.setDividerPosition(0, 0.5));
         }
 
+        // The actual tab move is done last, in Platform.runLater
+        final TabPane finalSourcePane = sourcePane;
         Platform.runLater(() -> {
-            if (!sourcePane.getTabs().contains(tab)) {
-                 return;
+            if (finalSourcePane.getTabs().contains(tab)) {
+                finalSourcePane.getTabs().remove(tab);
             }
-            sourcePane.getTabs().remove(tab);
             newPane.getTabs().add(tab);
             newPane.getSelectionModel().select(tab);
             newPane.requestFocus();
 
-            if (sourcePane.getTabs().isEmpty()) {
-                cleanupEmptyPane(sourcePane);
-            }
+            // This will now correctly find the empty sourcePane and clean it up
+            checkAndCleanupAllPanes();
         });
     }
 
@@ -524,6 +832,51 @@ public class EditorTabView {
             }
         }
         return null;
+    }
+
+    private Node findTargetNode(Parent parent, double sceneX, double sceneY) {
+        // Iterate children in reverse order to check top-most nodes first
+        List<Node> children = new ArrayList<>();
+        if (parent instanceof SplitPane) {
+            children.addAll(((SplitPane) parent).getItems());
+        } else {
+            children.addAll(parent.getChildrenUnmodifiable());
+        }
+        Collections.reverse(children);
+
+        for (Node node : children) {
+            Point2D localPoint = node.sceneToLocal(sceneX, sceneY);
+            if (node.getBoundsInLocal().contains(localPoint)) {
+                if (node instanceof Parent) {
+                    Node deeperNode = findTargetNode((Parent) node, sceneX, sceneY);
+                    if (deeperNode != null) {
+                        return deeperNode;
+                    }
+                }
+                return node;
+            }
+        }
+        return null; // Return null if no child contains the point
+    }
+
+    private int calculateDropIndex(TabPane tabPane, double sceneX) {
+        int dropIndex = tabPane.getTabs().size();
+        
+        List<Node> sortedTabNodes = new ArrayList<>(tabPane.lookupAll(".tab"));
+        // Exclude the preview tab itself from the calculation
+        sortedTabNodes.removeIf(n -> n.getStyleClass().contains("drag-preview-tab"));
+        
+        sortedTabNodes.sort(Comparator.comparingDouble(n -> n.localToScene(n.getBoundsInLocal()).getMinX()));
+
+        int currentIndex = 0;
+        for (Node tabNode : sortedTabNodes) {
+            if (sceneX < tabNode.localToScene(tabNode.getBoundsInLocal()).getCenterX()) {
+                dropIndex = currentIndex;
+                break;
+            }
+            currentIndex++;
+        }
+        return dropIndex;
     }
 
     private Optional<Tab> findTabById(String tabId) {

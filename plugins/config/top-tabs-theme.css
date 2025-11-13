@@ -48,6 +48,17 @@
     -fx-text-fill: #ffffff;
 }
 
+.drag-preview-tab {
+    -fx-background-color: rgba(200, 200, 200, 0.3);
+    -fx-border-color: rgba(200, 200, 200, 0.8);
+    -fx-border-style: dashed;
+    -fx-border-width: 2px;
+    -fx-min-width: 100px;
+    -fx-min-height: 25px;
+    -fx-pref-width: 100px;
+    -fx-pref-height: 25px;
+}
+
 .tab-error-count {
     -fx-font-size: 12px;
     -fx-font-weight: bold;
