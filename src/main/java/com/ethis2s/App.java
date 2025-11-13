@@ -33,11 +33,13 @@
  */
 package com.ethis2s;
 
+import java.io.PrintStream;
+
 import com.ethis2s.controller.MainController;
 import com.ethis2s.service.ClientSocketManager;
 import com.ethis2s.util.DebugRedirectStream;
 import com.ethis2s.view.DebugView;
-import java.io.PrintStream;
+
 import javafx.application.Application;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;

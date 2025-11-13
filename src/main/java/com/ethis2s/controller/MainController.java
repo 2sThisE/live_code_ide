@@ -1,16 +1,16 @@
 package com.ethis2s.controller;
 
-import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
+
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
 import com.ethis2s.service.ClientSocketManager;
@@ -27,24 +27,15 @@ import com.ethis2s.view.ProjectPropertiesScreen;
 import com.ethis2s.view.RegisterScreen;
 import com.ethis2s.view.SettingsView;
 import com.ethis2s.view.SharedOptionScreen;
-import javafx.animation.KeyFrame;
-import javafx.animation.KeyValue;
-import javafx.animation.Timeline;
+
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
-import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.SplitPane;
-import javafx.scene.control.TextField;
-import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyCodeCombination;
-import javafx.scene.input.KeyCombination;
-import javafx.scene.paint.Color;
 import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import socketprotocol.ParsedPacket;
 
@@ -127,7 +118,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         BorderPane rootPane = mainScreen.createMainScreen(primaryStage, editorArea, statusBarLabel, this);
         this.problemsView = mainScreen.getProblemsView(); // MainScreen으로부터 ProblemsView 참조를 얻음
         this.debugView = mainScreen.getDebugView(); // MainScreen으로부터 DebugView 참조를 얻음
-
+        // rootPane.setStyle("-fx-border-color: red; -fx-border-width: 3;"); // 1번 용의자 (최종 보스)
         this.mainScene = new Scene(rootPane, 1280, 720);
         mainScene.setFill(Color.TRANSPARENT);
         try {

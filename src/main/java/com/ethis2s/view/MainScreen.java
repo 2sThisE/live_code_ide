@@ -15,20 +15,17 @@ import com.ethis2s.controller.ProjectController;
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
 import com.ethis2s.util.ConfigManager;
+import com.ethis2s.util.ReSizeHelper;
 
 import io.github.palexdev.materialfx.controls.MFXProgressSpinner;
 import javafx.animation.FadeTransition;
-import javafx.animation.KeyFrame;
-import javafx.animation.KeyValue;
 import javafx.animation.PauseTransition;
-import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
-import javafx.scene.control.CheckBox;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
@@ -68,6 +65,7 @@ public class MainScreen {
     private final double SEARCH_FIELD_NARROW_WIDTH = 200;
     private final double SEARCH_FIELD_WIDE_WIDTH = 400;
     private HBox searchToolsContainer; // 이 필드를 추가해주세요.
+    
 
     private double xOffset = 0;
     private double yOffset = 0;
@@ -93,7 +91,7 @@ public class MainScreen {
     private Button nextButton;
     private ToggleButton caseSensitiveCheck;
     private Label resultLabel;
-    
+    private HBox trafficLights;
     
     public void updateProblemsTab(int errorCount) {
         // 이제 Tab 객체가 있는지 직접 확인합니다.
@@ -201,8 +199,8 @@ public class MainScreen {
         searchBox.getChildren().addAll(searchField, resultLabel, caseSensitiveCheck, prevButton, nextButton);
 
         // --- Create Title Bar based on OS ---
+        
         StackPane topPane;
-
         if (isMac) {
             // macOS Style Title Bar
             Button closeButton = new Button("✕");
@@ -215,9 +213,12 @@ public class MainScreen {
 
             Button maximizeButton = new Button("+");
             maximizeButton.getStyleClass().addAll("mac-window-button", "mac-maximize-button");
-            maximizeButton.setOnAction(e -> stage.setMaximized(!stage.isMaximized()));
+            maximizeButton.setOnAction(e -> {
+                ReSizeHelper.toggleFullScreen(stage, trafficLights);
+                
+            });
 
-            HBox trafficLights = new HBox(8, closeButton, minimizeButton, maximizeButton);
+            trafficLights = new HBox(8, closeButton, minimizeButton, maximizeButton);
             trafficLights.setAlignment(Pos.CENTER_LEFT);
             trafficLights.setPadding(new Insets(0, 0, 0, 10));
 

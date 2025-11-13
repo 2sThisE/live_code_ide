@@ -1,13 +1,55 @@
 package com.ethis2s.util; // 패키지 이름은 그대로 유지하세요.
 
+import javafx.application.Platform;
 import javafx.event.EventHandler;
 import javafx.event.EventType;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Cursor;
 import javafx.scene.Scene;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.HBox;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 
 public class ReSizeHelper {
+
+    private static double savedWidth;
+    private static double savedHeight;
+    private static double savedX;
+    private static double savedY;
+    private static boolean toggleFlag;
+
+    public static void toggleFullScreen(Stage stage, HBox trafficLights) {
+        if (!stage.isFullScreen()) {
+            // Save the current size and position before entering fullscreen
+            trafficLights.setVisible(false);
+            savedWidth = stage.getWidth();
+            savedHeight = stage.getHeight();
+            savedX = stage.getX();
+            savedY = stage.getY();
+
+            Screen screen = Screen.getPrimary();
+            Rectangle2D bounds = screen.getBounds();
+            
+            stage.setX(bounds.getMinX());
+            stage.setY(bounds.getMinY());
+            stage.setWidth(bounds.getWidth());
+            stage.setHeight(bounds.getHeight());
+
+            Platform.runLater(()->stage.setFullScreen(true));
+        }
+        stage.fullScreenProperty().addListener((obs, wasFullScreen, isNowFullScreen) -> {
+            if(!isNowFullScreen){
+                trafficLights.setVisible(true);
+                if (savedWidth > 0 && savedHeight > 0) {
+                    stage.setWidth(savedWidth);
+                    stage.setHeight(savedHeight);
+                    stage.setX(savedX);
+                    stage.setY(savedY);
+                }
+            }
+        });
+    }
 
     public static void addResizeListener(Stage stage) {
         ResizeListener resizeListener = new ResizeListener(stage);
