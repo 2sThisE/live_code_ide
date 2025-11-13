@@ -353,3 +353,15 @@
 #suggestion-list-view:focused .list-cell:selected {
     -fx-background-color: #007acc;
 }
+
+/* --- Drag and Drop Feedback Zones --- */
+.drop-zone {
+    -fx-background-color: transparent;
+}
+
+.drop-zone.active {
+    -fx-background-color: rgba(114, 114, 114, 0.3);
+    -fx-border-color: rgba(255, 255, 255, 0.589);
+    -fx-border-width: 1.5px;
+    -fx-border-style: dashed;
+}

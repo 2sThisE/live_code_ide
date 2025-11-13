@@ -68,6 +68,7 @@ import org.fxmisc.richtext.model.StyleSpansBuilder;
 import com.ethis2s.util.Tm4eSyntaxHighlighter.StyleToken;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javafx.geometry.Bounds;
 import javafx.scene.layout.StackPane;
 import java.util.stream.Stream;
 import java.util.Collection;
@@ -98,130 +99,120 @@ public class EditorTabView {
 
     private final Tooltip errorTooltip = new Tooltip();
     private final PauseTransition tooltipDelay = new PauseTransition(Duration.millis(500));
-        private final StringProperty activeTabTitle = new SimpleStringProperty("검색...");
+    private final StringProperty activeTabTitle = new SimpleStringProperty("검색...");
     
-        // --- Visual Feedback for Drag and Drop ---
-        private Pane feedbackPane;
-        private Region splitIndicatorTop, splitIndicatorBottom, splitIndicatorLeft, splitIndicatorRight, mergeIndicatorCenter;
+    // --- Visual Feedback for Drag and Drop ---
+    private Pane feedbackPane;
+    private Region splitIndicatorTop, splitIndicatorBottom, splitIndicatorLeft, splitIndicatorRight, mergeIndicatorCenter;
+    private Bounds dragTargetBounds; // NEW: To store target bounds in scene coordinates
     
-        public EditorTabView(MainController mainController, SplitPane rootContainer) {
-            this.mainController = mainController;
-            this.rootContainer = rootContainer;
-            errorTooltip.getStyleClass().add("error-tooltip");
+    public EditorTabView(MainController mainController, SplitPane rootContainer) {
+        this.mainController = mainController;
+        this.rootContainer = rootContainer;
+        errorTooltip.getStyleClass().add("error-tooltip");
     
-                    initializeFeedbackPane();
-                    setupDragAndDropHandlers(); // Will be implemented in steps    
-            // Create the initial, empty TabPane
-            TabPane primaryTabPane = createNewTabPane();
-            this.rootContainer.getItems().add(primaryTabPane);
-            this.activeTabPane = primaryTabPane;
+        initializeFeedbackPane();
+        setupDragAndDropHandlers(); // Will be implemented in steps    
+        // Create the initial, empty TabPane
+        TabPane primaryTabPane = createNewTabPane();
+        this.rootContainer.getItems().add(primaryTabPane);
+        this.activeTabPane = primaryTabPane;
     
-            // Listen for changes in the selected tab to update the search prompt
-            primaryTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
-                updateSearchPrompt(newTab);
-            });
-        }
+        // Listen for changes in the selected tab to update the search prompt
+        primaryTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            updateSearchPrompt(newTab);
+        });
+    }
     
     private void initializeFeedbackPane() {
-        feedbackPane = new Pane();
-        feedbackPane.setMouseTransparent(true);
-        feedbackPane.setVisible(false);
+        BorderPane dropPane = new BorderPane();
 
-        String feedbackStyle = "-fx-background-color: rgba(0, 100, 255, 0.3); -fx-border-color: rgba(0, 100, 255, 0.8); -fx-border-width: 1.5px; -fx-border-style: dashed;";
-        splitIndicatorTop = new Region();
-        splitIndicatorBottom = new Region();
-        splitIndicatorLeft = new Region();
-        splitIndicatorRight = new Region();
-        mergeIndicatorCenter = new Region();
+        Region topZone = createDropZone("split-top");
+        Region bottomZone = createDropZone("split-bottom");
+        Region leftZone = createDropZone("split-left");
+        Region rightZone = createDropZone("split-right");
+        Region centerZone = createDropZone("merge-center");
 
-        Stream.of(splitIndicatorTop, splitIndicatorBottom, splitIndicatorLeft, splitIndicatorRight, mergeIndicatorCenter)
-              .forEach(r -> {
-                  r.setStyle(feedbackStyle);
-                  r.setVisible(false);
-              });
+        topZone.setPrefHeight(80);
+        bottomZone.setPrefHeight(80);
+        leftZone.setPrefWidth(80);
+        rightZone.setPrefWidth(80);
 
-        feedbackPane.getChildren().addAll(splitIndicatorTop, splitIndicatorBottom, splitIndicatorLeft, splitIndicatorRight, mergeIndicatorCenter);
+        dropPane.setTop(topZone);
+        dropPane.setBottom(bottomZone);
+        dropPane.setLeft(leftZone);
+        dropPane.setRight(rightZone);
+        dropPane.setCenter(centerZone);
+
+        this.feedbackPane = dropPane;
+        this.feedbackPane.setVisible(false);
     }
 
-            private void setupDragAndDropHandlers() {
-
-                rootContainer.addEventFilter(DragEvent.DRAG_OVER, event -> {
-
-                    if (event.getDragboard().hasString() && draggingTab != null) {
-
-                        updateFeedback(event.getX(), event.getY());
-
-                        event.acceptTransferModes(TransferMode.MOVE);
-
-                    }
-
-                });
-
+    private Region createDropZone(String zoneId) {
+        Region zone = new Region();
+        zone.setUserData(zoneId);
+        zone.getStyleClass().add("drop-zone");
         
+        // --- FINAL FIX: Manually toggle 'active' class on drag enter/exit ---
+        zone.setOnDragEntered(e -> {
+            if (draggingTab != null) {
+                zone.getStyleClass().add("active");
+                e.consume();
+            }
+        });
+        zone.setOnDragExited(e -> {
+            if (draggingTab != null) {
+                zone.getStyleClass().remove("active");
+                e.consume();
+            }
+        });
+        // --- End of FINAL FIX ---
 
-                rootContainer.addEventFilter(DragEvent.DRAG_DROPPED, event -> {
+        return zone;
+    }
 
-                    if (draggingTab == null) return;
+    private void setupDragAndDropHandlers() {
+        // Accept the drag event on the parent pane, but DO NOT consume it,
+        // so it can propagate to the child zones for hover effects.
+        feedbackPane.addEventFilter(DragEvent.DRAG_OVER, event -> {
+            if (draggingTab != null) {
+                event.acceptTransferModes(TransferMode.MOVE);
+            }
+        });
 
-        
+        feedbackPane.addEventFilter(DragEvent.DRAG_DROPPED, event -> {
+            if (draggingTab == null) return;
 
-                    boolean handled = false;
-
-                    double dropX = event.getX();
-
-                    double dropY = event.getY();
-
-                    double width = rootContainer.getWidth();
-
-                    double height = rootContainer.getHeight();
-
-                    final double BORDER_RATIO = 0.15; // Reduced for better usability
-
-                    double hBorder = width * BORDER_RATIO;
-
-                    double vBorder = height * BORDER_RATIO;
-
+            Object target = event.getTarget();
+            if (target instanceof Node) {
+                Object userData = ((Node) target).getUserData();
+                if (userData instanceof String) {
+                    String zoneId = (String) userData;
                     Orientation orientation = null;
 
-        
-
-                    if (dropX < hBorder) orientation = Orientation.HORIZONTAL;
-
-                    else if (dropX > width - hBorder) orientation = Orientation.HORIZONTAL;
-
-                    else if (dropY < vBorder) orientation = Orientation.VERTICAL;
-
-                    else if (dropY > height - vBorder) orientation = Orientation.VERTICAL;
-
-        
+                    switch (zoneId) {
+                        case "split-top":
+                        case "split-bottom":
+                            orientation = Orientation.VERTICAL;
+                            break;
+                        case "split-left":
+                        case "split-right":
+                            orientation = Orientation.HORIZONTAL;
+                            break;
+                        case "merge-center":
+                            // Let the TabPane's own handler deal with this
+                            break;
+                    }
 
                     if (orientation != null) {
-
                         splitTab(draggingTab, orientation);
-
-                        handled = true;
-
-                    }
-
-                    // REMOVED the incorrect 'else' block.
-
-                    // If it's not a split, we do nothing and let the event propagate
-
-                    // to the TabPane's own onDragDropped handler.
-
-        
-
-                    if (handled) {
-
                         event.setDropCompleted(true);
-
-                        event.consume();
-
+                        event.consume(); // Consume AFTER drop is handled
                     }
-
-                });
-
+                }
             }
+        });
+    }
 
     private TabPane findContainingPane(Node node) {
         while (node != null) {
@@ -230,38 +221,6 @@ public class EditorTabView {
         }
         return null;
     }
-
-    private void updateFeedback(double x, double y) {
-        if (feedbackPane == null) return;
-        feedbackPane.setVisible(true); // Ensure feedback is visible on drag over
-
-        Stream.of(splitIndicatorTop, splitIndicatorBottom, splitIndicatorLeft, splitIndicatorRight, mergeIndicatorCenter)
-            .forEach(r -> r.setVisible(false));
-
-        double width = rootContainer.getWidth();
-        double height = rootContainer.getHeight();
-        final double BORDER_RATIO = 0.15;
-        double hBorder = width * BORDER_RATIO;
-        double vBorder = height * BORDER_RATIO;
-
-        if (x < hBorder) {
-            splitIndicatorLeft.setVisible(true);
-            splitIndicatorLeft.resizeRelocate(0, 0, hBorder, height);
-        } else if (x > width - hBorder) {
-            splitIndicatorRight.setVisible(true);
-            splitIndicatorRight.resizeRelocate(width - hBorder, 0, hBorder, height);
-        } else if (y < vBorder) {
-            splitIndicatorTop.setVisible(true);
-            splitIndicatorTop.resizeRelocate(0, 0, width, vBorder);
-        } else if (y > height - vBorder) {
-            splitIndicatorBottom.setVisible(true);
-            splitIndicatorBottom.resizeRelocate(0, height - vBorder, width, vBorder);
-        } else {
-            mergeIndicatorCenter.setVisible(true);
-            mergeIndicatorCenter.resizeRelocate(hBorder, vBorder, width - 2 * hBorder, height - 2 * vBorder);
-        }
-    }
-
     private void updateSearchPrompt(Tab tab) {
         if (tab != null && tab.isClosable()) {
             if (tab.getGraphic() instanceof HBox) {
@@ -661,27 +620,49 @@ public class EditorTabView {
                 Pane sceneRoot = (Pane) rootContainer.getScene().getRoot();
                 if (!sceneRoot.getChildren().contains(feedbackPane)) {
                     sceneRoot.getChildren().add(feedbackPane);
-                    feedbackPane.prefWidthProperty().bind(rootContainer.widthProperty());
-                    feedbackPane.prefHeightProperty().bind(rootContainer.heightProperty());
                 }
-                // --- FIX: Position the feedback pane correctly over the rootContainer ---
-                Point2D containerCoordsInScene = rootContainer.localToScene(0, 0);
-                feedbackPane.setLayoutX(containerCoordsInScene.getX());
-                feedbackPane.setLayoutY(containerCoordsInScene.getY());
-                // --- End of FIX ---
+                
+                Platform.runLater(() -> {
+                    if (sourcePaneForDrag == null) return;
 
-                System.out.println("DRAG DETECTED: Drag started. Setting feedbackPane visible.");
-                feedbackPane.setVisible(true);
+                    Bounds bounds = sourcePaneForDrag.localToScene(sourcePaneForDrag.getLayoutBounds());
+                    
+                    feedbackPane.setLayoutX(bounds.getMinX());
+                    feedbackPane.setLayoutY(bounds.getMinY());
+                    feedbackPane.setPrefSize(bounds.getWidth(), bounds.getHeight());
+                    feedbackPane.resize(bounds.getWidth(), bounds.getHeight());
+                    
+                    feedbackPane.setVisible(true);
+
+                    // --- DETAILED CSS DEBUGGING ---
+                    System.out.println("\n--- CSS DEBUG START ---");
+                    System.out.println("Scene stylesheets: " + rootContainer.getScene().getStylesheets());
+                    System.out.println("feedbackPane style classes: " + feedbackPane.getStyleClass());
+                    if (feedbackPane instanceof BorderPane) {
+                        Node topZone = ((BorderPane) feedbackPane).getTop();
+                        if (topZone != null) {
+                            System.out.println("Top drop zone style classes: " + topZone.getStyleClass());
+                        }
+                    }
+                    System.out.println(String.format(
+                        "feedbackPane final state: visible=%b, X=%.2f, Y=%.2f, W=%.2f, H=%.2f",
+                        feedbackPane.isVisible(), feedbackPane.getLayoutX(), feedbackPane.getLayoutY(),
+                        feedbackPane.getWidth(), feedbackPane.getHeight()
+                    ));
+                    System.out.println("--- CSS DEBUG END ---\n");
+                    // --- END OF DEBUGGING ---
+                });
             }
 
             sourcePaneForDrag.getTabs().remove(newTab);
-            
             event.consume();
         });
 
         tabGraphic.setOnDragDone(event -> {
             if (feedbackPane != null) {
                 feedbackPane.setVisible(false);
+                feedbackPane.prefWidthProperty().unbind();
+                feedbackPane.prefHeightProperty().unbind();
             }
             
             if (event.getTransferMode() != TransferMode.MOVE) {
