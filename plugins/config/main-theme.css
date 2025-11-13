@@ -14,15 +14,17 @@
 
 .custom-title-bar {
     -fx-background-color: #333333;
-    -fx-background-radius: 6px 6px 0 0;
+    -fx-background-radius: 8px 8px 0 0;
     -fx-border-color: #5a5a5a;
     -fx-border-radius: 8px 8px 0 0;
     -fx-border-width: 1px 1px 0 1px;
+    -fx-pref-height: 35px;
+    -fx-min-height: 35px;
 }
 
 .status-bar {
     -fx-background-color: #3c3c3c;
-    -fx-background-radius: 0 0 6px 6px;
+    -fx-background-radius: 0 0 8px 8px;
     -fx-padding: 3px 5px;
     -fx-border-color: #5a5a5a;
     -fx-border-radius: 0 0 8px 8px;
@@ -364,4 +366,41 @@
     -fx-border-color: rgba(255, 255, 255, 0.589);
     -fx-border-width: 1.5px;
     -fx-border-style: dashed;
+}
+
+/* --- macOS Window Buttons --- */
+.mac-window-button {
+    -fx-background-radius: 50%;
+    -fx-min-width: 12px;
+    -fx-min-height: 12px;
+    -fx-max-width: 12px;
+    -fx-max-height: 12px;
+    -fx-padding: 0;
+    -fx-text-fill: transparent; /* Hide text by default */
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+}
+
+.mac-close-button {
+    -fx-background-color: #ff5f57;
+}
+.mac-close-button:hover {
+    -fx-background-color: #e0443e;
+    -fx-text-fill: #5a0000;
+}
+
+.mac-minimize-button {
+    -fx-background-color: #ffbd2e;
+}
+.mac-minimize-button:hover {
+    -fx-background-color: #e0a323;
+    -fx-text-fill: #5a3a00;
+}
+
+.mac-maximize-button {
+    -fx-background-color: #28c940;
+}
+.mac-maximize-button:hover {
+    -fx-background-color: #1fad35;
+    -fx-text-fill: #004f00;
 }

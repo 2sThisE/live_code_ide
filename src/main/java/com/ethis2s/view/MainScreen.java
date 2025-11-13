@@ -138,8 +138,9 @@ public class MainScreen {
     public Label getResultLabel() { return resultLabel; }
 
     public BorderPane createMainScreen(Stage stage, SplitPane editorArea, Label statusLabel, MainController mainController) {
-        BorderPane mainLayout = new BorderPane();
+        BorderPane mainLayout = new BorderPane(); // This will be the absolute root.
         this.editorArea = editorArea;
+        
         MenuBar menuBar = new MenuBar();
         Menu fileMenu = new Menu("File");
         MenuItem settingsItem = new MenuItem("설정");
@@ -151,7 +152,20 @@ public class MainScreen {
         fileMenu.getItems().addAll(settingsItem, new SeparatorMenuItem(), logoutItem, new SeparatorMenuItem(), exitItem);
         menuBar.getMenus().add(fileMenu);
 
-        // --- New Search Bar Implementation ---
+        // --- OS-Specific Title Bar and Menu Bar Handling ---
+        String os = System.getProperty("os.name").toLowerCase();
+        boolean isMac = os.contains("mac");
+
+        // This pane will hold the actual content, including our custom title bar.
+        BorderPane contentPane = new BorderPane();
+        contentPane.getStyleClass().add("root-pane");
+
+        if (isMac) {
+            menuBar.setUseSystemMenuBar(true);
+            // On Mac, add the menu bar to the root layout. It won't be visible in the window,
+            // but it needs to be in the scene graph for the OS to display it in the native menu bar.
+            mainLayout.setTop(menuBar);
+        }
 
         // 1. Create the container that looks like a TextField
         this.searchBox = new HBox();
@@ -186,32 +200,61 @@ public class MainScreen {
         // 4. Add the transparent textfield and buttons to the container
         searchBox.getChildren().addAll(searchField, resultLabel, caseSensitiveCheck, prevButton, nextButton);
 
+        // --- Create Title Bar based on OS ---
+        StackPane topPane;
 
-        // --- Window Buttons and Title Bar ---
-        Button minimizeButton = new Button("—");
-        minimizeButton.getStyleClass().add("window-button");
-        minimizeButton.setOnAction(e -> stage.setIconified(true));
+        if (isMac) {
+            // macOS Style Title Bar
+            Button closeButton = new Button("✕");
+            closeButton.getStyleClass().addAll("mac-window-button", "mac-close-button");
+            closeButton.setOnAction(e -> Platform.exit());
 
-        Button maximizeButton = new Button("◻");
-        maximizeButton.getStyleClass().add("window-button");
-        maximizeButton.setOnAction(e -> stage.setMaximized(!stage.isMaximized()));
+            Button minimizeButton = new Button("—");
+            minimizeButton.getStyleClass().addAll("mac-window-button", "mac-minimize-button");
+            minimizeButton.setOnAction(e -> stage.setIconified(true));
 
-        Button windowCloseButton = new Button("✕");
-        windowCloseButton.getStyleClass().addAll("window-button", "close-button");
-        windowCloseButton.setOnAction(e -> Platform.exit());
+            Button maximizeButton = new Button("+");
+            maximizeButton.getStyleClass().addAll("mac-window-button", "mac-maximize-button");
+            maximizeButton.setOnAction(e -> stage.setMaximized(!stage.isMaximized()));
 
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        
-        // Background bar contains menu and window buttons, but not the search box
-        HBox backgroundBar = new HBox(menuBar, spacer, minimizeButton, maximizeButton, windowCloseButton);
-        backgroundBar.setAlignment(Pos.CENTER);
+            HBox trafficLights = new HBox(8, closeButton, minimizeButton, maximizeButton);
+            trafficLights.setAlignment(Pos.CENTER_LEFT);
+            trafficLights.setPadding(new Insets(0, 0, 0, 10));
 
-        // Layer the search box on top of the background bar using a StackPane
-        StackPane topPane = new StackPane(backgroundBar, searchBox);
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+
+            HBox backgroundBar = new HBox(trafficLights, spacer);
+            backgroundBar.setAlignment(Pos.CENTER);
+            
+            topPane = new StackPane(backgroundBar, searchBox);
+
+        } else {
+            // Windows/Other Style Title Bar (Original Implementation)
+            Button minimizeButton = new Button("—");
+            minimizeButton.getStyleClass().add("window-button");
+            minimizeButton.setOnAction(e -> stage.setIconified(true));
+
+            Button maximizeButton = new Button("◻");
+            maximizeButton.getStyleClass().add("window-button");
+            maximizeButton.setOnAction(e -> stage.setMaximized(!stage.isMaximized()));
+
+            Button windowCloseButton = new Button("✕");
+            windowCloseButton.getStyleClass().addAll("window-button", "close-button");
+            windowCloseButton.setOnAction(e -> Platform.exit());
+
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+            
+            HBox backgroundBar = new HBox(menuBar, spacer, minimizeButton, maximizeButton, windowCloseButton);
+            backgroundBar.setAlignment(Pos.CENTER);
+
+            topPane = new StackPane(backgroundBar, searchBox);
+        }
+
         topPane.getStyleClass().add("custom-title-bar");
 
-        // Dragging logic
+        // Dragging logic (works for both styles)
         final int resizeBorder = 8; 
         final boolean[] isDragging = {false};
 
@@ -286,8 +329,7 @@ public class MainScreen {
             isDragging[0] = false;
         });
 
-        mainLayout.getStyleClass().add("root-pane");
-        mainLayout.setTop(topPane);
+        contentPane.setTop(topPane);
 
         fileExplorer = new TreeView<>();
         fileExplorer.setShowRoot(false);
@@ -330,7 +372,7 @@ public class MainScreen {
         mainSplit.setDividerPositions(0.25);
         SplitPane.setResizableWithParent(fileExplorerContainer, false);
 
-        mainLayout.setCenter(mainSplit);
+        contentPane.setCenter(mainSplit);
 
         Label safeStatusLabel = (statusLabel != null) ? statusLabel : new Label();
         connectionStatusLabel = new Label();
@@ -348,7 +390,7 @@ public class MainScreen {
         statusBar.setAlignment(Pos.CENTER_RIGHT);
 
         statusBar.getStyleClass().add("status-bar");
-        mainLayout.setBottom(statusBar);
+        contentPane.setBottom(statusBar);
 
         try {
             com.ethis2s.util.ConfigManager configManager = com.ethis2s.util.ConfigManager.getInstance();
@@ -363,7 +405,8 @@ public class MainScreen {
             e.printStackTrace();
             System.err.println("컴포넌트별 CSS 파일을 로드할 수 없습니다.");
         }
-
+        
+        mainLayout.setCenter(contentPane);
         return mainLayout;
     }
 
