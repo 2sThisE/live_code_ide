@@ -17,7 +17,6 @@ import com.ethis2s.service.ClientSocketManager;
 import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.MacosNativeUtil;
 import com.ethis2s.util.ProtocolConstants;
-import com.ethis2s.util.ReSizeHelper;
 import com.ethis2s.view.DebugView;
 import com.ethis2s.view.EditorTabView;
 import com.ethis2s.view.LoginScreen;
@@ -214,7 +213,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
 
         primaryStage.show();
         MacosNativeUtil.applyUnifiedTitleBarStyle(primaryStage);
-        ReSizeHelper.addResizeListener(primaryStage);
+        // ReSizeHelper.addResizeListener(primaryStage);
 
         showLoginView();
     }

@@ -22,6 +22,7 @@ import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
@@ -46,6 +47,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
@@ -235,80 +237,20 @@ public class MainScreen {
 
         topPane.getStyleClass().add("custom-title-bar");
 
-        // Dragging logic (works for both styles)
-        final int resizeBorder = 8; 
-        final boolean[] isDragging = {false};
-
-        topPane.setOnMousePressed(event -> {
-            // Double-click to maximize/restore
-            if (event.getClickCount() == 2) {
-                stage.setMaximized(!stage.isMaximized());
-                isDragging[0] = false; // Prevent dragging on double-click
-                return;
-            }
-
-            // Prevent dragging when clicking inside the searchBox
-            Node target = (Node) event.getTarget();
-            if (searchBox.equals(target) || searchBox.getChildren().contains(target)) {
-                 isDragging[0] = false;
-                 return;
-            }
-            
-            // Single-click to drag
-            if (event.getY() > resizeBorder) {
-                isDragging[0] = true;
-                xOffset = event.getSceneX();
-                yOffset = event.getSceneY();
-            } else {
-                isDragging[0] = false;
-            }
-        });
-
-        topPane.setOnMouseDragged(event -> {
-            if (isDragging[0]) {
-                javafx.stage.Screen screen = javafx.stage.Screen.getPrimary();
-                javafx.geometry.Rectangle2D bounds = screen.getVisualBounds();
-
-                // Restore window if it's dragged from a maximized state
-                if (stage.isMaximized()) {
-                    // Retain proportional position of cursor inside the window
-                    double mouseX_ratio = event.getSceneX() / stage.getWidth();
-                    stage.setMaximized(false);
-                    // After restoring, the width changes, so we update the offset
-                    xOffset = stage.getWidth() * mouseX_ratio;
+        // --- Native Dragging Logic for macOS ---
+        if (isMac) {
+            topPane.setOnMousePressed(event -> {
+                // searchBox 내부 클릭 시 드래그 방지
+                if (event.getTarget() instanceof Node) {
+                    Node target = (Node) event.getTarget();
+                    if (searchBox.equals(target) || searchBox.getChildren().contains(target)) {
+                        return;
+                    }
                 }
-
-                // Snap to top -> Maximize
-                if (event.getScreenY() <= bounds.getMinY()) {
-                    stage.setMaximized(true);
-                    return;
-                }
-                // Snap to left
-                if (event.getScreenX() <= bounds.getMinX()) {
-                    stage.setX(bounds.getMinX());
-                    stage.setY(bounds.getMinY());
-                    stage.setWidth(bounds.getWidth() / 2);
-                    stage.setHeight(bounds.getHeight());
-                    return;
-                }
-                // Snap to right
-                if (event.getScreenX() >= bounds.getMaxX() - 1) {
-                    stage.setX(bounds.getMinX() + (bounds.getWidth() / 2));
-                    stage.setY(bounds.getMinY());
-                    stage.setWidth(bounds.getWidth() / 2);
-                    stage.setHeight(bounds.getHeight());
-                    return;
-                }
-
-                // Normal drag
-                stage.setX(event.getScreenX() - xOffset);
-                stage.setY(event.getScreenY() - yOffset);
-            }
-        });
-        
-        topPane.setOnMouseReleased(event -> {
-            isDragging[0] = false;
-        });
+                // 네이티브 드래그 시작
+                com.ethis2s.util.MacosNativeUtil.performNativeWindowDrag(event, stage);
+            });
+        }
 
         contentPane.setTop(topPane);
 
