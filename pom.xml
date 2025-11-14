@@ -187,6 +187,17 @@
                             <option>--add-opens=javafx.graphics/javafx.stage=ALL-UNNAMED</option>
                             <option>--add-opens=javafx.graphics/com.sun.javafx.tk.quantum=ALL-UNNAMED</option>
                             <option>--add-opens=javafx.graphics/com.sun.glass.ui=ALL-UNNAMED</option>
+                            
+
+                            <!-- WindowHelper 클래스에 접근 허용 -->
+                            <option>--add-opens=javafx.stage/com.sun.javafx.stage=ALL-UNNAMED</option>
+                            <!-- Window 클래스에 접근 허용 -->
+                            <option>--add-opens=javafx.graphics/com.sun.glass.ui=ALL-UNNAMED</option>
+                            <option>--add-opens=javafx.graphics/com.sun.javafx.stage=ALL-UNNAMED</option>
+                            <option>--add-opens=javafx.graphics/com.sun.javafx.tk=ALL-UNNAMED</option>
+                            <option>--add-opens=javafx.graphics/com.sun.javafx.stage=ALL-UNNAMED</option>
+                            
+                            
                         </options>
                     </configuration>
                 </plugin>

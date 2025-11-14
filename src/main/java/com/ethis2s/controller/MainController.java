@@ -11,6 +11,7 @@ import java.util.function.Consumer;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import com.ethis2s.App;
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
 import com.ethis2s.service.ClientSocketManager;
@@ -28,6 +29,7 @@ import com.ethis2s.view.ProjectPropertiesScreen;
 import com.ethis2s.view.RegisterScreen;
 import com.ethis2s.view.SettingsView;
 import com.ethis2s.view.SharedOptionScreen;
+import com.sun.jna.platform.win32.WinDef;
 
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -75,7 +77,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         this.loginScreen = new LoginScreen();
         this.registerScreen = new RegisterScreen();
         this.editorTabView = null; // Will be initialized in initMainScreen
-        primaryStage.setTitle("Live Code IDE");
+        // primaryStage.setTitle("Live Code IDE");
     }
 
     /**
@@ -92,6 +94,10 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
 
     public DebugView getDebugView() {
         return debugView;
+    }
+
+    public List<Node> getTitleBarComponentArea() {
+        return mainScreen.getTitleBarInteractiveNodes();
     }
 
     public void shutdown() {
@@ -117,6 +123,8 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         this.editorTabView = new EditorTabView(this, editorArea);
 
         BorderPane rootPane = mainScreen.createMainScreen(primaryStage, editorArea, statusBarLabel, this);
+        rootPane.setStyle("-fx-background-color: transparent;"); // 마우스 이벤트를 통과시키기 위한 테스트
+
         this.problemsView = mainScreen.getProblemsView(); // MainScreen으로부터 ProblemsView 참조를 얻음
         this.debugView = mainScreen.getDebugView(); // MainScreen으로부터 DebugView 참조를 얻음
         // rootPane.setStyle("-fx-border-color: red; -fx-border-width: 3;"); // 1번 용의자 (최종 보스)
@@ -212,17 +220,34 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             }
         }
 
-        primaryStage.show();
         final String OS = System.getProperty("os.name").toLowerCase();
-        if (OS.contains("mac")) {
-        // "신재창 기법 v2"를 적용하여 UNIFIED 스타일의 버그를 수정
-            MacosNativeUtil.applyUnifiedTitleBarStyle(primaryStage);
-        } else if (OS.contains("win")) {
-            // Windows에서 커스텀 드래그/리사이즈 기능을 활성화
-            final int titleBarHeight = 30; // 실제 타이틀 바 높이에 맞게 조절
-            final int resizeBorder = 6;    // 리사이즈 감지 영역 두께
-            WindowsNativeUtil.enableCustomWindowBehavior(primaryStage, titleBarHeight, resizeBorder);
-        }
+        primaryStage.setOnShown(event -> {
+            if (OS.contains("mac")) {
+                // "신재창 기법 v2"를 적용하여 UNIFIED 스타일의 버그를 수정
+                MacosNativeUtil.applyUnifiedTitleBarStyle(primaryStage);
+            } else if (OS.contains("win")) {
+                System.out.println("dfasfdsafsd");
+                List<Node> clickableNodes = new java.util.ArrayList<>();
+                clickableNodes.add(mainScreen.getMenuBar());
+                clickableNodes.add(mainScreen.getSearchBox());
+                clickableNodes.add(mainScreen.getMinimizeButton());
+                // clickableNodes.add(mainScreen.getMaximizeButton()); // Snap Layouts를 위해 제외
+                clickableNodes.add(mainScreen.getWindowCloseButton());
+
+                WindowsNativeUtil.applyCustomWindowStyle(
+                    primaryStage, 
+                    clickableNodes, 
+                    mainScreen.getMinimizeButton(), 
+                    mainScreen.getMaximizeButton(), 
+                    mainScreen.getWindowCloseButton()
+                );
+            }else System.out.println("미지원 os");
+        });
+
+        primaryStage.setTitle(com.ethis2s.App.NATIVE_WINDOW_TITLE);
+        primaryStage.show();
+        
+        
 
         showLoginView();
     }

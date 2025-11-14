@@ -2,6 +2,7 @@ package com.ethis2s.view;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -15,6 +16,7 @@ import com.ethis2s.controller.ProjectController;
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
 import com.ethis2s.util.ConfigManager;
+import com.ethis2s.util.MacosNativeUtil;
 
 import io.github.palexdev.materialfx.controls.MFXProgressSpinner;
 import javafx.animation.FadeTransition;
@@ -91,8 +93,12 @@ public class MainScreen {
     private Button nextButton;
     private ToggleButton caseSensitiveCheck;
     private Label resultLabel;
-    private HBox trafficLights;
-    
+    private List<Node> titleBarInteractiveNodes;
+    private Button minimizeButton;
+    private Button maximizeButton;
+    private Button windowCloseButton;
+    private MenuBar menuBar;
+
     public void updateProblemsTab(int errorCount) {
         // 이제 Tab 객체가 있는지 직접 확인합니다.
         if (problemsTab == null) return;
@@ -134,12 +140,20 @@ public class MainScreen {
     public Button getNextButton() { return nextButton; }
     public ToggleButton getCaseSensitiveCheck() { return caseSensitiveCheck; }
     public Label getResultLabel() { return resultLabel; }
+    public List<Node> getTitleBarInteractiveNodes() { return titleBarInteractiveNodes; }
+    public Button getMinimizeButton() { return minimizeButton; }
+    public Button getMaximizeButton() { return maximizeButton; }
+    public Button getWindowCloseButton() { return windowCloseButton; }
+    public MenuBar getMenuBar() { return menuBar; }
+    
 
     public BorderPane createMainScreen(Stage stage, SplitPane editorArea, Label statusLabel, MainController mainController) {
+        this.titleBarInteractiveNodes = new ArrayList<>(); // <-- 이 줄을 추가해주세요!
         BorderPane mainLayout = new BorderPane(); // This will be the absolute root.
         this.editorArea = editorArea;
         
-        MenuBar menuBar = new MenuBar();
+        this.menuBar = new MenuBar();
+        titleBarInteractiveNodes.add(menuBar);
         Menu fileMenu = new Menu("File");
         MenuItem settingsItem = new MenuItem("설정");
         settingsItem.setOnAction(e -> mainController.showSettingsView());
@@ -167,6 +181,7 @@ public class MainScreen {
 
         // 1. Create the container that looks like a TextField
         this.searchBox = new HBox();
+        titleBarInteractiveNodes.add(searchBox);
         searchBox.getStyleClass().add("centered-search-field"); // Use existing style
         searchBox.setAlignment(Pos.CENTER_LEFT);
         searchBox.setSpacing(5);
@@ -214,17 +229,20 @@ public class MainScreen {
 
         } else {
             // Windows/Other Style Title Bar (Original Implementation)
-            Button minimizeButton = new Button("—");
+            this.minimizeButton = new Button("—");
             minimizeButton.getStyleClass().add("window-button");
             minimizeButton.setOnAction(e -> stage.setIconified(true));
+            titleBarInteractiveNodes.add(minimizeButton);
 
-            Button maximizeButton = new Button("◻");
+            this.maximizeButton = new Button("◻");
             maximizeButton.getStyleClass().add("window-button");
             maximizeButton.setOnAction(e -> stage.setMaximized(!stage.isMaximized()));
+            titleBarInteractiveNodes.add(maximizeButton);
 
-            Button windowCloseButton = new Button("✕");
+            this.windowCloseButton = new Button("✕");
             windowCloseButton.getStyleClass().addAll("window-button", "close-button");
             windowCloseButton.setOnAction(e -> Platform.exit());
+            titleBarInteractiveNodes.add(windowCloseButton);
 
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -236,6 +254,10 @@ public class MainScreen {
         }
 
         topPane.getStyleClass().add("custom-title-bar");
+        // =================================================================
+        // DEBUG: JavaFX가 드래그 이벤트를 소비하는지 확인하기 위한 핸들러
+        
+        // =================================================================
 
         // --- Native Dragging Logic for macOS ---
         if (isMac) {
@@ -248,7 +270,7 @@ public class MainScreen {
                     }
                 }
                 // 네이티브 드래그 시작
-                com.ethis2s.util.MacosNativeUtil.performNativeWindowDrag(event, stage);
+                MacosNativeUtil.performNativeWindowDrag(event, stage);
             });
         }
 

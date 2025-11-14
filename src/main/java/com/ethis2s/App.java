@@ -48,6 +48,7 @@ import javafx.stage.StageStyle;
 
 public class App extends Application {
 
+    public static final String NATIVE_WINDOW_TITLE = "LiveCodeIDE_NativeWindow_20251115";
     private ClientSocketManager socketManager;
     private MainController mainController;
 
@@ -57,7 +58,8 @@ public class App extends Application {
         // Remove default window decorations
         final String OS = System.getProperty("os.name").toLowerCase();
         if (OS.contains("mac")) primaryStage.initStyle(StageStyle.UNIFIED);
-         else if (OS.contains("win")) primaryStage.initStyle(StageStyle.TRANSPARENT);
+         else if (OS.contains("win")) primaryStage.initStyle(StageStyle.DECORATED);
+        
         
         
 
