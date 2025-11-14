@@ -231,7 +231,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                 clickableNodes.add(mainScreen.getMenuBar());
                 clickableNodes.add(mainScreen.getSearchBox());
                 clickableNodes.add(mainScreen.getMinimizeButton());
-                // clickableNodes.add(mainScreen.getMaximizeButton()); // Snap Layouts를 위해 제외
+                clickableNodes.add(mainScreen.getMaximizeButton()); // Snap Layouts를 위해 제외
                 clickableNodes.add(mainScreen.getWindowCloseButton());
 
                 WindowsNativeUtil.applyCustomWindowStyle(

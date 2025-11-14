@@ -75,7 +75,7 @@ public final class WindowsNativeUtil {
 
     // --- Constants ---
     private static final int WM_NCCALCSIZE = 0x0083, WM_NCHITTEST = 0x0084;
-    private static final int HTCLIENT = 1;
+    private static final int HTCLIENT = 1, HTCAPTION = 2;
     private static final int HTLEFT = 10, HTRIGHT = 11, HTTOP = 12, HTTOPLEFT = 13, HTTOPRIGHT = 14;
     private static final int HTBOTTOM = 15, HTBOTTOMLEFT = 16, HTBOTTOMRIGHT = 17;
 
@@ -119,7 +119,9 @@ public final class WindowsNativeUtil {
                         if (onBottom) return new WinDef.LRESULT(HTBOTTOM);
                         if (onLeft) return new WinDef.LRESULT(HTLEFT);
                         if (onRight) return new WinDef.LRESULT(HTRIGHT);
-                        break;
+
+                        // 나머지 모든 영역은 창 드래그를 위한 타이틀 바로 처리합니다.
+                        return new WinDef.LRESULT(HTCAPTION);
                     }
                 }
                 return Comctl32.INSTANCE.DefSubclassProc(hWnd, uMsg, wParam, lParam);
