@@ -53,7 +53,7 @@ public class App extends Application {
     public void start(Stage primaryStage) {
         
         // Remove default window decorations
-        primaryStage.initStyle(StageStyle.TRANSPARENT);
+        primaryStage.initStyle(StageStyle.UNIFIED);
 
         mainController = new MainController(primaryStage);
         

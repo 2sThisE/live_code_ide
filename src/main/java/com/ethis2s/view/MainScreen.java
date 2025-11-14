@@ -15,13 +15,11 @@ import com.ethis2s.controller.ProjectController;
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
 import com.ethis2s.util.ConfigManager;
-import com.ethis2s.util.ReSizeHelper;
 
 import io.github.palexdev.materialfx.controls.MFXProgressSpinner;
 import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
-import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -202,30 +200,12 @@ public class MainScreen {
         
         StackPane topPane;
         if (isMac) {
-            // macOS Style Title Bar
-            Button closeButton = new Button("✕");
-            closeButton.getStyleClass().addAll("mac-window-button", "mac-close-button");
-            closeButton.setOnAction(e -> Platform.exit());
-
-            Button minimizeButton = new Button("—");
-            minimizeButton.getStyleClass().addAll("mac-window-button", "mac-minimize-button");
-            minimizeButton.setOnAction(e -> stage.setIconified(true));
-
-            Button maximizeButton = new Button("+");
-            maximizeButton.getStyleClass().addAll("mac-window-button", "mac-maximize-button");
-            maximizeButton.setOnAction(e -> {
-                ReSizeHelper.toggleFullScreen(stage, trafficLights);
-                
-            });
-
-            trafficLights = new HBox(8, closeButton, minimizeButton, maximizeButton);
-            trafficLights.setAlignment(Pos.CENTER_LEFT);
-            trafficLights.setPadding(new Insets(0, 0, 0, 10));
+            
 
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
 
-            HBox backgroundBar = new HBox(trafficLights, spacer);
+            HBox backgroundBar = new HBox(spacer);
             backgroundBar.setAlignment(Pos.CENTER);
             
             topPane = new StackPane(backgroundBar, searchBox);
