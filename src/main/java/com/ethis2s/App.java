@@ -58,7 +58,7 @@ public class App extends Application {
         // Remove default window decorations
         final String OS = System.getProperty("os.name").toLowerCase();
         if (OS.contains("mac")) primaryStage.initStyle(StageStyle.UNIFIED);
-         else if (OS.contains("win")) primaryStage.initStyle(StageStyle.DECORATED);
+         else if (OS.contains("win")) primaryStage.initStyle(StageStyle.TRANSPARENT);
         
         
         

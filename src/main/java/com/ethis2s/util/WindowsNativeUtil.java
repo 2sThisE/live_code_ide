@@ -36,12 +36,20 @@ public final class WindowsNativeUtil {
     private interface User32 extends StdCallLibrary {
         User32 INSTANCE = Native.load("user32", User32.class, W32APIOptions.DEFAULT_OPTIONS);
         boolean GetWindowRect(WinDef.HWND hWnd, WinDef.RECT lpRect);
+        BaseTSD.LONG_PTR GetWindowLongPtr(WinDef.HWND hWnd, int nIndex);
+        BaseTSD.LONG_PTR SetWindowLongPtr(WinDef.HWND hWnd, int nIndex, BaseTSD.LONG_PTR dwNewLong);
         boolean SetWindowPos(WinDef.HWND hWnd, WinDef.HWND hWndInsertAfter, int X, int Y, int cx, int cy, int uFlags);
 
+        int GWL_STYLE = -16;
         int SWP_FRAMECHANGED = 0x0020;
         int SWP_NOMOVE = 0x0002;
         int SWP_NOSIZE = 0x0001;
         int SWP_NOZORDER = 0x0004;
+        long WS_CAPTION = 0x00C00000L;
+        long WS_SYSMENU = 0x00080000L;
+        long WS_THICKFRAME = 0x00040000L;
+        long WS_MINIMIZEBOX = 0x00020000L;
+        long WS_MAXIMIZEBOX = 0x00010000L;
     }
 
     private interface Comctl32 extends StdCallLibrary {
@@ -84,32 +92,18 @@ public final class WindowsNativeUtil {
             System.out.println("[DEBUG] HWND found: " + hwnd);
 
             subclassProc = (hWnd, uMsg, wParam, lParam, uIdSubclass, dwRefData) -> {
-                // 모든 메시지를 DWM에 먼저 전달하여 네이티브 컨트롤 상호작용을 처리하게 합니다.
                 LRESULT_ByReference lResult = new LRESULT_ByReference();
                 boolean handledByDwm = Dwmapi.INSTANCE.DwmDefWindowProc(hWnd, uMsg, wParam, lParam, lResult);
+                if (handledByDwm) return lResult.getValue();
 
-                if (handledByDwm) {
-                    return lResult.getValue();
-                }
-
-                // DWM이 처리하지 않은 메시지만 직접 처리합니다.
                 switch (uMsg) {
                     case WM_NCCALCSIZE:
-                        System.out.println("[DEBUG] WM_NCCALCSIZE received. Hiding title bar.");
-                        // 전체를 클라이언트 영역으로 만들어 네이티브 타이틀바를 숨깁니다.
                         if (wParam.intValue() == 1) return new WinDef.LRESULT(0);
                         break;
-
                     case WM_NCHITTEST: {
                         final int x = (int)(short)(lParam.longValue() & 0xFFFF);
                         final int y = (int)(short)((lParam.longValue() >> 16) & 0xFFFF);
-
-                        // 클릭 가능한 JavaFX UI 영역은 HTCLIENT로 처리합니다.
-                        if (isCursorOnNodes(clickableNodes, x, y)) {
-                            return new WinDef.LRESULT(HTCLIENT);
-                        }
-
-                        // 창 크기 조절 테두리를 처리합니다.
+                        if (isCursorOnNodes(clickableNodes, x, y)) return new WinDef.LRESULT(HTCLIENT);
                         WinDef.RECT rect = new WinDef.RECT();
                         User32.INSTANCE.GetWindowRect(hWnd, rect);
                         int resizeBorder = 8;
@@ -117,7 +111,6 @@ public final class WindowsNativeUtil {
                         boolean onBottom = y < rect.bottom && y >= rect.bottom - resizeBorder;
                         boolean onLeft = x >= rect.left && x < rect.left + resizeBorder;
                         boolean onRight = x < rect.right && x >= rect.right - resizeBorder;
-
                         if (onTop && onLeft) return new WinDef.LRESULT(HTTOPLEFT);
                         if (onTop && onRight) return new WinDef.LRESULT(HTTOPRIGHT);
                         if (onBottom && onLeft) return new WinDef.LRESULT(HTBOTTOMLEFT);
@@ -126,27 +119,29 @@ public final class WindowsNativeUtil {
                         if (onBottom) return new WinDef.LRESULT(HTBOTTOM);
                         if (onLeft) return new WinDef.LRESULT(HTLEFT);
                         if (onRight) return new WinDef.LRESULT(HTRIGHT);
-
-                        // 나머지 영역은 기본 프로시저에 맡겨 창 드래그(HTCAPTION)가 가능하게 합니다.
                         break;
                     }
                 }
                 return Comctl32.INSTANCE.DefSubclassProc(hWnd, uMsg, wParam, lParam);
             };
-
             Comctl32.INSTANCE.SetWindowSubclass(hwnd, subclassProc, new BaseTSD.LONG_PTR(1), new BaseTSD.DWORD_PTR(0));
 
-            // "Sheet of Glass" 효과를 적용하여 창 전체를 DWM 렌더링 영역으로 만듭니다.
+            // --- 권한 상승 및 디버깅 ---
+            BaseTSD.LONG_PTR originalStyle = User32.INSTANCE.GetWindowLongPtr(hwnd, User32.GWL_STYLE);
+            System.out.println("[DEBUG] Original Style: 0x" + Long.toHexString(originalStyle.longValue()));
+
+            long newStyle = originalStyle.longValue() | User32.WS_CAPTION | User32.WS_SYSMENU | User32.WS_THICKFRAME | User32.WS_MINIMIZEBOX | User32.WS_MAXIMIZEBOX;
+            User32.INSTANCE.SetWindowLongPtr(hwnd, User32.GWL_STYLE, new BaseTSD.LONG_PTR(newStyle));
+            
+            BaseTSD.LONG_PTR finalStyle = User32.INSTANCE.GetWindowLongPtr(hwnd, User32.GWL_STYLE);
+            System.out.println("[DEBUG] Final Style: 0x" + Long.toHexString(finalStyle.longValue()));
+
+
             Dwmapi.MARGINS margins = new Dwmapi.MARGINS();
             margins.cxLeftWidth = -1;
-            margins.cxRightWidth = -1;
-            margins.cyTopHeight = -1;
-            margins.cyBottomHeight = -1;
             WinNT.HRESULT result = Dwmapi.INSTANCE.DwmExtendFrameIntoClientArea(hwnd, margins);
             System.out.println("[DEBUG] DwmExtendFrameIntoClientArea result: " + result);
 
-
-            // Windows에 프레임 변경을 즉시 적용하도록 강제합니다.
             boolean setResult = User32.INSTANCE.SetWindowPos(hwnd, null, 0, 0, 0, 0,
                 User32.SWP_FRAMECHANGED | User32.SWP_NOMOVE | User32.SWP_NOSIZE | User32.SWP_NOZORDER);
             System.out.println("[DEBUG] SetWindowPos with SWP_FRAMECHANGED result: " + setResult);
