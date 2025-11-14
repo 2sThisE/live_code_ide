@@ -17,6 +17,7 @@ import com.ethis2s.service.ClientSocketManager;
 import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.MacosNativeUtil;
 import com.ethis2s.util.ProtocolConstants;
+import com.ethis2s.util.WindowsNativeUtil;
 import com.ethis2s.view.DebugView;
 import com.ethis2s.view.EditorTabView;
 import com.ethis2s.view.LoginScreen;
@@ -212,8 +213,16 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         }
 
         primaryStage.show();
-        MacosNativeUtil.applyUnifiedTitleBarStyle(primaryStage);
-        // ReSizeHelper.addResizeListener(primaryStage);
+        final String OS = System.getProperty("os.name").toLowerCase();
+        if (OS.contains("mac")) {
+        // "신재창 기법 v2"를 적용하여 UNIFIED 스타일의 버그를 수정
+            MacosNativeUtil.applyUnifiedTitleBarStyle(primaryStage);
+        } else if (OS.contains("win")) {
+            // Windows에서 커스텀 드래그/리사이즈 기능을 활성화
+            final int titleBarHeight = 30; // 실제 타이틀 바 높이에 맞게 조절
+            final int resizeBorder = 6;    // 리사이즈 감지 영역 두께
+            WindowsNativeUtil.enableCustomWindowBehavior(primaryStage, titleBarHeight, resizeBorder);
+        }
 
         showLoginView();
     }
