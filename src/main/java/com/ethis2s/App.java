@@ -38,6 +38,8 @@ import java.io.PrintStream;
 import com.ethis2s.controller.MainController;
 import com.ethis2s.service.ClientSocketManager;
 import com.ethis2s.util.DebugRedirectStream;
+import com.ethis2s.util.MacosNativeUtil;
+import com.ethis2s.util.WindowsNativeUtil;
 import com.ethis2s.view.DebugView;
 
 import javafx.application.Application;
@@ -53,7 +55,11 @@ public class App extends Application {
     public void start(Stage primaryStage) {
         
         // Remove default window decorations
-        primaryStage.initStyle(StageStyle.UNIFIED);
+        final String OS = System.getProperty("os.name").toLowerCase();
+        if (OS.contains("mac")) primaryStage.initStyle(StageStyle.UNIFIED);
+         else if (OS.contains("win")) primaryStage.initStyle(StageStyle.TRANSPARENT);
+        
+        
 
         mainController = new MainController(primaryStage);
         
