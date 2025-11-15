@@ -7,7 +7,6 @@ import com.ethis2s.util.HybridManager;
 import com.ethis2s.view.ProblemsView.Problem;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
-import javafx.beans.binding.Bindings;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleDoubleProperty;
@@ -44,8 +43,6 @@ import javafx.scene.control.TabPane.TabDragPolicy;
 import javafx.util.Duration;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
-import org.fxmisc.richtext.LineNumberFactory;
-import org.fxmisc.richtext.model.TwoDimensional.Bias;
 
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -58,20 +55,141 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
-import javafx.scene.control.Button;
-import javafx.scene.control.CheckBox;
-import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
-import org.fxmisc.richtext.model.StyleSpans;
-import org.fxmisc.richtext.model.StyleSpansBuilder;
 import com.ethis2s.util.Tm4eSyntaxHighlighter.StyleToken;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javafx.geometry.Bounds;
-import javafx.scene.layout.StackPane;
-import java.util.stream.Stream;
-import java.util.Collection;
+
+
+/**
+ * 클라이언트와의 개별 세션을 처리하는 클래스입니다.
+ * 이 클래스는 클라이언트 개발자를 위한 실시간 동시 편집 프로토콜 가이드를 포함합니다.
+ *
+ * ## 실시간 동시 편집 클라이언트 구현 가이드 ##
+ *
+ * 클라이언트는 아래의 절차에 따라 서버와 통신하여 실시간 동시 편집 기능을 구현해야 합니다.
+ * 모든 통신 페이로드는 JSON 형식을 사용합니다.
+ *
+ * ### 1단계: 파일 열기 요청
+ * 사용자가 파일을 열 때, 서버에 파일의 전체 내용을 요청합니다.
+ * - **프로토콜**: `UF_FILE_CONTENT_REQUEST`
+ * - **전송할 JSON**:
+ *   ```json
+ *   {
+ *     "requester": "본인_사용자_ID",
+ *     "project_id": "현재_프로젝트_ID",
+ *     "owner": "프로젝트_소유자_ID",
+ *     "path": "열고자_하는_파일_경로"
+ *   }
+ *   ```
+ * - **서버 응답**: `UF_FILE_CONTENT_RESPONSE` 프로토콜과 함께 파일의 전체 내용(`content`)을 받습니다.
+ * - **클라이언트 동작**: 받은 `content`를 에디터에 표시합니다. 이 시점부터 서버는 해당 클라이언트를 파일의 '편집자'로 인식합니다.
+ *
+ * ### 2단계: 라인 락(Lock) 획득
+ * 사용자가 특정 라인을 편집하기 **직전** (예: 키보드 입력 시작, 붙여넣기 시도), 반드시 해당 라인에 대한 락을 요청해야 합니다.
+ * - **프로토콜**: `UF_LINE_LOCK_REQUEST`
+ * - **전송할 JSON**:
+ *   ```json
+ *   {
+ *     "requester": "본인_사용자_ID",
+ *     "project_id": "현재_프로젝트_ID",
+ *     "owner": "프로젝트_소유자_ID",
+ *     "path": "현재_파일_경로",
+ *     "lineNumber": 1 // 1부터 시작하는 라인 번호
+ *   }
+ *   ```
+ * - **서버 응답**: `UF_LINE_LOCK_RESPONSE` 프로토콜과 함께 성공 여부를 받습니다.
+ *   - **성공 시**: `{"success": true, ...}`
+ *   - **실패 시**: `{"success": false, "lockOwner": "다른_사용자_ID", ...}`
+ * - **클라이언트 동작**: 락 획득에 성공하면 사용자 입력을 허용합니다. 실패하면 해당 라인의 편집을 막고, UI에 누가 락을 소유하고 있는지 표시할 수 있습니다.
+ *
+ * ### 3단계: 편집 연산(Operation) 전송
+ * 라인 락을 획득한 상태에서 사용자가 내용을 수정하면(예: 한 글자 입력/삭제), 즉시 해당 변경 사항을 '연산'으로 서버에 전송합니다.
+ * - **프로토콜**: `UF_FILE_EDIT_OPERATION`
+ * - **전송할 JSON**:
+ *   ```json
+ *   // 텍스트 삽입 시
+ *   {
+ *     "requester": "본인_사용자_ID",
+ *     "project_id": "...",
+ *     "owner": "...",
+ *     "path": "...",
+ *     "type": "INSERT",
+ *     "position": 10, // 전체 텍스트 기준 삽입 위치 (0부터 시작)
+ *     "text": "a", // 삽입된 텍스트
+ *     "cursorPosition": 11 // (선택 사항) 연산 후의 새로운 커서 위치
+ *   }
+ *
+ *   // 텍스트 삭제 시
+ *   {
+ *     "requester": "본인_사용자_ID",
+ *     "project_id": "...",
+ *     "owner": "...",
+ *     "path": "...",
+ *     "type": "DELETE",
+ *     "position": 10, // 전체 텍스트 기준 삭제 시작 위치
+ *     "length": 1, // 삭제된 글자 수
+ *     "cursorPosition": 10 // (선택 사항) 연산 후의 새로운 커서 위치
+ *   }
+ *   ```
+ * - **서버 동작**: 서버는 이 연산을 수신하여 파일에 적용하고, 다른 모든 편집자에게 이 연산과 함께 커서 위치를 브로드캐스트합니다.
+ *
+ * ### 4단계: 편집 연산 수신 (브로드캐스트)
+ * 다른 사용자가 보낸 편집 연산을 서버로부터 수신합니다.
+ * - **프로토콜**: `UF_FILE_EDIT_BROADCAST`
+ * - **수신할 JSON**: 3단계의 편집 연산과 동일한 형식의 JSON을 받습니다. `cursorPosition` 필드가 포함될 수 있습니다.
+ * - **클라이언트 동작**: 수신한 연산을 로컬 에디터의 텍스트에 **즉시 적용**하고, `cursorPosition`이 있다면 해당 사용자의 커서를 업데이트합니다. 이 연산을 다시 서버로 보내면 안 됩니다(무한 루프 방지).
+ *
+ * ### 5단계: 라인 락 해제
+ * 사용자의 커서가 다른 라인으로 이동하거나, 해당 라인에서 일정 시간 입력이 없으면, 점유했던 락을 **반드시 해제**해야 합니다.
+ * - **프로토콜**: `UF_LINE_UNLOCK_REQUEST`
+ * - **전송할 JSON**:
+ *   ```json
+ *   {
+ *     "requester": "본인_사용자_ID",
+ *     "project_id": "...",
+ *     "owner": "...",
+ *     "path": "...",
+ *     "lineNumber": 1 // 해제할 라인 번호
+ *   }
+ *   ```
+ * - **서버 응답**: `UF_LINE_UNLOCK_RESPONSE` 프로토콜과 함께 성공 여부를 받습니다.
+ * - **클라이언트 동작**: 락이 해제되면 다른 사용자가 해당 라인을 편집할 수 있게 됩니다.
+ *
+ * ### 6단계: 커서 이동 정보 전송 (코드 변경 없음)
+ * 사용자가 코드를 변경하지 않고 키보드나 마우스로 커서 위치만 이동했을 때, 이 정보를 서버에 전송합니다.
+ * - **프로토콜**: `UF_CURSOR_MOVE`
+ * - **전송할 JSON**:
+ *   ```json
+ *   {
+ *     "requester": "본인_사용자_ID",
+ *     "project_id": "현재_프로젝트_ID",
+ *     "owner": "프로젝트_소유자_ID",
+ *     "path": "현재_파일_경로",
+ *     "cursorPosition": 25 // 커서의 현재 위치 (0부터 시작하는 문자열 인덱스)
+ *   }
+ *   ```
+ * - **서버 응답**: 별도의 직접적인 응답은 없으며, 서버는 이 정보를 다른 편집자에게 브로드캐스트합니다.
+ *
+ * ### 7단계: 커서 이동 정보 수신 (브로드캐스트)
+ * 다른 사용자가 보낸 커서 이동 정보를 서버로부터 수신합니다.
+ * - **프로토콜**: `UF_CURSOR_MOVE_BROADCAST`
+ * - **수신할 JSON**:
+ *   ```json
+ *   {
+ *     "user_id": "커서_소유자_ID",
+ *     "project_id": "현재_프로젝트_ID",
+ *     "path": "현재_파일_경로",
+ *     "cursorPosition": 25 // 커서의 현재 위치
+ *   }
+ *   ```
+ * - **클라이언트 동작**: 수신한 `user_id`의 커서를 `cursorPosition`으로 업데이트하여 UI에 표시합니다.
+ *
+ * ### 연결 종료
+ * 클라이언트의 연결이 끊어지면, 서버는 해당 사용자가 소유했던 모든 라인 락을 자동으로 해제합니다.
+ */
+
 
 public class EditorTabView {
 
@@ -104,8 +222,7 @@ public class EditorTabView {
     
     // --- Visual Feedback for Drag and Drop ---
     private Pane feedbackPane;
-    private Region splitIndicatorTop, splitIndicatorBottom, splitIndicatorLeft, splitIndicatorRight, mergeIndicatorCenter;
-    private Bounds dragTargetBounds; // NEW: To store target bounds in scene coordinates
+    
     
     public EditorTabView(MainController mainController, SplitPane rootContainer) {
         this.mainController = mainController;
@@ -226,13 +343,6 @@ public class EditorTabView {
         });
     }
 
-    private TabPane findContainingPane(Node node) {
-        while (node != null) {
-            if (node instanceof TabPane) return (TabPane) node;
-            node = node.getParent();
-        }
-        return null;
-    }
     private void updateSearchPrompt(Tab tab) {
         if (tab != null && tab.isClosable()) {
             if (tab.getGraphic() instanceof HBox) {
@@ -826,31 +936,6 @@ public class EditorTabView {
             }
         }
         return null;
-    }
-
-    private Node findTargetNode(Parent parent, double sceneX, double sceneY) {
-        // Iterate children in reverse order to check top-most nodes first
-        List<Node> children = new ArrayList<>();
-        if (parent instanceof SplitPane) {
-            children.addAll(((SplitPane) parent).getItems());
-        } else {
-            children.addAll(parent.getChildrenUnmodifiable());
-        }
-        Collections.reverse(children);
-
-        for (Node node : children) {
-            Point2D localPoint = node.sceneToLocal(sceneX, sceneY);
-            if (node.getBoundsInLocal().contains(localPoint)) {
-                if (node instanceof Parent) {
-                    Node deeperNode = findTargetNode((Parent) node, sceneX, sceneY);
-                    if (deeperNode != null) {
-                        return deeperNode;
-                    }
-                }
-                return node;
-            }
-        }
-        return null; // Return null if no child contains the point
     }
 
     private int calculateDropIndex(TabPane tabPane, double sceneX) {

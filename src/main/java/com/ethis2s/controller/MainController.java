@@ -30,7 +30,6 @@ import com.ethis2s.view.ProjectPropertiesScreen;
 import com.ethis2s.view.RegisterScreen;
 import com.ethis2s.view.SettingsView;
 import com.ethis2s.view.SharedOptionScreen;
-import com.sun.jna.platform.win32.WinDef;
 
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -39,6 +38,10 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.control.SplitPane;
+import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.paint.Color;
 import javafx.stage.Screen;
@@ -134,7 +137,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         this.mainScene = new Scene(rootPane, 1280, 720);
         mainScene.setFill(Color.TRANSPARENT);
         try {
-            String cssPath = com.ethis2s.util.ConfigManager.getInstance().getMainThemePath();
+            String cssPath = ConfigManager.getInstance().getMainThemePath();
             if (cssPath != null) {
                 mainScene.getStylesheets().add(cssPath);
             }
@@ -147,7 +150,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         
         // --- 단축키 설정 ---
         mainScene.getAccelerators().put(
-            new javafx.scene.input.KeyCodeCombination(javafx.scene.input.KeyCode.F, javafx.scene.input.KeyCombination.CONTROL_DOWN),
+            new javafx.scene.input.KeyCodeCombination(KeyCode.F, KeyCombination.CONTROL_DOWN),
             () -> {
                 String selectedText = editorTabView.getCurrentSelectedText();
                 if (selectedText != null && !selectedText.isEmpty()) {
@@ -158,8 +161,8 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         );
 
         // --- 검색창 리스너 설정 ---
-        javafx.scene.control.TextField searchField = mainScreen.getSearchField();
-        javafx.scene.control.ToggleButton caseSensitiveCheck = mainScreen.getCaseSensitiveCheck();
+        TextField searchField = mainScreen.getSearchField();
+        ToggleButton caseSensitiveCheck = mainScreen.getCaseSensitiveCheck();
 
         if (searchField != null) {
             
@@ -254,7 +257,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                             primaryStage.setX(0);
                             primaryStage.setY(0);
                             primaryStage.setWidth(bounds.getWidth());
-                            primaryStage.setHeight(bounds.getHeight());
+                            primaryStage.setHeight(bounds.getHeight()-1);
                         });
                         Platform.runLater(()->{
                             primaryStage.setWidth(bounds.getWidth());

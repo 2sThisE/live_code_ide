@@ -58,7 +58,7 @@
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
-            <version>22</version>
+            <version>21</version>
         </dependency>
         <dependency>
             <groupId>org.controlsfx</groupId>
@@ -86,11 +86,6 @@
             <version>1.0-SNAPSHOT</version>
             <scope>system</scope>
             <systemPath>${project.basedir}/lib/socketprotocol.jar</systemPath>
-        </dependency>
-        <dependency>
-            <groupId>org.antlr</groupId>
-            <artifactId>antlr4-runtime</artifactId>
-            <version>4.13.1</version>
         </dependency>
         <!-- https://mvnrepository.com/artifact/com.google.code.gson/gson -->
         <dependency>
@@ -184,11 +179,11 @@
                     <configuration>
                         <mainClass>com.ethis2s.App</mainClass>
                         <options>
+                            <!-- 맥 관련 클래스 접근 허용 -->
                             <option>--add-opens=javafx.graphics/javafx.stage=ALL-UNNAMED</option>
                             <option>--add-opens=javafx.graphics/com.sun.javafx.tk.quantum=ALL-UNNAMED</option>
                             <option>--add-opens=javafx.graphics/com.sun.glass.ui=ALL-UNNAMED</option>
                             
-
                             <!-- WindowHelper 클래스에 접근 허용 -->
                             <option>--add-opens=javafx.stage/com.sun.javafx.stage=ALL-UNNAMED</option>
                             <!-- Window 클래스에 접근 허용 -->
@@ -196,8 +191,6 @@
                             <option>--add-opens=javafx.graphics/com.sun.javafx.stage=ALL-UNNAMED</option>
                             <option>--add-opens=javafx.graphics/com.sun.javafx.tk=ALL-UNNAMED</option>
                             <option>--add-opens=javafx.graphics/com.sun.javafx.stage=ALL-UNNAMED</option>
-                            
-                            
                         </options>
                     </configuration>
                 </plugin>
