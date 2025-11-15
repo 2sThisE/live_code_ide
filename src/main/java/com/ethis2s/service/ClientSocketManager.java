@@ -198,7 +198,7 @@ public class ClientSocketManager {
                     }
                     callback.onProjectListResponse(projects);
                     break;
-                case ProtocolConstants.UF_FILETRE_LIST_RESPONSE:
+                case ProtocolConstants.UF_FILETREE_LIST_RESPONSE:
                     JSONArray fileListJson = new JSONArray(new String(payload));
                     String pId = fileListJson.getJSONObject(0).getString("project_id");
                     callback.onFileListResponse(pId, fileListJson.getJSONObject(1));

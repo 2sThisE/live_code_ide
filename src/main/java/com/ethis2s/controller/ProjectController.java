@@ -51,7 +51,7 @@ public class ProjectController {
     public void fileListRequest(UserProjectsInfo userProjectsInfo) {
         if (userInfo == null) return;
         byte[] payload = String.format("{\"requester\":\"%s\", \"project_id\":\"%s\", \"owner\":\"%s\"}", userInfo.getId(), userProjectsInfo.getProjectID(),userProjectsInfo.getOwner()).getBytes(StandardCharsets.UTF_8);
-        sendRequest(payload, ProtocolConstants.UF_FILETRE_LIST_REQUEST);
+        sendRequest(payload, ProtocolConstants.UF_FILETREE_LIST_REQUEST);
     }
 
     public void projectDeleteRequest(String projectId) {
