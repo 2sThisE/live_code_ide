@@ -1,5 +1,6 @@
 package com.ethis2s.controller;
 
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -7,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -17,6 +17,7 @@ import com.ethis2s.model.UserProjectsInfo;
 import com.ethis2s.service.ClientSocketManager;
 import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.MacosNativeUtil;
+import com.ethis2s.util.MaximizationPatcher;
 import com.ethis2s.util.ProtocolConstants;
 import com.ethis2s.util.WindowsNativeUtil;
 import com.ethis2s.view.DebugView;
@@ -33,12 +34,14 @@ import com.sun.jna.platform.win32.WinDef;
 
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.control.SplitPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.paint.Color;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import socketprotocol.ParsedPacket;
 
@@ -96,9 +99,9 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         return debugView;
     }
 
-    public List<Node> getTitleBarComponentArea() {
-        return mainScreen.getTitleBarInteractiveNodes();
-    }
+    // public List<Node> getTitleBarComponentArea() {
+    //     return mainScreen.getTitleBarInteractiveNodes();
+    // }
 
     public void shutdown() {
         editorTabView.shutdownAllManagers();
@@ -221,29 +224,49 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         }
 
         final String OS = System.getProperty("os.name").toLowerCase();
-        primaryStage.setOnShown(event -> {
-            if (OS.contains("mac")) {
-                // "신재창 기법 v2"를 적용하여 UNIFIED 스타일의 버그를 수정
-                MacosNativeUtil.applyUnifiedTitleBarStyle(primaryStage);
-            } else if (OS.contains("win")) {
-                System.out.println("dfasfdsafsd");
-                List<Node> clickableNodes = new java.util.ArrayList<>();
-                clickableNodes.add(mainScreen.getMenuBar());
-                clickableNodes.add(mainScreen.getSearchBox());
-                clickableNodes.add(mainScreen.getMinimizeButton());
-                clickableNodes.add(mainScreen.getMaximizeButton()); // Snap Layouts를 위해 제외
-                clickableNodes.add(mainScreen.getWindowCloseButton());
-
+        if (OS.contains("mac")) {
+            // Mac 관련 설정
+            MacosNativeUtil.applyUnifiedTitleBarStyle(primaryStage);
+        } else if (OS.contains("win")) {
+            // 1. 네이티브 스타일링을 먼저 적용합니다.
+            primaryStage.setOnShown(e->{
                 WindowsNativeUtil.applyCustomWindowStyle(
-                    primaryStage, 
-                    clickableNodes, 
-                    mainScreen.getMinimizeButton(), 
-                    mainScreen.getMaximizeButton(), 
-                    mainScreen.getWindowCloseButton()
+                primaryStage, 
+                mainScreen.getTopPane(),
+                mainScreen.getNonDraggableNodes()
                 );
-            }else System.out.println("미지원 os");
+            });
+        
+            // MaximizationPatcher.apply(primaryStage, rootPane);
+        } else System.out.println("미지원 OS");
+        
+        primaryStage.maximizedProperty().addListener((obs, oldVal, isMaximized) -> {
+            if (isMaximized) {
+                Platform.runLater(() -> {
+                    Platform.runLater(() -> {
+                        Screen screen = Screen.getPrimary();
+                        Rectangle2D bounds = screen.getVisualBounds();
+                        
+                        System.out.println("--- Recalibration Debug ---");
+                        System.out.printf("Bounds from Screen: x=%.1f, y=%.1f, w=%.1f, h=%.1f\n",
+                                bounds.getMinX(), bounds.getMinY(), bounds.getWidth(), bounds.getHeight());
+                        Platform.runLater(()->{
+                            primaryStage.setX(0);
+                            primaryStage.setY(0);
+                            primaryStage.setWidth(bounds.getWidth());
+                            primaryStage.setHeight(bounds.getHeight());
+                        });
+                        Platform.runLater(()->{
+                            primaryStage.setWidth(bounds.getWidth());
+                        });
+                        
+                        System.out.printf("Stage After Set:  x=%.1f, y=%.1f, w=%.1f, h=%.1f\n",
+                                primaryStage.getX(), primaryStage.getY(), primaryStage.getWidth(), primaryStage.getHeight());
+                        System.out.println("---------------------------");
+                    });
+                });
+            }
         });
-
         primaryStage.setTitle(com.ethis2s.App.NATIVE_WINDOW_TITLE);
         primaryStage.show();
         

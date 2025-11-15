@@ -10,17 +10,20 @@ import com.sun.jna.platform.win32.WinNT;
 import com.sun.jna.ptr.ByReference;
 import com.sun.jna.win32.StdCallLibrary;
 import com.sun.jna.win32.W32APIOptions;
-import javafx.application.Platform;
-import javafx.css.PseudoClass;
 import javafx.geometry.Bounds;
 import javafx.scene.Node;
-import javafx.scene.control.Button;
 import javafx.stage.Stage;
 
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.List;
 
 public final class WindowsNativeUtil {
+
+    public static class HMONITOR extends WinDef.HWND {
+        public HMONITOR() { }
+        public HMONITOR(Pointer p) { super(p); }
+    }
 
     // --- JNA Interfaces ---
     private interface Dwmapi extends StdCallLibrary {
@@ -35,10 +38,55 @@ public final class WindowsNativeUtil {
 
     private interface User32 extends StdCallLibrary {
         User32 INSTANCE = Native.load("user32", User32.class, W32APIOptions.DEFAULT_OPTIONS);
+
+        @Structure.FieldOrder({"x", "y"})
+        class POINT extends Structure {
+            public int x, y;
+        }
+
+        @Structure.FieldOrder({"ptReserved", "ptMaxSize", "ptMaxPosition", "ptMinTrackSize", "ptMaxTrackSize"})
+        class MINMAXINFO extends Structure {
+            public POINT ptReserved;
+            public POINT ptMaxSize;
+            public POINT ptMaxPosition;
+            public POINT ptMinTrackSize;
+            public POINT ptMaxTrackSize;
+            public MINMAXINFO() { super(); }
+            public MINMAXINFO(Pointer p) { super(p); }
+             @Override
+            protected List<String> getFieldOrder() {
+                return Arrays.asList("ptReserved", "ptMaxSize", "ptMaxPosition", "ptMinTrackSize", "ptMaxTrackSize");
+            }
+        }
+
+        @Structure.FieldOrder({"cbSize", "rcMonitor", "rcWork", "dwFlags"})
+        class MONITORINFO extends Structure {
+            public int cbSize = size();
+            public WinDef.RECT rcMonitor;
+            public WinDef.RECT rcWork;
+            public int dwFlags;
+        }
+
+        class NCCALCSIZE_PARAMS extends Structure {
+            public WinDef.RECT[] rgrc = new WinDef.RECT[3];
+            public Pointer lppos;
+
+            public NCCALCSIZE_PARAMS() { super(); }
+            public NCCALCSIZE_PARAMS(Pointer p) { super(p); }
+
+            @Override
+            protected List<String> getFieldOrder() {
+                return Arrays.asList("rgrc", "lppos");
+            }
+        }
+
         boolean GetWindowRect(WinDef.HWND hWnd, WinDef.RECT lpRect);
         BaseTSD.LONG_PTR GetWindowLongPtr(WinDef.HWND hWnd, int nIndex);
         BaseTSD.LONG_PTR SetWindowLongPtr(WinDef.HWND hWnd, int nIndex, BaseTSD.LONG_PTR dwNewLong);
         boolean SetWindowPos(WinDef.HWND hWnd, WinDef.HWND hWndInsertAfter, int X, int Y, int cx, int cy, int uFlags);
+        HMONITOR MonitorFromWindow(WinDef.HWND hWnd, int dwFlags);
+        boolean GetMonitorInfoW(HMONITOR hMonitor, MONITORINFO lpmi);
+
 
         int GWL_STYLE = -16;
         int SWP_FRAMECHANGED = 0x0020;
@@ -50,6 +98,9 @@ public final class WindowsNativeUtil {
         long WS_THICKFRAME = 0x00040000L;
         long WS_MINIMIZEBOX = 0x00020000L;
         long WS_MAXIMIZEBOX = 0x00010000L;
+        long WS_MAXIMIZE = 0x01000000L;
+        int MONITOR_DEFAULTTONEAREST = 0x00000002;
+        int WM_GETMINMAXINFO = 0x0024;
     }
 
     private interface Comctl32 extends StdCallLibrary {
@@ -58,7 +109,6 @@ public final class WindowsNativeUtil {
         WinDef.LRESULT DefSubclassProc(WinDef.HWND hWnd, int uMsg, WinDef.WPARAM wParam, WinDef.LPARAM lParam);
     }
 
-    // --- JNA Callbacks & Structures ---
     public interface SUBCLASSPROC extends Callback {
         WinDef.LRESULT callback(WinDef.HWND hWnd, int uMsg, WinDef.WPARAM wParam, WinDef.LPARAM lParam, BaseTSD.LONG_PTR uIdSubclass, BaseTSD.DWORD_PTR dwRefData);
     }
@@ -73,37 +123,40 @@ public final class WindowsNativeUtil {
         public WinDef.LRESULT getValue() { return new WinDef.LRESULT(getPointer().getLong(0)); }
     }
 
-    // --- Constants ---
     private static final int WM_NCCALCSIZE = 0x0083, WM_NCHITTEST = 0x0084;
     private static final int HTCLIENT = 1, HTCAPTION = 2;
     private static final int HTLEFT = 10, HTRIGHT = 11, HTTOP = 12, HTTOPLEFT = 13, HTTOPRIGHT = 14;
     private static final int HTBOTTOM = 15, HTBOTTOMLEFT = 16, HTBOTTOMRIGHT = 17;
 
-    private static SUBCLASSPROC subclassProc; // Keep a reference
+    private static SUBCLASSPROC subclassProc;
 
-    public static void applyCustomWindowStyle(Stage stage, List<Node> clickableNodes, Node minimizeButton, Node maximizeButton, Node closeButton) {
+    public static void applyCustomWindowStyle(Stage stage, Node draggableArea, List<Node> nonDraggableNodes) {
         try {
-            System.out.println("[DEBUG] applyCustomWindowStyle called.");
             WinDef.HWND hwnd = getHwnd(stage);
-            if (hwnd == null) {
-                System.err.println("[DEBUG] HWND is NULL. Aborting.");
-                return;
-            }
-            System.out.println("[DEBUG] HWND found: " + hwnd);
+            if (hwnd == null) return;
 
             subclassProc = (hWnd, uMsg, wParam, lParam, uIdSubclass, dwRefData) -> {
                 LRESULT_ByReference lResult = new LRESULT_ByReference();
-                boolean handledByDwm = Dwmapi.INSTANCE.DwmDefWindowProc(hWnd, uMsg, wParam, lParam, lResult);
-                if (handledByDwm) return lResult.getValue();
+                if (Dwmapi.INSTANCE.DwmDefWindowProc(hWnd, uMsg, wParam, lParam, lResult)) {
+                    return lResult.getValue();
+                }
 
                 switch (uMsg) {
+                    case User32.WM_GETMINMAXINFO:
+                        // 최대화 관련 로직 완전 제거
+                        return Comctl32.INSTANCE.DefSubclassProc(hWnd, uMsg, wParam, lParam);
+                    
                     case WM_NCCALCSIZE:
-                        if (wParam.intValue() == 1) return new WinDef.LRESULT(0);
+                        if (wParam.intValue() == 1) {
+                            // 클라이언트 영역을 창 전체로 확장하여 기본 프레임을 제거
+                            return new WinDef.LRESULT(0);
+                        }
                         break;
+
                     case WM_NCHITTEST: {
                         final int x = (int)(short)(lParam.longValue() & 0xFFFF);
                         final int y = (int)(short)((lParam.longValue() >> 16) & 0xFFFF);
-                        if (isCursorOnNodes(clickableNodes, x, y)) return new WinDef.LRESULT(HTCLIENT);
+
                         WinDef.RECT rect = new WinDef.RECT();
                         User32.INSTANCE.GetWindowRect(hWnd, rect);
                         int resizeBorder = 8;
@@ -111,6 +164,7 @@ public final class WindowsNativeUtil {
                         boolean onBottom = y < rect.bottom && y >= rect.bottom - resizeBorder;
                         boolean onLeft = x >= rect.left && x < rect.left + resizeBorder;
                         boolean onRight = x < rect.right && x >= rect.right - resizeBorder;
+
                         if (onTop && onLeft) return new WinDef.LRESULT(HTTOPLEFT);
                         if (onTop && onRight) return new WinDef.LRESULT(HTTOPRIGHT);
                         if (onBottom && onLeft) return new WinDef.LRESULT(HTBOTTOMLEFT);
@@ -120,33 +174,34 @@ public final class WindowsNativeUtil {
                         if (onLeft) return new WinDef.LRESULT(HTLEFT);
                         if (onRight) return new WinDef.LRESULT(HTRIGHT);
 
-                        // 나머지 모든 영역은 창 드래그를 위한 타이틀 바로 처리합니다.
-                        return new WinDef.LRESULT(HTCAPTION);
+                        if (checkHit(draggableArea, x, y)) {
+                            if (isCursorOnNodes(nonDraggableNodes, x, y)) {
+                                return new WinDef.LRESULT(HTCLIENT);
+                            }
+                            return new WinDef.LRESULT(HTCAPTION);
+                        }
+                        return new WinDef.LRESULT(HTCLIENT);
                     }
                 }
                 return Comctl32.INSTANCE.DefSubclassProc(hWnd, uMsg, wParam, lParam);
             };
             Comctl32.INSTANCE.SetWindowSubclass(hwnd, subclassProc, new BaseTSD.LONG_PTR(1), new BaseTSD.DWORD_PTR(0));
 
-            // --- 권한 상승 및 디버깅 ---
-            BaseTSD.LONG_PTR originalStyle = User32.INSTANCE.GetWindowLongPtr(hwnd, User32.GWL_STYLE);
-            System.out.println("[DEBUG] Original Style: 0x" + Long.toHexString(originalStyle.longValue()));
+            // maximizedProperty 리스너 완전 제거
 
+            BaseTSD.LONG_PTR originalStyle = User32.INSTANCE.GetWindowLongPtr(hwnd, User32.GWL_STYLE);
             long newStyle = originalStyle.longValue() | User32.WS_CAPTION | User32.WS_SYSMENU | User32.WS_THICKFRAME | User32.WS_MINIMIZEBOX | User32.WS_MAXIMIZEBOX;
             User32.INSTANCE.SetWindowLongPtr(hwnd, User32.GWL_STYLE, new BaseTSD.LONG_PTR(newStyle));
-            
-            BaseTSD.LONG_PTR finalStyle = User32.INSTANCE.GetWindowLongPtr(hwnd, User32.GWL_STYLE);
-            System.out.println("[DEBUG] Final Style: 0x" + Long.toHexString(finalStyle.longValue()));
-
 
             Dwmapi.MARGINS margins = new Dwmapi.MARGINS();
-            margins.cxLeftWidth = -1;
-            WinNT.HRESULT result = Dwmapi.INSTANCE.DwmExtendFrameIntoClientArea(hwnd, margins);
-            System.out.println("[DEBUG] DwmExtendFrameIntoClientArea result: " + result);
+            margins.cxLeftWidth = 1;
+            margins.cxRightWidth = 1;
+            margins.cyTopHeight = 1;
+            margins.cyBottomHeight = 1;
+            Dwmapi.INSTANCE.DwmExtendFrameIntoClientArea(hwnd, margins);
 
-            boolean setResult = User32.INSTANCE.SetWindowPos(hwnd, null, 0, 0, 0, 0,
+            User32.INSTANCE.SetWindowPos(hwnd, null, 0, 0, 0, 0,
                 User32.SWP_FRAMECHANGED | User32.SWP_NOMOVE | User32.SWP_NOSIZE | User32.SWP_NOZORDER);
-            System.out.println("[DEBUG] SetWindowPos with SWP_FRAMECHANGED result: " + setResult);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -180,5 +235,33 @@ public final class WindowsNativeUtil {
             e.printStackTrace();
         }
         return null;
+    }
+
+    public static void printNativeWindowSize(Stage stage) {
+        WinDef.HWND hwnd = getHwnd(stage);
+        if (hwnd != null) {
+            WinDef.RECT rect = new WinDef.RECT();
+            User32.INSTANCE.GetWindowRect(hwnd, rect);
+            System.out.printf("Native Window Size: w=%d, h=%d\n", rect.right - rect.left, rect.bottom - rect.top);
+        }
+    }
+
+    public static void printMaximizeDebugInfo(Stage stage) {
+        WinDef.HWND hwnd = getHwnd(stage);
+        if (hwnd != null) {
+            // Get Native Window Info
+            WinDef.RECT rect = new WinDef.RECT();
+            User32.INSTANCE.GetWindowRect(hwnd, rect);
+            System.out.printf("Native Window Rect: x=%d, y=%d, w=%d, h=%d\n",
+                    rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top);
+
+            // Get Monitor Info
+            HMONITOR hMonitor = User32.INSTANCE.MonitorFromWindow(hwnd, User32.MONITOR_DEFAULTTONEAREST);
+            User32.MONITORINFO monitorInfo = new User32.MONITORINFO();
+            User32.INSTANCE.GetMonitorInfoW(hMonitor, monitorInfo);
+            WinDef.RECT workArea = monitorInfo.rcWork;
+            System.out.printf("Monitor Work Area:  x=%d, y=%d, w=%d, h=%d\n",
+                    workArea.left, workArea.top, workArea.right - workArea.left, workArea.bottom - workArea.top);
+        }
     }
 }

@@ -93,11 +93,12 @@ public class MainScreen {
     private Button nextButton;
     private ToggleButton caseSensitiveCheck;
     private Label resultLabel;
-    private List<Node> titleBarInteractiveNodes;
+    private List<Node> nonDraggableNodes;
     private Button minimizeButton;
     private Button maximizeButton;
     private Button windowCloseButton;
     private MenuBar menuBar;
+    private StackPane topPane;
 
     public void updateProblemsTab(int errorCount) {
         // 이제 Tab 객체가 있는지 직접 확인합니다.
@@ -140,7 +141,8 @@ public class MainScreen {
     public Button getNextButton() { return nextButton; }
     public ToggleButton getCaseSensitiveCheck() { return caseSensitiveCheck; }
     public Label getResultLabel() { return resultLabel; }
-    public List<Node> getTitleBarInteractiveNodes() { return titleBarInteractiveNodes; }
+    public List<Node> getNonDraggableNodes() { return nonDraggableNodes; }
+    public StackPane getTopPane() { return topPane; }
     public Button getMinimizeButton() { return minimizeButton; }
     public Button getMaximizeButton() { return maximizeButton; }
     public Button getWindowCloseButton() { return windowCloseButton; }
@@ -148,12 +150,12 @@ public class MainScreen {
     
 
     public BorderPane createMainScreen(Stage stage, SplitPane editorArea, Label statusLabel, MainController mainController) {
-        this.titleBarInteractiveNodes = new ArrayList<>(); // <-- 이 줄을 추가해주세요!
+        this.nonDraggableNodes = new ArrayList<>();
         BorderPane mainLayout = new BorderPane(); // This will be the absolute root.
         this.editorArea = editorArea;
         
         this.menuBar = new MenuBar();
-        titleBarInteractiveNodes.add(menuBar);
+        nonDraggableNodes.add(menuBar);
         Menu fileMenu = new Menu("File");
         MenuItem settingsItem = new MenuItem("설정");
         settingsItem.setOnAction(e -> mainController.showSettingsView());
@@ -181,7 +183,7 @@ public class MainScreen {
 
         // 1. Create the container that looks like a TextField
         this.searchBox = new HBox();
-        titleBarInteractiveNodes.add(searchBox);
+        nonDraggableNodes.add(searchBox);
         searchBox.getStyleClass().add("centered-search-field"); // Use existing style
         searchBox.setAlignment(Pos.CENTER_LEFT);
         searchBox.setSpacing(5);
@@ -215,34 +217,34 @@ public class MainScreen {
 
         // --- Create Title Bar based on OS ---
         
-        StackPane topPane;
         if (isMac) {
-            
-
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
 
             HBox backgroundBar = new HBox(spacer);
             backgroundBar.setAlignment(Pos.CENTER);
             
-            topPane = new StackPane(backgroundBar, searchBox);
+            this.topPane = new StackPane(backgroundBar, searchBox);
 
         } else {
             // Windows/Other Style Title Bar (Original Implementation)
             this.minimizeButton = new Button("—");
             minimizeButton.getStyleClass().add("window-button");
             minimizeButton.setOnAction(e -> stage.setIconified(true));
-            titleBarInteractiveNodes.add(minimizeButton);
+            nonDraggableNodes.add(minimizeButton);
 
             this.maximizeButton = new Button("◻");
             maximizeButton.getStyleClass().add("window-button");
-            maximizeButton.setOnAction(e -> stage.setMaximized(!stage.isMaximized()));
-            titleBarInteractiveNodes.add(maximizeButton);
+            maximizeButton.setOnAction(e -> {
+                stage.setMaximized(!stage.isMaximized());
+                System.out.println("최대화");
+            });
+            nonDraggableNodes.add(maximizeButton);
 
             this.windowCloseButton = new Button("✕");
             windowCloseButton.getStyleClass().addAll("window-button", "close-button");
             windowCloseButton.setOnAction(e -> Platform.exit());
-            titleBarInteractiveNodes.add(windowCloseButton);
+            nonDraggableNodes.add(windowCloseButton);
 
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -250,7 +252,7 @@ public class MainScreen {
             HBox backgroundBar = new HBox(menuBar, spacer, minimizeButton, maximizeButton, windowCloseButton);
             backgroundBar.setAlignment(Pos.CENTER);
 
-            topPane = new StackPane(backgroundBar, searchBox);
+            this.topPane = new StackPane(backgroundBar, searchBox);
         }
 
         topPane.getStyleClass().add("custom-title-bar");
