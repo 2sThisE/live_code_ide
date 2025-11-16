@@ -1,5 +1,6 @@
 package com.ethis2s.util;
 
+import com.ethis2s.controller.ProjectController;
 import com.ethis2s.service.AntlrCompletionService;
 import com.ethis2s.service.AntlrLanguageService;
 import com.ethis2s.service.EditorInputManager;
@@ -7,6 +8,7 @@ import com.ethis2s.service.AntlrLanguageService.AnalysisResult;
 import com.ethis2s.service.AntlrLanguageService.BracketPair;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
 import com.ethis2s.util.Tm4eSyntaxHighlighter.StyleToken;
+import com.ethis2s.view.editor.EditorStateManager;
 
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
@@ -60,12 +62,19 @@ public class HybridManager {
     private int currentLargeUpdateSize = 0;
     private List<StyleToken> previouslyRenderedBrackets; // 경량 렌더러가 이전에 그렸던 위치를 기억
     private boolean isTyping = false; // 타이핑 상태를 추적할 깃발
+    private final ProjectController projectController;
+    private String filePath;
+    private final EditorStateManager stateManager;
+    private EditorInputManager inputManager;
 
-    public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate, Runnable onAnalysisStart, Runnable onAnalysisFinish) {
+    public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate, Runnable onAnalysisStart, Runnable onAnalysisFinish, ProjectController projectController, String filePath, EditorStateManager stateManager) {
         this.codeArea = codeArea;
         this.onErrorUpdate = onErrorUpdate;
         this.onAnalysisStart = onAnalysisStart;
         this.onAnalysisFinish = onAnalysisFinish;
+        this.projectController = projectController;
+        this.filePath = filePath;
+        this.stateManager = stateManager;
         
         this.highlighter = new Tm4eSyntaxHighlighter(codeArea, fileExtension);
 
@@ -78,8 +87,8 @@ public class HybridManager {
         }
         
         EditorEnhancer enhancer = new EditorEnhancer(codeArea, this.completionService, this);
-        EditorInputManager inputManager = new EditorInputManager(codeArea, enhancer, this.completionService, this);
-        inputManager.registerEventHandlers();
+        this.inputManager = new EditorInputManager(codeArea, enhancer, this.completionService, this);
+        this.inputManager.registerEventHandlers();
 
         this.analysisDebouncer = new PauseTransition(Duration.millis(300));
         this.analysisDebouncer.setOnFinished(e -> {
@@ -142,6 +151,49 @@ public class HybridManager {
             updateBracketHighlightingData();
             renderBracketHighlightOnly();
         });
+    }
+
+    public void requestLineLock(int line) {
+        projectController.lineLockRequest(this.filePath, line);
+    }
+
+    public void cursorMoveRequest(int cursorPosition) {
+        projectController.cursorMoveRequest(this.filePath, cursorPosition);
+    }
+
+    public void requestFileEditOperation(String type, int position, String text, int length) {
+        projectController.fileEditOperationRequest(this.filePath, type, position, text, length);
+    }
+
+    public void controlledReplaceText(int start, int end, String text, com.ethis2s.service.ChangeInitiator initiator) {
+        if (inputManager != null) {
+            inputManager.controlledReplaceText(start, end, text, initiator);
+        }
+    }
+
+    public boolean isLineLockedByOther(int line) {
+        Optional<String> currentUserIdOpt = projectController.getCurrentUserId();
+        if (currentUserIdOpt.isEmpty()) {
+            return false; // Cannot determine current user, so don't block anything
+        }
+        String currentUserId = currentUserIdOpt.get();
+
+        return stateManager.getLineLockInfo("file-" + this.filePath, line + 1)
+                .map(lockInfo -> !lockInfo.userId.equals(currentUserId))
+                .orElse(false);
+    }
+
+    public boolean isLineLockedByCurrentUser(int line) {
+        Optional<String> currentUserIdOpt = projectController.getCurrentUserId();
+        if (currentUserIdOpt.isEmpty()) {
+            return false;
+        }
+        // Note: line numbers in stateManager are 1-based.
+        return stateManager.isLineLockedByCurrentUser("file-" + this.filePath, line + 1, currentUserIdOpt.get());
+    }
+
+    public void setFilePath(String filePath) {
+        this.filePath = filePath;
     }
 
     public void prepareForLargeUpdate(int expectedSize) {

@@ -1,10 +1,12 @@
 package com.ethis2s.view;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -242,7 +244,7 @@ public class MainScreen {
             nonDraggableNodes.add(maximizeButton);
 
             this.windowCloseButton = new Button("✕");
-            windowCloseButton.getStyleClass().addAll("window-button", "close-button");
+            windowCloseButton.getStyleClass().add("close-button");
             windowCloseButton.setOnAction(e -> Platform.exit());
             nonDraggableNodes.add(windowCloseButton);
 
@@ -341,9 +343,9 @@ public class MainScreen {
 
         try {
             com.ethis2s.util.ConfigManager configManager = com.ethis2s.util.ConfigManager.getInstance();
-            String treeViewCss = configManager.getTreeViewThemePath();
-            String topTabsCss = configManager.getTopTabsThemePath();
-            String bottomTabsCss = configManager.getBottomTabsThemePath();
+            String treeViewCss = configManager.getThemePath("design","treeViewTheme");
+            String topTabsCss = configManager.getThemePath("design","topTabsTheme");
+            String bottomTabsCss = configManager.getThemePath("design","bottomTabsTheme");
 
             if (treeViewCss != null) fileExplorerContainer.getStylesheets().add(treeViewCss);
             // if (topTabsCss != null) this.editorTabs.getStylesheets().add(topTabsCss);
@@ -360,9 +362,9 @@ public class MainScreen {
     public void reloadComponentCss() {
         try {
             ConfigManager configManager = ConfigManager.getInstance();
-            String treeViewCss = configManager.getTreeViewThemePath();
-            String topTabsCss = configManager.getTopTabsThemePath();
-            String bottomTabsCss = configManager.getBottomTabsThemePath();
+            String treeViewCss = configManager.getThemePath("design","treeViewTheme");
+            String topTabsCss = configManager.getThemePath("design","topTabsTheme");
+            String bottomTabsCss = configManager.getThemePath("design","bottomTabsTheme");
 
             if (fileExplorerContainer != null) {
                 fileExplorerContainer.getStylesheets().clear();
@@ -912,7 +914,7 @@ public class MainScreen {
                     if (!isEditing() && event.getClickCount() == 2) {
                         if (getItem() instanceof NodeType nodeType && "file".equals(nodeType.getType())) {
                             String path = getItemPath(getTreeItem());
-                            mainController.openFileInEditor(path);
+                            projectController.fileContentRequest(userProjectsInfo, path);
                             event.consume();
                         }
                     }
@@ -992,5 +994,8 @@ public class MainScreen {
             // (자식이 없으면 leaf, 있으면 아님)
             return super.isLeaf();
         }
+    }
+    public Optional<UserProjectsInfo> getCurrentProjectForFileTree() {
+        return Optional.ofNullable(currentProjectForFileTree);
     }
 }

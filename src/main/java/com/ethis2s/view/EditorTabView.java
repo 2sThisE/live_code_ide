@@ -56,7 +56,7 @@ public class EditorTabView {
         this.rootContainer = rootContainer;
         
         this.stateManager = new EditorStateManager();
-        this.editorFactory = new EditorFactory(mainController, stateManager, this);
+        this.editorFactory = new EditorFactory(mainController, stateManager, this, mainController.getProjectController());
         this.dragDropManager = new TabDragDropManager(this, rootContainer);
         this.searchHandler = new EditorSearchHandler(stateManager, mainController);
         
@@ -76,6 +76,10 @@ public class EditorTabView {
 
         Node editorContent = editorFactory.createEditorForFile(filePath, content, tabId);
         
+        // Finalize initialization for this tab
+        stateManager.setInitializing(tabId, false);
+        stateManager.processPendingUpdates(tabId);
+
         Runnable onClose = () -> {
             stateManager.unregisterTab(tabId);
             aggregateAndSendProblems(); // 문제가 있는 탭이 닫혔으므로 목록 업데이트
@@ -92,6 +96,24 @@ public class EditorTabView {
         dragDropManager.registerDraggableTab(newTab, tabGraphic);
     }
     
+    public void updateLineLockIndicator(String filePath, int line, String userId, String userNickname) {
+        String tabId = "file-" + filePath;
+        stateManager.updateLineLock(tabId, line, userId, userNickname);
+
+        stateManager.getCodeArea(tabId).ifPresent(codeArea -> {
+            // Force the paragraph graphic factory to be re-applied, thus redrawing the line numbers
+            codeArea.setParagraphGraphicFactory(codeArea.getParagraphGraphicFactory());
+        });
+    }
+
+    public void updateUserCursor(String filePath, String userId, String userNickname, int position) {
+        System.out.println(String.format("[DEBUG] EditorTabView: updateUserCursor called -> File: %s, User: %s, Pos: %d", filePath, userNickname, position));
+        String tabId = "file-" + filePath;
+        stateManager.getCursorManager(tabId).ifPresent(cursorManager -> {
+            cursorManager.updateCursor(userId, userNickname, position);
+        });
+    }
+
     public void navigateTo(String filePath, int line, int column) {
         String tabId = "file-" + filePath;
         if (!hasTab(tabId)) return;
@@ -108,7 +130,7 @@ public class EditorTabView {
         editorFactory.reapplyStylesToAllEditors();
         for (TabPane pane : managedTabPanes) {
             try {
-                String topTabsCss = ConfigManager.getInstance().getTopTabsThemePath();
+                String topTabsCss = ConfigManager.getInstance().getThemePath("design","topTabsTheme");
                 pane.getStylesheets().clear();
                 if (topTabsCss != null) {
                     pane.getStylesheets().add(topTabsCss);
@@ -139,23 +161,12 @@ public class EditorTabView {
     }
 
     // --- Search API (Delegation) ---
-    public String getCurrentSelectedText() {
-        return (activeCodeArea != null) ? activeCodeArea.getSelectedText() : "";
-    }
-
-    public void performSearchOnActiveTab(String query, boolean caseSensitive) {
-        if (activeCodeArea != null) {
-            searchHandler.performSearch(activeCodeArea, query, caseSensitive);
-        }
-    }
-
-    public void goToNextMatchOnActiveTab() {
-        if (activeCodeArea != null) searchHandler.goToNextMatch(activeCodeArea);
-    }
-
-    public void goToPreviousMatchOnActiveTab() {
-        if (activeCodeArea != null) searchHandler.goToPreviousMatch(activeCodeArea);
-    }
+    public String getActiveCodeAreaHash() {return activeCodeArea != null ? Integer.toHexString(System.identityHashCode(activeCodeArea)) : "null";}
+    public String getCurrentSelectedText() {return (activeCodeArea != null) ? activeCodeArea.getSelectedText() : "";}
+    public void performSearchOnActiveTab(String query, boolean caseSensitive) {if (activeCodeArea != null) searchHandler.performSearch(activeCodeArea, query, caseSensitive);}
+    public void goToNextMatchOnActiveTab() {if (activeCodeArea != null) searchHandler.goToNextMatch(activeCodeArea);}
+    public void goToPreviousMatchOnActiveTab() {if (activeCodeArea != null) searchHandler.goToPreviousMatch(activeCodeArea);}
+    public void clearSearchHighlights() {performSearchOnActiveTab("", false);}
 
     // --- Internal Logic & Helpers ---
 
@@ -259,18 +270,41 @@ public class EditorTabView {
         managedTabPanes.add(tabPane);
         dragDropManager.registerDropTarget(tabPane);
 
+        // 탭 선택 또는 포커스 변경 시 검색 컨텍스트를 업데이트하고 자동 재검색을 수행하는 통합 리스너
+        Runnable updateAndResearch = () -> {
+            Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+            String oldCodeAreaHash = getActiveCodeAreaHash();
+            
+            if (selectedTab != null && selectedTab.getId() != null) {
+                stateManager.getCodeArea(selectedTab.getId()).ifPresentOrElse(
+                    codeArea -> {this.activeCodeArea = codeArea;},
+                    () -> {this.activeCodeArea = null;}
+                );
+            } else {
+                this.activeCodeArea = null;
+            }
+            
+            updateSearchPrompt(selectedTab);
+
+            String query = mainController.getSearchQuery();
+            if (query != null && !query.isEmpty()) mainController.triggerSearch();
+        };
+
         tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
-            if (tabPane.isFocused() || activeTabPane == tabPane) updateSearchPrompt(newTab);
+            if (tabPane.isFocused() || activeTabPane == tabPane) {
+                updateAndResearch.run();
+            }
         });
+
         tabPane.focusedProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal) {
                 activeTabPane = tabPane;
-                updateSearchPrompt(tabPane.getSelectionModel().getSelectedItem());
+                updateAndResearch.run();
             }
         });
 
         try {
-            String css = ConfigManager.getInstance().getTopTabsThemePath();
+            String css = ConfigManager.getInstance().getThemePath("design","topTabsTheme");
             if (css != null) tabPane.getStylesheets().add(css);
         } catch (Exception e) {
             e.printStackTrace();
@@ -334,6 +368,15 @@ public class EditorTabView {
     public void setActiveCodeArea(CodeArea codeArea) {
         this.activeCodeArea = codeArea;
         findTabById(stateManager.findTabIdForCodeArea(codeArea).orElse("")).ifPresent(this::updateSearchPrompt);
+    
+        // [BUG FIX] CodeArea가 직접 포커스를 받았을 때도 자동 재검색을 트리거한다.
+        String query = mainController.getSearchQuery();
+        if (query != null && !query.isEmpty()) mainController.triggerSearch();
+        
+    }
+
+    public Optional<CodeArea> getActiveCodeArea() {
+        return Optional.ofNullable(activeCodeArea);
     }
 
     // --- 탭 관리를 위한 새로운 Public API ---
@@ -437,4 +480,5 @@ public class EditorTabView {
     public StringProperty activeTabTitleProperty() { return activeTabTitle; }
     public IntegerProperty totalMatchesProperty() { return stateManager.totalMatchesProperty(); }
     public IntegerProperty currentMatchIndexProperty() { return stateManager.currentMatchIndexProperty(); }
+    public EditorStateManager getStateManager() { return stateManager; }
 }

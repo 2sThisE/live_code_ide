@@ -2,6 +2,7 @@ package com.ethis2s.controller;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Optional;
 
 import org.json.JSONObject;
 
@@ -30,6 +31,10 @@ public class ProjectController {
         this.userInfo = userInfo;
     }
 
+    public Optional<String> getCurrentUserId() {
+        return (userInfo != null) ? Optional.of(userInfo.getId()) : Optional.empty();
+    }
+
     public void clearUserInfo() {
         this.userInfo = null;
     }
@@ -52,6 +57,72 @@ public class ProjectController {
         if (userInfo == null) return;
         byte[] payload = String.format("{\"requester\":\"%s\", \"project_id\":\"%s\", \"owner\":\"%s\"}", userInfo.getId(), userProjectsInfo.getProjectID(),userProjectsInfo.getOwner()).getBytes(StandardCharsets.UTF_8);
         sendRequest(payload, ProtocolConstants.UF_FILETREE_LIST_REQUEST);
+    }
+
+    public void fileContentRequest(UserProjectsInfo userProjectsInfo, String path) {
+        if (userInfo == null) return;
+        byte[] payload = String.format("{\"requester\":\"%s\", \"project_id\":\"%s\", \"owner\":\"%s\", \"path\":\"%s\"}", userInfo.getId(), userProjectsInfo.getProjectID(), userProjectsInfo.getOwner(), path).getBytes(StandardCharsets.UTF_8);
+        sendRequest(payload, ProtocolConstants.UF_FILE_CONTENT_REQUEST);
+    }
+
+    public void fileEditOperationRequest(String filePath, String type, int position, String text, int length) {
+        if (userInfo == null || socketManager == null) return;
+        mainScreen.getCurrentProjectForFileTree().ifPresent(projectInfo -> {
+            JSONObject payload = new JSONObject();
+            payload.put("requester", userInfo.getId());
+            payload.put("project_id", projectInfo.getProjectID());
+            payload.put("owner", projectInfo.getOwner());
+            payload.put("path", filePath);
+            payload.put("type", type);
+            payload.put("position", position);
+
+            if ("INSERT".equals(type)) {
+                payload.put("text", text);
+            } else if ("DELETE".equals(type)) {
+                payload.put("length", length);
+            }
+            
+            try {
+                socketManager.sendJsonPacket(payload, ProtocolConstants.UF_FILE_EDIT_OPERATION, ProtocolConstants.PTYPE_JSON);
+            } catch (Exception e) {
+                System.err.println("Request failed for fileEditOperationRequest: " + e.getMessage());
+                socketManager.initiateReconnection();
+            }
+        });
+    }
+
+    public void lineLockRequest(String filePath, int line) {
+        if (userInfo == null) return;
+        mainScreen.getCurrentProjectForFileTree().ifPresent(projectInfo -> {
+            byte[] payload = String.format(
+                "{\"requester\":\"%s\", \"project_id\":\"%s\", \"owner\":\"%s\", \"path\":\"%s\", \"lineNumber\":%d}",
+                userInfo.getId(),
+                projectInfo.getProjectID(),
+                projectInfo.getOwner(),
+                filePath,
+                line
+            ).getBytes(StandardCharsets.UTF_8);
+            sendRequest(payload, ProtocolConstants.UF_LINE_LOCK_REQUEST);
+        });
+    }
+
+    public void cursorMoveRequest(String filePath, int cursorPosition) {
+        if (userInfo == null) return;
+        mainScreen.getCurrentProjectForFileTree().ifPresent(projectInfo -> {
+            JSONObject payload = new JSONObject();
+            payload.put("requester", userInfo.getId());
+            payload.put("project_id", projectInfo.getProjectID());
+            payload.put("owner", projectInfo.getOwner());
+            payload.put("path", filePath);
+            payload.put("cursorPosition", cursorPosition);
+            
+            try {
+                // Use sendJsonPacket for consistency, though cursor updates are small.
+                socketManager.sendJsonPacket(payload, ProtocolConstants.UF_CURSOR_MOVE, ProtocolConstants.PTYPE_JSON);
+            } catch (Exception e) {
+                System.err.println("Request failed for cursorMoveRequest: " + e.getMessage());
+            }
+        });
     }
 
     public void projectDeleteRequest(String projectId) {

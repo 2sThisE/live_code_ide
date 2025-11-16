@@ -15,6 +15,7 @@ import com.ethis2s.App;
 import com.ethis2s.model.ProtocolConstants;
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
+import com.ethis2s.service.ChangeInitiator;
 import com.ethis2s.service.ClientSocketManager;
 import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.MacosNativeUtil;
@@ -47,6 +48,8 @@ import javafx.scene.paint.Color;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 import socketprotocol.ParsedPacket;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 public class MainController implements ClientSocketManager.ClientSocketCallback {
 
@@ -76,6 +79,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     private boolean isSearchActive = false;
     private final double SEARCH_FIELD_NARROW_WIDTH = 200;
     private final double SEARCH_FIELD_WIDE_WIDTH = 400;
+    private Runnable searchAction;
 
     public MainController(Stage primaryStage) {
         this.primaryStage = primaryStage;
@@ -137,7 +141,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         this.mainScene = new Scene(rootPane, 1280, 720);
         mainScene.setFill(Color.TRANSPARENT);
         try {
-            String cssPath = ConfigManager.getInstance().getMainThemePath();
+            String cssPath = ConfigManager.getInstance().getThemePath("design","mainTheme");
             if (cssPath != null) {
                 mainScene.getStylesheets().add(cssPath);
             }
@@ -168,7 +172,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             
             searchField.promptTextProperty().bind(editorTabView.activeTabTitleProperty());
 
-            Runnable searchAction = () -> {
+            this.searchAction = () -> {
                 if (editorTabView != null) {
                     editorTabView.performSearchOnActiveTab(
                         searchField.getText(), 
@@ -176,7 +180,6 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                     );
                 }
             };
-
             searchField.textProperty().addListener((obs, oldText, newText) -> {
                 searchAction.run();
                 updateSearchButtonVisibility();
@@ -189,11 +192,27 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             mainScreen.getPrevButton().setOnAction(e -> editorTabView.goToPreviousMatchOnActiveTab());
             mainScreen.getNextButton().setOnAction(e -> editorTabView.goToNextMatchOnActiveTab());
             
+            // 검색 관련 컨트롤 목록 정의
+            List<Node> searchRelatedControls = List.of(
+                searchField,
+                mainScreen.getPrevButton(),
+                mainScreen.getNextButton(),
+                caseSensitiveCheck,
+                mainScreen.getSearchBox()
+            );
+
             // Add a listener to the text field's focus property
             searchField.focusedProperty().addListener((obs, wasFocused, isNowFocused) -> {
                 if (isNowFocused) {
                     mainScreen.getSearchBox().getStyleClass().add("search-field-focused");
                 } else {
+                    // 포커스가 사라졌을 때, 새로 포커스를 받은 곳이 검색 관련 컨트롤이 아니라면 하이라이트를 제거
+                    Platform.runLater(() -> {
+                        Node currentFocusOwner = mainScene.getFocusOwner();
+                        if (!searchRelatedControls.contains(currentFocusOwner)) {
+                            editorTabView.clearSearchHighlights();
+                        }
+                    });
                     mainScreen.getSearchBox().getStyleClass().remove("search-field-focused");
                 }
                 updateSearchButtonVisibility();
@@ -247,6 +266,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             if (isMaximized) {
                 mainScreen.getTopPane().getStyleClass().add("maximized");
                 mainScreen.getStatusBar().getStyleClass().add("maximized");
+                mainScreen.getWindowCloseButton().getStyleClass().add("maximized");
                 Platform.runLater(() -> {
                     Screen screen = Screen.getPrimary();
                     Rectangle2D bounds = screen.getVisualBounds();
@@ -258,6 +278,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             }else{
                 mainScreen.getTopPane().getStyleClass().remove("maximized");
                 mainScreen.getStatusBar().getStyleClass().remove("maximized");
+                mainScreen.getWindowCloseButton().getStyleClass().remove("maximized");
             }
             Platform.runLater(()->rootPane.applyCss());
         });
@@ -325,12 +346,6 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         });
     }
 
-    public void openFileInEditor(String filePath) {
-        // TODO: 서버로부터 파일 내용을 요청하고 받아오는 로직 필요
-        String dummyContent = "// " + filePath + " 의 내용을 여기에 로드합니다.";
-        editorTabView.openFileInEditor(filePath, dummyContent);
-    }
-
     public void showLoginView() {editorTabView.showLoginView(() -> loginScreen.createLoginView(this));}
 
     public void showRegisterView() {editorTabView.showRegisterView(() -> registerScreen.createRegisterView(socketManager, this));}
@@ -384,7 +399,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
 
             mainScene.getStylesheets().clear();
             ConfigManager configManager = ConfigManager.getInstance();
-            String mainThemePath = configManager.getMainThemePath();
+            String mainThemePath = configManager.getThemePath("design","mainTheme");
             if (mainThemePath != null) {
                 mainScene.getStylesheets().add(mainThemePath);
             }
@@ -407,6 +422,23 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             SettingsView settingsView = new SettingsView(saveCallback, closeTabCallback);
             return settingsView.createView();
         });
+    }
+
+
+    private String calculateSHA256(String text) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] encodedhash = digest.digest(text.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder(2 * encodedhash.length);
+            for (int i = 0; i < encodedhash.length; i++) {
+                String hex = Integer.toHexString(0xff & encodedhash[i]);
+                if(hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 
@@ -471,6 +503,22 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     }
 
     @Override
+    public void onFileContentResponse(String path, String content, String hash) {
+        String calculatedHash = calculateSHA256(content);
+        if (calculatedHash.equals(hash)) {
+            Platform.runLater(() -> {
+                editorTabView.openFileInEditor(path, content);
+            });
+        } else {
+            System.err.println("File content hash mismatch for: " + path + ". Retrying...");
+            // Find the project info and re-request
+            mainScreen.getCurrentProjectForFileTree().ifPresent(projectInfo -> {
+                projectController.fileContentRequest(projectInfo, path);
+            });
+        }
+    }
+
+    @Override
     public void onCreateProjectResponse(boolean result) {
         projectController.handleCreateProjectResponse(result);
     }
@@ -518,6 +566,89 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         projectController.handleAddFolderResponse(result);
     }
 
+    @Override
+    public void onLineLockUpdate(String filePath, int line, String userId, String userNickname) {
+        String tabId = "file-" + filePath;
+        Runnable updateAction = () -> editorTabView.updateLineLockIndicator(filePath, line, userId, userNickname);
+
+        if (editorTabView.getStateManager().isInitializing(tabId)) {
+            editorTabView.getStateManager().queueUpdate(tabId, updateAction);
+        } else {
+            Platform.runLater(updateAction);
+        }
+    }
+
+    @Override
+    public void onLineLockResponse(boolean success, int line) {
+        if (success) {
+            Platform.runLater(() -> {
+                if (userInfo == null) return;
+
+                // Find the file path of the currently active editor
+                editorTabView.getActiveCodeArea()
+                    .flatMap(activeArea -> editorTabView.getStateManager().findTabIdForCodeArea(activeArea))
+                    .ifPresent(tabId -> {
+                        String filePath = tabId.substring("file-".length());
+                        // Update the state manager with our own lock information
+                        editorTabView.updateLineLockIndicator(filePath, line, userInfo.getId(), userInfo.getNickname());
+                    });
+            });
+        }
+    }
+    @Override
+    public void onFileEditBroadcast(String filePath, String type, int position, String text, int length) {
+        System.out.println(String.format("[DEBUG] MainController: onFileEditBroadcast received -> File: %s, Type: %s, Pos: %d, Text: '%s', Length: %d", filePath, type, position, text, length));
+        String tabId = "file-" + filePath;
+        
+        Runnable updateAction = () -> {
+            editorTabView.getStateManager().getHybridManager(tabId).ifPresent(manager -> {
+                if ("INSERT".equals(type)) {
+                    manager.controlledReplaceText(position, position, text, ChangeInitiator.SERVER);
+                } else if ("DELETE".equals(type)) {
+                    manager.controlledReplaceText(position, position + length, "", ChangeInitiator.SERVER);
+                }
+            });
+        };
+
+        if (editorTabView.getStateManager().isInitializing(tabId)) {
+            System.out.println("[DEBUG] MainController: Tab " + tabId + " is initializing. Queuing update.");
+            editorTabView.getStateManager().queueUpdate(tabId, updateAction);
+        } else {
+            Platform.runLater(updateAction);
+        }
+    }
+
+    @Override
+    public void onFileEditErrorResponse(int lineNumber, String lockOwnerId, String lockOwnerNickname) {
+        Platform.runLater(() -> {
+            // An edit was rejected because a line is locked by someone else.
+            // The server is providing us with the ground truth, so we can self-correct our state.
+
+            editorTabView.getActiveCodeArea()
+                .flatMap(activeArea -> editorTabView.getStateManager().findTabIdForCodeArea(activeArea))
+                .ifPresent(tabId -> {
+                    String filePath = tabId.substring("file-".length());
+                    // Force-update the line lock indicator with the correct owner information from the server.
+                    editorTabView.updateLineLockIndicator(filePath, lineNumber, lockOwnerId, lockOwnerNickname);
+                });
+        });
+    }
+
+    @Override
+    public void onCursorMoveBroadcast(String filePath, String userId, String userNickname, int position) {
+        System.out.println(String.format("[DEBUG] MainController: onCursorMoveBroadcast received -> File: %s, User: %s(%s), Pos: %d", filePath, userNickname, userId, position));
+        // Do not process our own cursor movements broadcasted back to us.
+        if (userInfo != null && userInfo.getId().equals(userId)) {
+            return;
+        }
+        
+        Platform.runLater(() -> {
+            if (editorTabView != null) {
+                editorTabView.updateUserCursor(filePath, userId, userNickname, position);
+            }
+        });
+    }
+
     /**
      * ANTLR 분석 작업이 시작되었음을 알립니다.
      * 실행 중인 작업 수를 1 증가시키고, 첫 작업인 경우 인디케이터를 표시합니다.
@@ -553,5 +684,11 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             return mainScreen.getSearchField().getText();
         }
         return "";
+    }
+
+    public void triggerSearch() {
+        if (searchAction != null) {
+            searchAction.run();
+        }
     }
 }

@@ -157,6 +157,8 @@
     -fx-background-color: transparent;
     -fx-background-radius: 0;
     -fx-padding: 8px 15px;
+    -fx-border-color: transparent;
+    -fx-border-width: 1px 0 0 0;
     -fx-text-fill: #cccccc;
     -fx-font-size: 10px;
     -fx-font-weight: bold;
@@ -164,10 +166,12 @@
 
 .window-button:hover {
     -fx-background-color: #444444;
+    -fx-border-color: #444444;
 }
 
 .window-button:pressed {
     -fx-background-color: #5e5e5e;
+    -fx-border-color: #5e5e5e;
 }
 
 .close-button {
@@ -177,6 +181,10 @@
     -fx-border-color: transparent;
     -fx-border-radius: 0 0 6px 0;
     -fx-border-width: 1px 1px 0 0;
+    -fx-text-fill: #cccccc;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 8px 15px;
 }
 
 .close-button:hover {
@@ -189,6 +197,11 @@
     -fx-background-color: #9b111e;
     -fx-text-fill: #ffffff;
     -fx-background-radius: 0 6px 0 0;
+}
+
+.close-button.maximized{
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
 }
 
 

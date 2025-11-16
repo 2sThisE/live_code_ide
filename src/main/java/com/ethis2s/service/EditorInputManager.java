@@ -1,10 +1,13 @@
 package com.ethis2s.service;
 
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.scene.control.IndexRange;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.util.Duration;
+
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.model.TwoDimensional.Bias;
 import org.fxmisc.richtext.model.TwoDimensional.Position;
@@ -32,15 +35,35 @@ public class EditorInputManager {
     private final EditorEnhancer enhancer;
     private final CompletionService completionService;
     private final HybridManager manager;
+    private final PauseTransition lineLockDebouncer;
+    private final InputInterpreter interpreter;
 
     private final StringBuilder currentWord = new StringBuilder();
     private boolean suggestionsHiddenManually = false;
+    private int lastCaretLine = -1;
+    private ChangeInitiator lastInitiator = ChangeInitiator.USER;
 
     public EditorInputManager(CodeArea codeArea, EditorEnhancer enhancer, CompletionService completionService, HybridManager manager) {
         this.codeArea = codeArea;
         this.enhancer = enhancer;
         this.completionService = completionService;
         this.manager = manager;
+        this.interpreter = new InputInterpreter(manager, codeArea);
+
+        this.lineLockDebouncer = new PauseTransition(Duration.millis(500));
+        this.lineLockDebouncer.setOnFinished(event -> {
+            int currentLine = codeArea.getCurrentParagraph();
+            if (currentLine != lastCaretLine) {
+                 manager.requestLineLock(currentLine + 1);
+                 lastCaretLine = currentLine;
+            }
+        });
+    }
+
+    public void controlledReplaceText(int start, int end, String text, ChangeInitiator initiator) {
+        System.out.println(String.format("[DEBUG] EditorInputManager: controlledReplaceText called by %s -> Range: [%d, %d], Text: '%s'", initiator, start, end, text.replace("\n", "\\n")));
+        this.lastInitiator = initiator;
+        codeArea.replaceText(start, end, text);
     }
 
     public void registerEventHandlers() {
@@ -57,6 +80,27 @@ public class EditorInputManager {
                     optimizeIndent(i);
                 }
             });
+        });
+
+        codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
+            // Send cursor move event
+            manager.cursorMoveRequest(newPos);
+
+            // Handle line lock debouncing
+            int currentLine = codeArea.getCurrentParagraph();
+            if (currentLine != lastCaretLine) {
+                lineLockDebouncer.stop();
+                lineLockDebouncer.play();
+            }
+        });
+
+        codeArea.plainTextChanges().subscribe(change -> {
+            ChangeInitiator initiator = this.lastInitiator;
+            this.lastInitiator = ChangeInitiator.USER; // Reset to default
+
+            if (initiator == ChangeInitiator.USER) {
+                interpreter.interpretAndSend(change);
+            }
         });
     }
 
@@ -90,7 +134,7 @@ public class EditorInputManager {
     
     public void optimizeIndent(int paragraphIndex) {
 
-        int tabSize = ConfigManager.getInstance().getTabSize();
+        int tabSize = ConfigManager.getInstance().get("editor","tabSize",Integer.class,4);
         if (tabSize <= 1) return;
 
         // 라인이 유효한지 확인
@@ -128,12 +172,25 @@ public class EditorInputManager {
             // 3. 변환된 들여쓰기가 기존과 다를 경우에만 교체합니다.
             if (!indentText.equals(newIndent)) {
                 int paragraphStart = codeArea.getAbsolutePosition(paragraphIndex, 0);
-                codeArea.replaceText(paragraphStart, paragraphStart + indentText.length(), newIndent);
+                controlledReplaceText(paragraphStart, paragraphStart + indentText.length(), newIndent, ChangeInitiator.SYSTEM);
             }
         }
     }
 
     private void handleKeyTyped(KeyEvent e) {
+        // Hybrid Debouncing: If a key is typed while the debouncer is waiting,
+        // cancel the wait and send the lock request immediately.
+        if (lineLockDebouncer.getStatus() == PauseTransition.Status.RUNNING) {
+            lineLockDebouncer.stop();
+            int currentLine = codeArea.getCurrentParagraph();
+            manager.requestLineLock(currentLine + 1);
+            lastCaretLine = currentLine;
+        }
+
+        if (manager.isLineLockedByOther(codeArea.getCurrentParagraph())) {
+            e.consume();
+            return;
+        }
         String typedChar = e.getCharacter();
         if (typedChar.isEmpty() || Character.isISOControl(typedChar.charAt(0))) {
             // 제어 문자가 입력되면 자동 완성을 시도하지 않고 바로 종료합니다.
@@ -186,8 +243,12 @@ public class EditorInputManager {
                 enhancer.hideSuggestions();
             }
             int caretPosition = codeArea.getCaretPosition();
-            codeArea.insertText(caretPosition, closingChar);
-            codeArea.moveTo(caretPosition);
+            // Insert the opening char as USER action first
+            controlledReplaceText(caretPosition, caretPosition, typedChar, ChangeInitiator.USER);
+            // Then insert the closing char as another USER action
+            controlledReplaceText(caretPosition + typedChar.length(), caretPosition + typedChar.length(), closingChar, ChangeInitiator.USER);
+            codeArea.moveTo(caretPosition + typedChar.length());
+            e.consume(); // Consume the event as we handled it manually
         }
     }
 
@@ -234,7 +295,7 @@ public class EditorInputManager {
         int replaceStart = codeArea.getAbsolutePosition(startLine, 0);
         int replaceEnd = codeArea.getAbsolutePosition(endLine, codeArea.getParagraph(endLine).length());
         
-        codeArea.replaceText(replaceStart, replaceEnd, formattedText.toString());
+        controlledReplaceText(replaceStart, replaceEnd, formattedText.toString(), ChangeInitiator.USER);
     }
 
     private int findMatchingOpeningBrace(int closingBracePos) {
@@ -256,7 +317,7 @@ public class EditorInputManager {
     }
 
     private int calculateIndentLevel(String indentText) {
-        int tabSize = ConfigManager.getInstance().getTabSize();
+        int tabSize = ConfigManager.getInstance().get("editor","tabSize",Integer.class,4);
         if (tabSize <= 1) {
             tabSize = 4; // 혹시 설정이 잘못되어도 괜찮아요. 제가 기본값으로 지켜드릴게요!
         }
@@ -281,6 +342,28 @@ public class EditorInputManager {
     }
 
     private void handleKeyPressed(KeyEvent e) {
+        // Hybrid Debouncing: Same logic as handleKeyTyped for special keys.
+        if (lineLockDebouncer.getStatus() == PauseTransition.Status.RUNNING) {
+            lineLockDebouncer.stop();
+            int currentLine = codeArea.getCurrentParagraph();
+            manager.requestLineLock(currentLine + 1);
+            lastCaretLine = currentLine;
+        }
+
+        if (manager.isLineLockedByOther(codeArea.getCurrentParagraph())) {
+            // Allow navigation keys (arrows, home, end, page up/down)
+            if (e.getCode().isNavigationKey()) {
+                // Potentially allow selection with shift, but block modifications
+                if (e.isShiftDown()) {
+                    // This is complex; for now, let's just allow movement.
+                    // A more advanced implementation might allow selection but prevent typing/deleting.
+                }
+            } else {
+                e.consume();
+                return;
+            }
+        }
+
         if (enhancer.isPopupShowing()) {
             handlePopupKeyPress(e);
         } else {
@@ -289,6 +372,7 @@ public class EditorInputManager {
     }
 
     private void handleNormalKeyPress(KeyEvent e) {
+
         if (e.getCode() == KeyCode.TAB) {
             IndexRange selection = codeArea.getSelection();
             if (selection.getLength() > 0) {
@@ -311,7 +395,7 @@ public class EditorInputManager {
 
                 // '괄호 탈출'이 아니면 기본 탭 삽입
                 if (!handled) {
-                    codeArea.insertText(caretPosition, "\t");
+                    controlledReplaceText(caretPosition, caretPosition, "\t", ChangeInitiator.USER);
                 }
             }
             e.consume();
@@ -360,7 +444,7 @@ public class EditorInputManager {
 
             String expectedClosing = getClosingChar(charBefore);
             if (expectedClosing != null && expectedClosing.equals(charAfter)) {
-                codeArea.deleteText(caretPosition - 1, caretPosition + 1);
+                controlledReplaceText(caretPosition - 1, caretPosition + 1, "", ChangeInitiator.USER);
                 e.consume();
             }
         }
@@ -407,7 +491,7 @@ public class EditorInputManager {
         int replaceStart = codeArea.getAbsolutePosition(startLine, 0);
         int replaceEnd = codeArea.getAbsolutePosition(endLine, codeArea.getParagraph(endLine).length());
         
-        codeArea.replaceText(replaceStart, replaceEnd, newText.toString());
+        controlledReplaceText(replaceStart, replaceEnd, newText.toString(), ChangeInitiator.USER);
 
         int newStart = start + firstLineLengthChange;
         int newEnd = end + totalLengthChange;
@@ -444,7 +528,7 @@ public class EditorInputManager {
     private void handleTabBackspace(KeyEvent e) {
         int caretPosition = codeArea.getCaretPosition();
         if (caretPosition > 0 && codeArea.getText(caretPosition - 1, caretPosition).equals("\t")) {
-            codeArea.deleteText(caretPosition - 1, caretPosition);
+            controlledReplaceText(caretPosition - 1, caretPosition, "", ChangeInitiator.USER);
             e.consume();
         }
     }
@@ -453,34 +537,40 @@ public class EditorInputManager {
         int caretPosition = codeArea.getCaretPosition();
         int currentParagraph = codeArea.getCurrentParagraph();
         String currentLine = codeArea.getParagraph(currentParagraph).getText();
-        int caretColumn = codeArea.getCaretColumn();
-        int endIndex = Math.min(caretColumn, currentLine.length());
-        String textBeforeCaret = currentLine.substring(0, endIndex);
 
         Matcher matcher = LEADING_WHITESPACE.matcher(currentLine);
         String indent = matcher.find() ? matcher.group() : "";
-        String extraIndent = "\t";
 
+        // Check if caret is between {}
         boolean isBetweenBraces = caretPosition > 0 &&
                                   caretPosition < codeArea.getLength() &&
                                   codeArea.getText(caretPosition - 1, caretPosition).equals("{") &&
                                   codeArea.getText(caretPosition, caretPosition + 1).equals("}");
 
         if (isBetweenBraces) {
+            String extraIndent = "\t";
             StringBuilder toInsert = new StringBuilder()
                     .append("\n").append(indent).append(extraIndent)
                     .append("\n").append(indent);
-            codeArea.replaceSelection(toInsert.toString());
+            
+            // Replace the selection (which is empty) with the three-line block
+            controlledReplaceText(caretPosition, caretPosition, toInsert.toString(), ChangeInitiator.USER);
+            
+            // Move caret to the middle line
             codeArea.moveTo(caretPosition + 1 + indent.length() + extraIndent.length());
         } else {
-            String bracesOnly = textBeforeCaret.replaceAll("[^{\\}]", "");
-            if (!bracesOnly.isEmpty() && bracesOnly.endsWith("{")) {
-                codeArea.replaceSelection("\n" + indent + extraIndent);
-            } else {
-                codeArea.replaceSelection("\n" + indent);
+            String textBeforeCaret = currentLine.substring(0, codeArea.getCaretColumn());
+            boolean endsWithOpeningBrace = textBeforeCaret.trim().endsWith("{");
+
+            String finalInsert = "\n" + indent;
+            if (endsWithOpeningBrace) {
+                finalInsert += "\t";
             }
+            
+            controlledReplaceText(codeArea.getSelection().getStart(), codeArea.getSelection().getEnd(), finalInsert, ChangeInitiator.USER);
         }
-        e.consume();
+        
+        e.consume(); // Consume the event in all cases.
     }
 
     private String getOpeningChar(String closingChar) {

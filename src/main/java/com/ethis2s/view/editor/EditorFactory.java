@@ -1,6 +1,8 @@
 package com.ethis2s.view.editor;
 
 import com.ethis2s.controller.MainController;
+import com.ethis2s.controller.ProjectController;
+import com.ethis2s.service.ChangeInitiator;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
 import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.HybridManager;
@@ -30,6 +32,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import com.ethis2s.service.RemoteCursorManager;
+
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.StackPane;
+
 /**
  * 파일에 대한 새로운 에디터(CodeArea) 인스턴스를 생성하고 설정하는 클래스입니다.
  * 구문 강조, 에러 처리, 줄 번호, UI 스타일링 등을 담당합니다.
@@ -39,17 +46,19 @@ public class EditorFactory {
     private final MainController mainController;
     private final EditorStateManager stateManager;
     private final EditorTabView owner;
+    private final ProjectController projectController;
 
     private final Tooltip errorTooltip = new Tooltip();
 
-    public EditorFactory(MainController mainController, EditorStateManager stateManager, EditorTabView owner) {
+    public EditorFactory(MainController mainController, EditorStateManager stateManager, EditorTabView owner, ProjectController projectController) {
         this.mainController = mainController;
         this.stateManager = stateManager;
         this.owner = owner;
+        this.projectController = projectController;
         errorTooltip.getStyleClass().add("error-tooltip");
     }
 
-    public VirtualizedScrollPane<CodeArea> createEditorForFile(String filePath, String content, String tabId) {
+    public Node createEditorForFile(String filePath, String content, String tabId) {
         String fileName = java.nio.file.Paths.get(filePath).getFileName().toString();
         CodeArea codeArea = new CodeArea();
         codeArea.getStyleClass().add("code-area");
@@ -59,7 +68,10 @@ public class EditorFactory {
             getFileExtension(filePath),
             (errors) -> Platform.runLater(() -> owner.handleErrorUpdate(tabId, fileName, errors)),
             mainController::notifyAntlrTaskStarted,
-            mainController::notifyAntlrTaskFinished
+            mainController::notifyAntlrTaskFinished,
+            projectController,
+            filePath,
+            stateManager
         );
 
         stateManager.registerTab(tabId, fileName, codeArea, manager);
@@ -67,8 +79,21 @@ public class EditorFactory {
         setupEditorFeatures(codeArea, tabId);
         setupErrorTooltip(codeArea, tabId);
 
-        codeArea.replaceText(0, 0, content);
-        return new VirtualizedScrollPane<>(codeArea);
+        // Create an overlay pane for remote cursors
+        Pane cursorOverlay = new Pane();
+        cursorOverlay.setMouseTransparent(true); // Clicks should go through to the CodeArea
+
+        // Create the RemoteCursorManager
+        RemoteCursorManager cursorManager = new RemoteCursorManager(codeArea, cursorOverlay, stateManager);
+        stateManager.registerCursorManager(tabId, cursorManager);
+
+        manager.controlledReplaceText(0, 0, content, ChangeInitiator.SYSTEM);
+        
+        VirtualizedScrollPane<CodeArea> scrollPane = new VirtualizedScrollPane<>(codeArea);
+        
+        // Create a StackPane to hold the editor and the cursor overlay
+        StackPane stackPane = new StackPane(scrollPane, cursorOverlay);
+        return stackPane;
     }
     
     public void reapplyStylesToAllEditors() {
@@ -95,7 +120,7 @@ public class EditorFactory {
             int totalLines = Math.max(1, codeArea.getParagraphs().size());
             String maxLineNumberText = String.valueOf(totalLines);
             Text text = new Text(maxLineNumberText);
-            text.setFont(Font.font(ConfigManager.getInstance().getFontFamily(), ConfigManager.getInstance().getFontSize()));
+            text.setFont(Font.font(ConfigManager.getInstance().get("editor", "font", String.class, "Consolas"), ConfigManager.getInstance().get("editor", "font", Double.class, 14.0)));
             double textWidth = text.getLayoutBounds().getWidth();
             double horizontalPadding = LEFT_PADDING_NUM + RIGHT_PADDING_NUM;
             double dynamicWidth = Math.ceil(textWidth + horizontalPadding);
@@ -108,7 +133,7 @@ public class EditorFactory {
 
         codeArea.setParagraphGraphicFactory(lineIndex -> {
             Label lineLabel = new Label();
-            lineLabel.setFont(Font.font(ConfigManager.getInstance().getFontFamily(), ConfigManager.getInstance().getFontSize()));
+            lineLabel.setFont(Font.font(ConfigManager.getInstance().get("editor", "font", String.class, "Consolas"), ConfigManager.getInstance().get("editor", "fontSize", Double.class, 14.0)));
             lineLabel.setText(String.valueOf(lineIndex + 1));
             lineLabel.getStyleClass().add("lineno");
             lineLabel.setAlignment(Pos.CENTER);
@@ -127,9 +152,8 @@ public class EditorFactory {
     }
 
     private void applyStylesToCodeArea(CodeArea codeArea) {
-        ConfigManager configManager = ConfigManager.getInstance();
-        final int FONT_SIZE = configManager.getFontSize();
-        final String FONT_FAMILY = configManager.getFontFamily();
+        final int FONT_SIZE = ConfigManager.getInstance().get("editor", "fontSize", Integer.class, 14);
+        final String FONT_FAMILY = ConfigManager.getInstance().get("editor", "font", String.class, "Consolas");
         final Font CODE_FONT = Font.font(FONT_FAMILY, FONT_SIZE);
         final double LINE_SPACING_FACTOR = 0.4;
 
@@ -140,7 +164,7 @@ public class EditorFactory {
         double verticalPadding = (targetLineHeight - fontHeight) / 2.0;
         double caretHeight = targetLineHeight + 1;
 
-        String tabSizeCss = String.format(".paragraph-text { -fx-tab-size: %d; }", configManager.getTabSize());
+        String tabSizeCss = String.format(".paragraph-text { -fx-tab-size: %d; }", ConfigManager.getInstance().get("editor", "tabSize", Integer.class,4));
         String dynamicStylingCss = String.format(
             ".text { -fx-font-family: '%s'; -fx-font-size: %dpx; }" +
             ".paragraph-box { -fx-min-height: %.1fpx; -fx-max-height: %.1fpx; -fx-pref-height: %.1fpx; -fx-display: flex; -fx-alignment: center-left; -fx-padding: 0 0 0 10px; }" +
@@ -196,6 +220,23 @@ public class EditorFactory {
 
     private void updateLineNumberStyle(Label lineLabel, int lineIndex, String tabId, CodeArea codeArea,
                                        String DEFAULT_LINE_STYLE, String CARET_LINE_STYLE, String ERR_LINE_STYLE) {
+        final String LOCKED_BY_OTHER_STYLE = "-fx-text-fill: #ffab70 !important;"; 
+
+        Optional<EditorStateManager.UserLockInfo> lockInfoOpt = stateManager.getLineLockInfo(tabId, lineIndex + 1); // stateManager uses 1-based indexing
+        
+        lineLabel.setText(String.valueOf(lineIndex + 1)); // Always set the line number without nickname
+
+        if (lockInfoOpt.isPresent()) {
+            String currentUserId = projectController.getCurrentUserId().orElse("");
+            boolean lockedByCurrentUser = lockInfoOpt.get().userId.equals(currentUserId);
+
+            if (!lockedByCurrentUser) {
+                lineLabel.setStyle(LOCKED_BY_OTHER_STYLE);
+                return; // Locked by other, so no other style applies
+            }
+        }
+
+        // If not locked by other, apply normal styles
         List<SyntaxError> errors = stateManager.getErrorsForTab(tabId);
         boolean hasError = errors.stream().anyMatch(e -> e.line - 1 == lineIndex);
         if (hasError) {

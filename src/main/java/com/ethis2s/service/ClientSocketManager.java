@@ -1,14 +1,19 @@
 package com.ethis2s.service;
 
+import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
@@ -41,6 +46,8 @@ public class ClientSocketManager {
     private volatile boolean isReconnecting = false;
     private volatile boolean isRunning = true;
     private Thread receivingThread;
+    private final Map<Integer, ByteArrayOutputStream> fragmentBuffers = new HashMap<>();
+    private static final int MAX_PAYLOAD_SIZE = 8188; // 8196 - 8 (Header + CRC32)
 
     public ClientSocketManager(ClientSocketCallback callback) {
         this.callback = callback;
@@ -90,6 +97,28 @@ public class ClientSocketManager {
             Thread.currentThread().interrupt(); // Preserve interrupt status
         }
         System.out.println("DEBUG: ClientSocketManager.disconnect() finished.");
+    }
+
+    public void sendJsonPacket(JSONObject json, int userValue, byte payloadType) throws IOException {
+        byte[] payload = json.toString().getBytes(StandardCharsets.UTF_8);
+        int payloadSize = payload.length;
+
+        if (payloadSize <= MAX_PAYLOAD_SIZE) {
+            sendPacket(payload, ProtocolConstants.UNFRAGED, userValue, payloadType);
+            return;
+        }
+
+        int offset = 0;
+        while (offset < payloadSize) {
+            int length = Math.min(MAX_PAYLOAD_SIZE, payloadSize - offset);
+            byte[] chunk = Arrays.copyOfRange(payload, offset, offset + length);
+            
+            offset += length; // Move offset before the check for the last chunk
+
+            byte fragFlag = (offset >= payloadSize) ? ProtocolConstants.UNFRAGED : ProtocolConstants.FRAGED;
+            
+            sendPacket(chunk, fragFlag, userValue, payloadType);
+        }
     }
 
     public void sendPacket(byte[] payload, byte fragFlag, int userValue, byte payloadType) throws IOException {
@@ -173,25 +202,51 @@ public class ClientSocketManager {
     }
 
     private void handlePacket(byte[] packetBytes) {
-        // ... (handlePacket logic remains the same)
         try {
             ParsedPacket parsed = protocol.parsePacket(packetBytes);
             int userField = parsed.getUserField();
             byte[] payload = parsed.getPayload();
+            byte[] finalPayload;
 
-            switch (userField) {
+            if (parsed.getFragmentFlag() == ProtocolConstants.FRAGED) {
+                fragmentBuffers.computeIfAbsent(userField, k -> new ByteArrayOutputStream()).write(payload);
+                return; 
+            } 
+            
+            ByteArrayOutputStream buffer = fragmentBuffers.get(userField);
+            if (buffer != null) {
+                buffer.write(payload);
+                finalPayload = buffer.toByteArray();
+                fragmentBuffers.remove(userField);
+            } else {
+                finalPayload = payload;
+            }
+
+            // Create a new, definitive ParsedPacket object from the (potentially reassembled) payload.
+            ParsedPacket finalPacket = new ParsedPacket(
+                parsed.getProtocolVersion(),
+                finalPayload.length + 8, // +8 for header and CRC
+                ProtocolConstants.UNFRAGED,
+                parsed.getPayloadType(),
+                userField,
+                finalPayload
+            );
+
+            // All subsequent logic will now operate on the consistent finalPacket.
+            System.out.println("ReciveFormServer: "+new String(finalPacket.getPayload()));
+            switch (finalPacket.getUserField()) {
                 case ProtocolConstants.UF_REGISTER_RESPONSE:
-                    callback.onRegisterResponse(ByteBuffer.wrap(payload).getInt());
+                    callback.onRegisterResponse(ByteBuffer.wrap(finalPacket.getPayload()).getInt());
                     break;
                 case ProtocolConstants.UF_LOGIN_RESPONSE:
-                    callback.onLoginResponse(ByteBuffer.wrap(payload).getInt());
+                    callback.onLoginResponse(ByteBuffer.wrap(finalPacket.getPayload()).getInt());
                     break;
                 case ProtocolConstants.UF_USER_INFO:
-                    JSONObject userJson = new JSONObject(new String(payload));
+                    JSONObject userJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
                     callback.onUserInfoReceived(new UserInfo(userJson.getString("id"), userJson.getString("nickname"), userJson.getString("tag")));
                     break;
                 case ProtocolConstants.UF_PROJECT_LIST_RESPONSE:
-                    JSONArray projectsJson = new JSONArray(new String(payload));
+                    JSONArray projectsJson = new JSONArray(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
                     List<UserProjectsInfo> projects = new ArrayList<>();
                     for (int i = 0; i < projectsJson.length(); i++) {
                         projects.add(new UserProjectsInfo(projectsJson.getJSONObject(i)));
@@ -199,39 +254,90 @@ public class ClientSocketManager {
                     callback.onProjectListResponse(projects);
                     break;
                 case ProtocolConstants.UF_FILETREE_LIST_RESPONSE:
-                    JSONArray fileListJson = new JSONArray(new String(payload));
+                    JSONArray fileListJson = new JSONArray(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
                     String pId = fileListJson.getJSONObject(0).getString("project_id");
                     callback.onFileListResponse(pId, fileListJson.getJSONObject(1));
                     break;
+                case ProtocolConstants.UF_FILE_CONTENT_RESPONSE:
+                    JSONObject fileContentJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
+                    callback.onFileContentResponse(fileContentJson.getString("path"), fileContentJson.getString("content"), fileContentJson.getString("hash"));
+                    break;
                 case ProtocolConstants.UF_CREATE_PROJECT_RSPONSE:
-                    callback.onCreateProjectResponse(payload[0] != 0);
+                    callback.onCreateProjectResponse(finalPacket.getPayload()[0] != 0);
                     break;
                 case ProtocolConstants.UF_DELETE_PROJECT_RSPONSE:
-                    callback.onDeleteProjectResponse(payload[0] != 0);
+                    callback.onDeleteProjectResponse(finalPacket.getPayload()[0] != 0);
                     break;
                 case ProtocolConstants.UF_DELETE_SHARE_RESPONSE:
-                    JSONObject delShareJson = new JSONObject(new String(payload));
+                    JSONObject delShareJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
                     callback.onDeleteShareResponse(delShareJson.getString("project_id"), delShareJson.getBoolean("result"));
                     break;
                 case ProtocolConstants.UF_SHARED_LIST_RESPONSE:
-                    JSONObject sharedListJson = new JSONObject(new String(payload));
+                    JSONObject sharedListJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
                     callback.onSharedListResponse(sharedListJson.getString("project_id"), sharedListJson.getJSONArray("shared_with"));
                     break;
                 case ProtocolConstants.UF_ADD_SHARE_RESPONSE:
-                    JSONObject addShareJson = new JSONObject(new String(payload));
+                    JSONObject addShareJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
                     callback.onAddShareResponse(addShareJson.getString("project_id"), addShareJson.getBoolean("result"));
                     break;
                 case ProtocolConstants.UF_ADD_FILE_RESPONSE:
-                    callback.onAddFileResponse(payload[0] != 0);
+                    callback.onAddFileResponse(finalPacket.getPayload()[0] != 0);
                     break;
                 case ProtocolConstants.UF_ADD_FOLDER_RESPONSE:
-                    callback.onAddFolderResponse(payload[0] != 0);
+                    callback.onAddFolderResponse(finalPacket.getPayload()[0] != 0);
+                    break;
+                case ProtocolConstants.UF_LINE_UNLOCK_RESPONSE:
+                    JSONObject lockUpdateJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
+                    callback.onLineLockUpdate(
+                        lockUpdateJson.getString("path"),
+                        lockUpdateJson.getInt("lineNumber"),
+                        lockUpdateJson.getString("user_id"),
+                        lockUpdateJson.getString("user_nickname")
+                    );
+                    break;
+                case ProtocolConstants.UF_LINE_LOCK_RESPONSE:
+                    JSONObject lockResponseJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
+                    callback.onLineLockResponse(
+                        lockResponseJson.getBoolean("success"),
+                        lockResponseJson.getInt("lineNumber")
+                    );
+                    break;
+                case ProtocolConstants.UF_CLIENT_ERROR:
+                    JSONObject errorJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
+                    if (errorJson.has("lineNumber") && errorJson.has("lockOwner")) {
+                        int lineNumber = errorJson.getInt("lineNumber");
+                        String lockOwnerId = errorJson.getString("lockOwner");
+                        String lockOwnerNickname = errorJson.optString("lockOwnerNickname", lockOwnerId);
+                        callback.onFileEditErrorResponse(lineNumber, lockOwnerId, lockOwnerNickname);
+                    }
+                    break;
+                case ProtocolConstants.UF_FILE_EDIT_BROADCAST:
+                    {
+                        String jsonString = new String(finalPacket.getPayload(), StandardCharsets.UTF_8);
+                        System.out.println("[DEBUG] ClientSocketManager: Received UF_FILE_EDIT_BROADCAST: " + jsonString);
+                        JSONObject editJson = new JSONObject(jsonString);
+                        String editPath = editJson.getString("path");
+                        String editType = editJson.getString("type");
+                        int editPosition = editJson.getInt("position");
+                        String text = editJson.optString("text", "");
+                        int length = editJson.optInt("length", 0);
+                        callback.onFileEditBroadcast(editPath, editType, editPosition, text, length);
+                    }
+                    break;
+                case ProtocolConstants.UF_CURSOR_MOVE_BROADCAST:
+                    String jsonString = new String(finalPacket.getPayload(), StandardCharsets.UTF_8);
+                    System.out.println("[DEBUG] ClientSocketManager: Received UF_CURSOR_MOVE_BROADCAST: " + jsonString);
+                    JSONObject cursorJson = new JSONObject(jsonString);
+                    String cursorPath = cursorJson.getString("path");
+                    String userId = cursorJson.getString("user_id");
+                    String userNickname = cursorJson.optString("user_nickname", userId);
+                    int cursorPosition = cursorJson.getInt("cursorPosition");
+                    callback.onCursorMoveBroadcast(cursorPath, userId, userNickname, cursorPosition);
                     break;
                 default:
-                    callback.onPacketReceived(parsed);
-                    break;
+                    callback.onPacketReceived(finalPacket);
             }
-        } catch (PacketException | JSONException e) {
+        } catch (PacketException | JSONException | IOException e) {
             if (callback != null) {
                 callback.onError("Error parsing packet: " + e.getMessage());
             }
@@ -249,6 +355,7 @@ public class ClientSocketManager {
         void onUserInfoReceived(UserInfo userInfo);
         void onProjectListResponse(List<UserProjectsInfo> projectList);
         void onFileListResponse(String projectID, JSONObject fileList);
+        void onFileContentResponse(String path, String content, String hash);
         void onCreateProjectResponse(boolean result);
         void onDeleteProjectResponse(boolean result);
         void onSharedListResponse(String projectId, JSONArray sharedList);
@@ -256,5 +363,10 @@ public class ClientSocketManager {
         void onDeleteShareResponse(String projectID, boolean result);
         void onAddFileResponse(boolean result);
         void onAddFolderResponse(boolean result);
+        void onLineLockUpdate(String filePath, int line, String userId, String userNickname);
+        void onLineLockResponse(boolean success, int line);
+        void onFileEditBroadcast(String filePath, String type, int position, String text, int length);
+        void onFileEditErrorResponse(int lineNumber, String lockOwnerId, String lockOwnerNickname);
+        void onCursorMoveBroadcast(String filePath, String userId, String userNickname, int position);
     }
 }
