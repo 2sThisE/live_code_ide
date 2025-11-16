@@ -340,92 +340,54 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         editorTabView.openFileInEditor(filePath, dummyContent);
     }
 
-    public void showLoginView() {
-        String tabId = "login-tab";
-        
-        // Close the register tab if it's open
-        if (editorTabView.hasTab("register-tab")) {
-            editorTabView.closeTab("register-tab");
-        }
+    public void showLoginView() {editorTabView.showLoginView(() -> loginScreen.createLoginView(this));}
 
-        if (editorTabView.hasTab(tabId)) {
-            editorTabView.selectTab(tabId);
-            return;
-        }
-        Node loginView = loginScreen.createLoginView(this);
-        editorTabView.openTab(tabId, "로그인", loginView);
-    }
-
-    public void showRegisterView() {
-        String tabId = "register-tab";
-
-        // Close the login tab if it's open
-        if (editorTabView.hasTab("login-tab")) {
-            editorTabView.closeTab("login-tab");
-        }
-
-        if (editorTabView.hasTab(tabId)) {
-            editorTabView.selectTab(tabId);
-            return;
-        }
-        Node registerView = registerScreen.createRegisterView(socketManager, this);
-        editorTabView.openTab(tabId, "회원가입", registerView);
-    }
+    public void showRegisterView() {editorTabView.showRegisterView(() -> registerScreen.createRegisterView(socketManager, this));}
 
     public void showProjectPropertiesView(UserProjectsInfo userProjectsInfo) {
-        String tabId = "properties-" + userProjectsInfo.getProjectID();
-        String title = userProjectsInfo.getProjectName() + " 속성";
-        
-        if (editorTabView.hasTab(tabId)) {
-            editorTabView.selectTab(tabId);
-            return;
-        }
-        
-        ProjectPropertiesScreen pps = new ProjectPropertiesScreen();
-        Node content = pps.creatProjectProperties(userProjectsInfo);
-        editorTabView.openTab(tabId, title, content);
+        editorTabView.showProjectPropertiesView(
+            userProjectsInfo.getProjectID(),
+            userProjectsInfo.getProjectName(),
+            () -> {
+                ProjectPropertiesScreen pps = new ProjectPropertiesScreen();
+                return pps.creatProjectProperties(userProjectsInfo);
+            }
+        );
     }
 
     public void showSharedOptionView(UserProjectsInfo userProjectsInfo) {
         String projectId = userProjectsInfo.getProjectID();
-        String tabId = "share-" + projectId;
-        String title = userProjectsInfo.getProjectName() + " 공유";
         
-        if (editorTabView.hasTab(tabId)) {
-            editorTabView.selectTab(tabId);
-            return;
-        }
-
-        SharedOptionScreen sos = new SharedOptionScreen();
-        Node content = sos.createShareOptionView(
-            this, projectController, userProjectsInfo, 
-            (pId, dataCallback) -> {
-                pendingSharedListCallbacks.put(pId, dataCallback);
-                projectController.sharedListRequest(pId);
-            }, 
-            (pId, name, tag, resultCallback) -> {
-                pendingAddShareCallbacks.put(pId, resultCallback);
-                projectController.addShareRequest(pId, name, tag);
-            }
-        );
-        
+        // onClose 콜백은 컨트롤러가 계속 관리합니다. (상태를 소유하므로)
         Runnable onClose = () -> {
             pendingSharedListCallbacks.remove(projectId);
             pendingAddShareCallbacks.remove(projectId);
         };
 
-        editorTabView.openTabWithCloseCallback(tabId, title, content, onClose);
+        editorTabView.showSharedOptionView(
+            projectId,
+            userProjectsInfo.getProjectName(),
+            () -> { // 뷰 생성 로직을 람다로 전달합니다.
+                SharedOptionScreen sos = new SharedOptionScreen();
+                return sos.createShareOptionView(
+                    this, projectController, userProjectsInfo,
+                    (pId, dataCallback) -> {
+                        pendingSharedListCallbacks.put(pId, dataCallback);
+                        projectController.sharedListRequest(pId);
+                    },
+                    (pId, name, tag, resultCallback) -> {
+                        pendingAddShareCallbacks.put(pId, resultCallback);
+                        projectController.addShareRequest(pId, name, tag);
+                    }
+                );
+            },
+            onClose
+        );
     }
 
     public void showSettingsView() {
-        String tabId = "settings-tab";
-        String title = "설정";
-
-        if (editorTabView.hasTab(tabId)) {
-            editorTabView.selectTab(tabId);
-            return;
-        }
-
+        // saveCallback은 컨트롤러의 다른 컴포넌트(mainScene, mainScreen)에 영향을 주므로
+        // 컨트롤러에 정의하는 것이 맞습니다.
         Runnable saveCallback = () -> {
             ConfigManager.getInstance().loadConfig();
 
@@ -435,25 +397,25 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             if (mainThemePath != null) {
                 mainScene.getStylesheets().add(mainThemePath);
             }
-
             if (mainScreen != null) {
                 mainScreen.reloadComponentCss();
             }
-
             if (editorTabView != null) {
                 editorTabView.reapplyAllEditorSettings();
             }
         };
 
-        Runnable closeTabCallback = () -> {
-            if (editorTabView != null) {
-                editorTabView.closeTab(tabId);
-            }
-        };
-
-        SettingsView settingsView = new SettingsView(saveCallback, closeTabCallback);
-        Node content = settingsView.createView();
-        editorTabView.openTab(tabId, title, content);
+        editorTabView.showSettingsView(() -> {
+            // closeTabCallback은 EditorTabView 내부에서 처리되도록 람다 안으로 이동할 수 있습니다.
+            // 하지만 SettingsView가 직접 closeTabCallback을 필요로 하므로, 여기서 생성해서 전달합니다.
+            Runnable closeTabCallback = () -> {
+                if (editorTabView != null) {
+                    editorTabView.closeTab("settings-tab");
+                }
+            };
+            SettingsView settingsView = new SettingsView(saveCallback, closeTabCallback);
+            return settingsView.createView();
+        });
     }
 
 
