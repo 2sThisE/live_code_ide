@@ -1,6 +1,5 @@
 package com.ethis2s.view.editor;
 
-import com.ethis2s.service.AntlrLanguageService;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
 import com.ethis2s.util.HybridManager;
 import javafx.beans.property.IntegerProperty;

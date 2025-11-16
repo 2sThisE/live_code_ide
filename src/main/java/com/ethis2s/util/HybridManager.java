@@ -2,6 +2,7 @@ package com.ethis2s.util;
 
 import com.ethis2s.service.AntlrCompletionService;
 import com.ethis2s.service.AntlrLanguageService;
+import com.ethis2s.service.EditorInputManager;
 import com.ethis2s.service.AntlrLanguageService.AnalysisResult;
 import com.ethis2s.service.AntlrLanguageService.BracketPair;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;

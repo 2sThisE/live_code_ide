@@ -48,7 +48,7 @@ import javafx.stage.StageStyle;
 
 public class App extends Application {
 
-    public static final String NATIVE_WINDOW_TITLE = "LiveCodeIDE_NativeWindow_20251115";
+    public static final String NATIVE_WINDOW_TITLE = "Live Code";
     private ClientSocketManager socketManager;
     private MainController mainController;
 

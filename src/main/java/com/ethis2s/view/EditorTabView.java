@@ -1,13 +1,13 @@
 package com.ethis2s.view;
 
 import com.ethis2s.controller.MainController;
+import com.ethis2s.service.TabDragDropManager;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
 import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.EditorSearchHandler;
 import com.ethis2s.view.ProblemsView.Problem;
 import com.ethis2s.view.editor.EditorFactory;
 import com.ethis2s.view.editor.EditorStateManager;
-import com.ethis2s.view.editor.TabDragDropManager;
 
 import javafx.application.Platform;
 import javafx.beans.property.IntegerProperty;
@@ -163,21 +163,55 @@ public class EditorTabView {
         Label fileNameLabel = new Label(fileName);
         fileNameLabel.getStyleClass().add("tab-file-name");
         
-        Label errorCountLabel = new Label("");
-        errorCountLabel.getStyleClass().add("tab-error-count");
-        errorCountLabel.setMinWidth(Region.USE_PREF_SIZE);
+        // [수정] 파일 에디터 탭에만 에러 카운터 표시
+        Node errorCounter = new Pane(); // 기본적으로 빈 공간
+        if (tab.getId() != null && tab.getId().startsWith("file-")) {
+            Label errorCountLabel = new Label("");
+            errorCountLabel.getStyleClass().add("tab-error-count");
+            errorCountLabel.setMinWidth(Region.USE_PREF_SIZE);
+            errorCounter = errorCountLabel;
+        }
         
-        HBox tabGraphic = new HBox(5, fileNameLabel, errorCountLabel);
+        HBox tabGraphic = new HBox(5, fileNameLabel, errorCounter);
         tabGraphic.setAlignment(Pos.CENTER_LEFT);
         tabGraphic.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(fileNameLabel, Priority.ALWAYS);
 
+        // --- [핵심 수정] 컨텍스트 메뉴 구조 변경 (하위 메뉴 사용) ---
         ContextMenu contextMenu = new ContextMenu();
+        
+        // 1. "창 분할" 하위 메뉴 생성
+        Menu splitMenu = new Menu("창 분할");
+        
+        // 2. 각 분할 메뉴 아이템 생성
         MenuItem splitRight = new MenuItem("우측으로 분할");
-        splitRight.setOnAction(e -> dragDropManager.splitTab(tab, Orientation.HORIZONTAL));
+        splitRight.setOnAction(e -> dragDropManager.splitTab(tab, TabDragDropManager.SplitDirection.RIGHT));
+
+        MenuItem splitLeft = new MenuItem("좌측으로 분할");
+        splitLeft.setOnAction(e -> dragDropManager.splitTab(tab, TabDragDropManager.SplitDirection.LEFT));
+        
         MenuItem splitDown = new MenuItem("하단으로 분할");
-        splitDown.setOnAction(e -> dragDropManager.splitTab(tab, Orientation.VERTICAL));
-        contextMenu.getItems().addAll(splitRight, splitDown);
+        splitDown.setOnAction(e -> dragDropManager.splitTab(tab, TabDragDropManager.SplitDirection.BOTTOM));
+
+        MenuItem splitUp = new MenuItem("상단으로 분할");
+        splitUp.setOnAction(e -> dragDropManager.splitTab(tab, TabDragDropManager.SplitDirection.TOP));
+        
+        // 3. 분할 메뉴 아이템들을 "창 분할" 하위 메뉴에 추가
+        splitMenu.getItems().addAll(splitUp, splitDown, splitLeft, splitRight);
+
+        // 4. "창 닫기" 메뉴 아이템 생성
+        MenuItem closeTabItem = new MenuItem("창 닫기");
+        closeTabItem.setOnAction(e -> {
+            // 탭이 속한 TabPane을 찾아서 탭을 제거
+            if (tab.getTabPane() != null) {
+                tab.getTabPane().getTabs().remove(tab);
+            }
+        });
+        // 설정 탭과 같이 닫을 수 없는 탭은 "창 닫기" 메뉴를 비활성화
+        closeTabItem.setDisable(!tab.isClosable());
+
+        // 5. 메인 컨텍스트 메뉴에 하위 메뉴와 다른 메뉴들을 추가
+        contextMenu.getItems().addAll(splitMenu, new SeparatorMenuItem(), closeTabItem);
         
         tabGraphic.setOnContextMenuRequested(e -> contextMenu.show(tabGraphic, e.getScreenX(), e.getScreenY()));
 
@@ -366,22 +400,30 @@ public class EditorTabView {
         }
     }
 
-    // createTab 메소드를 약간 수정하여 그래픽이 없는 일반 탭도 지원하도록 합니다.
     private Tab createTab(String tabId, String title, Node content, Runnable customOnClose) {
         if (hasTab(tabId)) {
             selectTab(tabId);
             return findTabById(tabId).orElse(null);
         }
-        // title이 null이 아니면 텍스트를 사용하고, null이면 그래픽을 사용하도록 가정
-        Tab newTab = (title != null) ? new Tab(title, content) : new Tab(null, content);
+
+        // [핵심 수정] 이제 title이 있든 없든 항상 Tab을 먼저 만들고, 그래픽을 설정합니다.
+        Tab newTab = new Tab(null, content); // 제목은 그래픽에서 처리하므로 null로 시작
         newTab.setId(tabId);
         newTab.setClosable(true);
         newTab.setOnClosed(e -> {
             if (customOnClose != null) customOnClose.run();
-            // 파일 에디터가 아닌 일반 탭이 닫힐 때도 정리 로직 호출
             Platform.runLater(this::checkAndCleanupAllPanes);
         });
 
+        // 파일 에디터가 아니면 tabId("login-tab")를, 파일 에디터면 title(파일명)을 사용
+        String tabTitle = (title != null) ? title : Paths.get(tabId.substring(5)).getFileName().toString();
+        
+        // 모든 탭에 대해 그래픽 헤더를 생성하고 분할 기능을 등록합니다.
+        HBox tabGraphic = createTabGraphic(tabTitle, newTab);
+        newTab.setGraphic(tabGraphic);
+        dragDropManager.registerDraggableTab(newTab, tabGraphic); // 드래그 기능도 모든 탭에 등록
+
+        // 탭을 TabPane에 추가
         TabPane targetPane = (activeTabPane != null) ? activeTabPane : managedTabPanes.stream().findFirst().orElse(null);
         if (targetPane != null) {
             targetPane.getTabs().add(newTab);

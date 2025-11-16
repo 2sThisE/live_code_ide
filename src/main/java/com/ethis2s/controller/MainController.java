@@ -12,13 +12,13 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import com.ethis2s.App;
+import com.ethis2s.model.ProtocolConstants;
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
 import com.ethis2s.service.ClientSocketManager;
 import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.MacosNativeUtil;
 import com.ethis2s.util.MaximizationPatcher;
-import com.ethis2s.util.ProtocolConstants;
 import com.ethis2s.util.WindowsNativeUtil;
 import com.ethis2s.view.DebugView;
 import com.ethis2s.view.EditorTabView;
@@ -245,32 +245,23 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         
         primaryStage.maximizedProperty().addListener((obs, oldVal, isMaximized) -> {
             if (isMaximized) {
+                mainScreen.getTopPane().getStyleClass().add("maximized");
+                mainScreen.getStatusBar().getStyleClass().add("maximized");
                 Platform.runLater(() -> {
-                    Platform.runLater(() -> {
-                        Screen screen = Screen.getPrimary();
-                        Rectangle2D bounds = screen.getVisualBounds();
-                        
-                        System.out.println("--- Recalibration Debug ---");
-                        System.out.printf("Bounds from Screen: x=%.1f, y=%.1f, w=%.1f, h=%.1f\n",
-                                bounds.getMinX(), bounds.getMinY(), bounds.getWidth(), bounds.getHeight());
-                        Platform.runLater(()->{
-                            primaryStage.setX(0);
-                            primaryStage.setY(0);
-                            primaryStage.setWidth(bounds.getWidth());
-                            primaryStage.setHeight(bounds.getHeight()-1);
-                        });
-                        Platform.runLater(()->{
-                            primaryStage.setWidth(bounds.getWidth());
-                        });
-                        
-                        System.out.printf("Stage After Set:  x=%.1f, y=%.1f, w=%.1f, h=%.1f\n",
-                                primaryStage.getX(), primaryStage.getY(), primaryStage.getWidth(), primaryStage.getHeight());
-                        System.out.println("---------------------------");
-                    });
+                    Screen screen = Screen.getPrimary();
+                    Rectangle2D bounds = screen.getVisualBounds();
+                    primaryStage.setX(0);
+                    primaryStage.setY(0);
+                    primaryStage.setWidth(bounds.getWidth());
+                    primaryStage.setHeight(bounds.getHeight()-1);
                 });
+            }else{
+                mainScreen.getTopPane().getStyleClass().remove("maximized");
+                mainScreen.getStatusBar().getStyleClass().remove("maximized");
             }
+            Platform.runLater(()->rootPane.applyCss());
         });
-        primaryStage.setTitle(com.ethis2s.App.NATIVE_WINDOW_TITLE);
+        primaryStage.setTitle(App.NATIVE_WINDOW_TITLE);
         primaryStage.show();
         
         

@@ -67,8 +67,7 @@ public class MainScreen {
     private final double SEARCH_FIELD_NARROW_WIDTH = 200;
     private final double SEARCH_FIELD_WIDE_WIDTH = 400;
     private HBox searchToolsContainer; // 이 필드를 추가해주세요.
-    
-
+    private HBox statusBar;
     private double xOffset = 0;
     private double yOffset = 0;
 
@@ -99,6 +98,10 @@ public class MainScreen {
     private Button windowCloseButton;
     private MenuBar menuBar;
     private StackPane topPane;
+
+
+
+    public HBox getStatusBar() {return statusBar;}
 
     public void updateProblemsTab(int errorCount) {
         // 이제 Tab 객체가 있는지 직접 확인합니다.
@@ -235,10 +238,7 @@ public class MainScreen {
 
             this.maximizeButton = new Button("◻");
             maximizeButton.getStyleClass().add("window-button");
-            maximizeButton.setOnAction(e -> {
-                stage.setMaximized(!stage.isMaximized());
-                System.out.println("최대화");
-            });
+            maximizeButton.setOnAction(e -> stage.setMaximized(!stage.isMaximized()));
             nonDraggableNodes.add(maximizeButton);
 
             this.windowCloseButton = new Button("✕");
@@ -315,7 +315,7 @@ public class MainScreen {
         centerSplit.setDividerPositions(0.75);
 
         SplitPane mainSplit = new SplitPane(fileExplorerContainer, centerSplit);
-        mainSplit.setId("main-split-pane");
+        mainSplit.getStyleClass().add("main-split-pane");
         mainSplit.setDividerPositions(0.25);
         SplitPane.setResizableWithParent(fileExplorerContainer, false);
 
@@ -332,7 +332,7 @@ public class MainScreen {
         
         Region statusBarSpacer = new Region();
         HBox.setHgrow(statusBarSpacer, Priority.ALWAYS);
-        HBox statusBar = new HBox(safeStatusLabel, statusBarSpacer, antlrIndicator, connectionStatusLabel);
+        statusBar = new HBox(safeStatusLabel, statusBarSpacer, antlrIndicator, connectionStatusLabel);
         statusBar.setSpacing(5);
         statusBar.setAlignment(Pos.CENTER_RIGHT);
 

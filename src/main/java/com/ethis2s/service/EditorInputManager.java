@@ -1,6 +1,5 @@
-package com.ethis2s.util;
+package com.ethis2s.service;
 
-import com.ethis2s.service.CompletionService;
 import javafx.application.Platform;
 import javafx.scene.control.IndexRange;
 import javafx.scene.input.Clipboard;
@@ -9,6 +8,10 @@ import javafx.scene.input.KeyEvent;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.model.TwoDimensional.Bias;
 import org.fxmisc.richtext.model.TwoDimensional.Position;
+
+import com.ethis2s.util.ConfigManager;
+import com.ethis2s.util.EditorEnhancer;
+import com.ethis2s.util.HybridManager;
 
 import java.util.Map;
 import java.util.regex.Matcher;

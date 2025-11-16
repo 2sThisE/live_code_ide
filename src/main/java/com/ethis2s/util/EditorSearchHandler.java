@@ -45,10 +45,8 @@ public class EditorSearchHandler {
                                             : Pattern.compile(Pattern.quote(query), Pattern.CASE_INSENSITIVE);
             Matcher matcher = pattern.matcher(text);
 
-            while (matcher.find()) {
-                results.add(matcher.start());
-            }
-
+            while (matcher.find()) results.add(matcher.start());
+            
             stateManager.totalMatchesProperty().set(results.size());
             highlightMatches(activeCodeArea, tabId, query);
 

@@ -5,10 +5,10 @@ import java.util.List;
 
 import org.json.JSONObject;
 
+import com.ethis2s.model.ProtocolConstants;
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
 import com.ethis2s.service.ClientSocketManager;
-import com.ethis2s.util.ProtocolConstants;
 import com.ethis2s.view.MainScreen;
 
 import javafx.application.Platform;

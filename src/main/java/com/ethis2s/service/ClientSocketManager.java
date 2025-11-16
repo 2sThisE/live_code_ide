@@ -20,9 +20,9 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import com.ethis2s.model.ProtocolConstants;
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
-import com.ethis2s.util.ProtocolConstants;
 
 import socketprotocol.PacketException;
 import socketprotocol.ParsedPacket;

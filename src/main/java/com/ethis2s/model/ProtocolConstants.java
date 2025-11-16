@@ -1,4 +1,4 @@
-package com.ethis2s.util;
+package com.ethis2s.model;
 public final class ProtocolConstants {
     // Fragment flags
     public static final byte FRAGED = 0x01;
