@@ -8,6 +8,7 @@ import com.ethis2s.util.EditorSearchHandler;
 import com.ethis2s.view.ProblemsView.Problem;
 import com.ethis2s.view.editor.EditorFactory;
 import com.ethis2s.view.editor.EditorStateManager;
+import com.ethis2s.model.UserProjectsInfo;
 
 import javafx.application.Platform;
 import javafx.beans.property.IntegerProperty;
@@ -74,8 +75,10 @@ public class EditorTabView {
             return;
         }
 
+        Optional<UserProjectsInfo> projectInfoOpt = mainController.getCurrentActiveProject();
+
         Node editorContent = editorFactory.createEditorForFile(filePath, content, tabId);
-        
+
         // Finalize initialization for this tab
         stateManager.setInitializing(tabId, false);
         stateManager.processPendingUpdates(tabId);
@@ -88,7 +91,9 @@ public class EditorTabView {
 
         Tab newTab = createTab(tabId, null, editorContent, onClose);
         if (newTab == null) return;
-        
+
+        projectInfoOpt.ifPresent(newTab::setUserData);
+
         String fileName = Paths.get(filePath).getFileName().toString();
         HBox tabGraphic = createTabGraphic(fileName, newTab);
         newTab.setGraphic(tabGraphic);
@@ -269,10 +274,15 @@ public class EditorTabView {
         tabPane.setTabDragPolicy(TabDragPolicy.REORDER);
         managedTabPanes.add(tabPane);
         dragDropManager.registerDropTarget(tabPane);
-
+    
         // 탭 선택 또는 포커스 변경 시 검색 컨텍스트를 업데이트하고 자동 재검색을 수행하는 통합 리스너
         Runnable updateAndResearch = () -> {
             Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+        
+            if (selectedTab != null && selectedTab.getUserData() instanceof UserProjectsInfo projectInfo) {
+                mainController.setCurrentActiveProject(projectInfo);
+            }
+            
             String oldCodeAreaHash = getActiveCodeAreaHash();
             
             if (selectedTab != null && selectedTab.getId() != null) {
@@ -285,24 +295,24 @@ public class EditorTabView {
             }
             
             updateSearchPrompt(selectedTab);
-
+            
             String query = mainController.getSearchQuery();
             if (query != null && !query.isEmpty()) mainController.triggerSearch();
         };
-
+        
         tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
             if (tabPane.isFocused() || activeTabPane == tabPane) {
                 updateAndResearch.run();
             }
         });
-
+        
         tabPane.focusedProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal) {
                 activeTabPane = tabPane;
                 updateAndResearch.run();
             }
         });
-
+        
         try {
             String css = ConfigManager.getInstance().getThemePath("design","topTabsTheme");
             if (css != null) tabPane.getStylesheets().add(css);

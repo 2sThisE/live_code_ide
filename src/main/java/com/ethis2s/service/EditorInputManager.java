@@ -9,6 +9,7 @@ import javafx.scene.input.KeyEvent;
 import javafx.util.Duration;
 
 import org.fxmisc.richtext.CodeArea;
+import org.fxmisc.richtext.model.PlainTextChange;
 import org.fxmisc.richtext.model.TwoDimensional.Bias;
 import org.fxmisc.richtext.model.TwoDimensional.Position;
 
@@ -61,7 +62,6 @@ public class EditorInputManager {
     }
 
     public void controlledReplaceText(int start, int end, String text, ChangeInitiator initiator) {
-        System.out.println(String.format("[DEBUG] EditorInputManager: controlledReplaceText called by %s -> Range: [%d, %d], Text: '%s'", initiator, start, end, text.replace("\n", "\\n")));
         this.lastInitiator = initiator;
         codeArea.replaceText(start, end, text);
     }
@@ -243,11 +243,16 @@ public class EditorInputManager {
                 enhancer.hideSuggestions();
             }
             int caretPosition = codeArea.getCaretPosition();
-            // Insert the opening char as USER action first
-            controlledReplaceText(caretPosition, caretPosition, typedChar, ChangeInitiator.USER);
-            // Then insert the closing char as another USER action
-            controlledReplaceText(caretPosition + typedChar.length(), caretPosition + typedChar.length(), closingChar, ChangeInitiator.USER);
+            String insertedText = typedChar + closingChar;
+
+            // Update UI as a SYSTEM change
+            controlledReplaceText(caretPosition, caretPosition, insertedText, ChangeInitiator.SYSTEM);
+            // Move caret between the pair
             codeArea.moveTo(caretPosition + typedChar.length());
+
+            // Send the change to the server via the interpreter
+            interpreter.interpretAndSend(new PlainTextChange(caretPosition, "", insertedText));
+            
             e.consume(); // Consume the event as we handled it manually
         }
     }
@@ -294,8 +299,11 @@ public class EditorInputManager {
 
         int replaceStart = codeArea.getAbsolutePosition(startLine, 0);
         int replaceEnd = codeArea.getAbsolutePosition(endLine, codeArea.getParagraph(endLine).length());
+        String originalText = codeArea.getText(replaceStart, replaceEnd);
+        String newText = formattedText.toString();
         
-        controlledReplaceText(replaceStart, replaceEnd, formattedText.toString(), ChangeInitiator.USER);
+        controlledReplaceText(replaceStart, replaceEnd, newText, ChangeInitiator.SYSTEM);
+        interpreter.interpretAndSend(new PlainTextChange(replaceStart, originalText, newText));
     }
 
     private int findMatchingOpeningBrace(int closingBracePos) {
@@ -395,7 +403,8 @@ public class EditorInputManager {
 
                 // '괄호 탈출'이 아니면 기본 탭 삽입
                 if (!handled) {
-                    controlledReplaceText(caretPosition, caretPosition, "\t", ChangeInitiator.USER);
+                    controlledReplaceText(caretPosition, caretPosition, "\t", ChangeInitiator.SYSTEM);
+                    interpreter.interpretAndSend(new PlainTextChange(caretPosition, "", "\t"));
                 }
             }
             e.consume();
@@ -444,7 +453,8 @@ public class EditorInputManager {
 
             String expectedClosing = getClosingChar(charBefore);
             if (expectedClosing != null && expectedClosing.equals(charAfter)) {
-                controlledReplaceText(caretPosition - 1, caretPosition + 1, "", ChangeInitiator.USER);
+                controlledReplaceText(caretPosition - 1, caretPosition + 1, "", ChangeInitiator.SYSTEM);
+                interpreter.interpretAndSend(new PlainTextChange(caretPosition - 1, charBefore + charAfter, ""));
                 e.consume();
             }
         }
@@ -490,8 +500,11 @@ public class EditorInputManager {
 
         int replaceStart = codeArea.getAbsolutePosition(startLine, 0);
         int replaceEnd = codeArea.getAbsolutePosition(endLine, codeArea.getParagraph(endLine).length());
-        
-        controlledReplaceText(replaceStart, replaceEnd, newText.toString(), ChangeInitiator.USER);
+        String originalText = codeArea.getText(replaceStart, replaceEnd);
+        String newFormattedText = newText.toString();
+
+        controlledReplaceText(replaceStart, replaceEnd, newFormattedText, ChangeInitiator.SYSTEM);
+        interpreter.interpretAndSend(new PlainTextChange(replaceStart, originalText, newFormattedText));
 
         int newStart = start + firstLineLengthChange;
         int newEnd = end + totalLengthChange;
@@ -528,7 +541,8 @@ public class EditorInputManager {
     private void handleTabBackspace(KeyEvent e) {
         int caretPosition = codeArea.getCaretPosition();
         if (caretPosition > 0 && codeArea.getText(caretPosition - 1, caretPosition).equals("\t")) {
-            controlledReplaceText(caretPosition - 1, caretPosition, "", ChangeInitiator.USER);
+            controlledReplaceText(caretPosition - 1, caretPosition, "", ChangeInitiator.SYSTEM);
+            interpreter.interpretAndSend(new PlainTextChange(caretPosition - 1, "\t", ""));
             e.consume();
         }
     }
@@ -541,7 +555,9 @@ public class EditorInputManager {
         Matcher matcher = LEADING_WHITESPACE.matcher(currentLine);
         String indent = matcher.find() ? matcher.group() : "";
 
-        // Check if caret is between {}
+        String finalInsert;
+        int finalCaretPosition;
+
         boolean isBetweenBraces = caretPosition > 0 &&
                                   caretPosition < codeArea.getLength() &&
                                   codeArea.getText(caretPosition - 1, caretPosition).equals("{") &&
@@ -549,28 +565,25 @@ public class EditorInputManager {
 
         if (isBetweenBraces) {
             String extraIndent = "\t";
-            StringBuilder toInsert = new StringBuilder()
-                    .append("\n").append(indent).append(extraIndent)
-                    .append("\n").append(indent);
+            finalInsert = "\n" + indent + extraIndent + "\n" + indent;
+            finalCaretPosition = caretPosition + 1 + indent.length() + extraIndent.length();
             
-            // Replace the selection (which is empty) with the three-line block
-            controlledReplaceText(caretPosition, caretPosition, toInsert.toString(), ChangeInitiator.USER);
-            
-            // Move caret to the middle line
-            codeArea.moveTo(caretPosition + 1 + indent.length() + extraIndent.length());
+            controlledReplaceText(caretPosition, caretPosition, finalInsert, ChangeInitiator.SYSTEM);
+            codeArea.moveTo(finalCaretPosition);
         } else {
             String textBeforeCaret = currentLine.substring(0, codeArea.getCaretColumn());
             boolean endsWithOpeningBrace = textBeforeCaret.trim().endsWith("{");
 
-            String finalInsert = "\n" + indent;
+            finalInsert = "\n" + indent;
             if (endsWithOpeningBrace) {
                 finalInsert += "\t";
             }
             
-            controlledReplaceText(codeArea.getSelection().getStart(), codeArea.getSelection().getEnd(), finalInsert, ChangeInitiator.USER);
+            controlledReplaceText(codeArea.getSelection().getStart(), codeArea.getSelection().getEnd(), finalInsert, ChangeInitiator.SYSTEM);
         }
         
-        e.consume(); // Consume the event in all cases.
+        interpreter.interpretAndSend(new PlainTextChange(caretPosition, "", finalInsert));
+        e.consume();
     }
 
     private String getOpeningChar(String closingChar) {

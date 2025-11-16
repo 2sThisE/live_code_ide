@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.json.JSONArray;
@@ -71,6 +72,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     private UserInfo userInfo;
     private String lastLoggedInId;
     private char[] lastLoggedInPassword;
+    private UserProjectsInfo currentActiveProject;
     
     private final AtomicInteger activeAntlrTasks = new AtomicInteger(0);
     
@@ -109,6 +111,14 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     // public List<Node> getTitleBarComponentArea() {
     //     return mainScreen.getTitleBarInteractiveNodes();
     // }
+
+    public void setCurrentActiveProject(UserProjectsInfo projectInfo) {
+        this.currentActiveProject = projectInfo;
+    }
+
+    public Optional<UserProjectsInfo> getCurrentActiveProject() {
+        return Optional.ofNullable(currentActiveProject);
+    }
 
     public void shutdown() {
         editorTabView.shutdownAllManagers();
@@ -620,15 +630,15 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
 
     @Override
     public void onFileEditErrorResponse(int lineNumber, String lockOwnerId, String lockOwnerNickname) {
+        System.out.println(String.format("[DEBUG] MainController: onFileEditErrorResponse received -> Line: %d, Owner: %s(%s)", lineNumber, lockOwnerNickname, lockOwnerId));
         Platform.runLater(() -> {
-            // An edit was rejected because a line is locked by someone else.
-            // The server is providing us with the ground truth, so we can self-correct our state.
-
+            // An edit was rejected. The server is providing us with the ground truth.
+            // We will always pass this down to self-correct our state.
+            // The view layer will decide how to display it (e.g., ignore "null" owners for UI).
             editorTabView.getActiveCodeArea()
                 .flatMap(activeArea -> editorTabView.getStateManager().findTabIdForCodeArea(activeArea))
                 .ifPresent(tabId -> {
                     String filePath = tabId.substring("file-".length());
-                    // Force-update the line lock indicator with the correct owner information from the server.
                     editorTabView.updateLineLockIndicator(filePath, lineNumber, lockOwnerId, lockOwnerNickname);
                 });
         });

@@ -67,7 +67,7 @@ public class ProjectController {
 
     public void fileEditOperationRequest(String filePath, String type, int position, String text, int length) {
         if (userInfo == null || socketManager == null) return;
-        mainScreen.getCurrentProjectForFileTree().ifPresent(projectInfo -> {
+        mainController.getCurrentActiveProject().ifPresent(projectInfo -> {
             JSONObject payload = new JSONObject();
             payload.put("requester", userInfo.getId());
             payload.put("project_id", projectInfo.getProjectID());
@@ -93,7 +93,7 @@ public class ProjectController {
 
     public void lineLockRequest(String filePath, int line) {
         if (userInfo == null) return;
-        mainScreen.getCurrentProjectForFileTree().ifPresent(projectInfo -> {
+        mainController.getCurrentActiveProject().ifPresent(projectInfo -> {
             byte[] payload = String.format(
                 "{\"requester\":\"%s\", \"project_id\":\"%s\", \"owner\":\"%s\", \"path\":\"%s\", \"lineNumber\":%d}",
                 userInfo.getId(),
@@ -108,7 +108,7 @@ public class ProjectController {
 
     public void cursorMoveRequest(String filePath, int cursorPosition) {
         if (userInfo == null) return;
-        mainScreen.getCurrentProjectForFileTree().ifPresent(projectInfo -> {
+        mainController.getCurrentActiveProject().ifPresent(projectInfo -> {
             JSONObject payload = new JSONObject();
             payload.put("requester", userInfo.getId());
             payload.put("project_id", projectInfo.getProjectID());

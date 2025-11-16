@@ -408,6 +408,10 @@ public class HybridManager {
     }
 
     private void applyHighlighting() {
+        if (codeArea.getText().isEmpty()) {
+            codeArea.setStyleSpans(0, StyleSpans.singleton(Collections.emptyList(), 0));
+            return;
+        }
         if (lastTm4eTokens == null) return;
 
         StyleSpans<Collection<String>> tm4eSpans = tokensToSpans(lastTm4eTokens);

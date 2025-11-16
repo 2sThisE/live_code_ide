@@ -58,6 +58,10 @@ public final class ProtocolConstants {
     public static final int UF_FILE_EDIT_BROADCAST = 0x024; // 서버 -> 클라이언트
     public static final int UF_CURSOR_MOVE = 0x025; // 클라이언트 -> 서버 (단순 커서 이동)
     public static final int UF_CURSOR_MOVE_BROADCAST = 0x026; // 서버 -> 클라이언트 (커서 이동 브로드캐스트)
+    public static final int UF_FILE_CLOSE_REQUEST = 0x028; // 파일 닫기 요청
+    public static final int UF_FILE_CLOSE_RESPONSE = 0x029; // 파일 닫기 응답
+    public static final int UF_LINE_LOCK_BROADCAST = 0x02A; // 라인 락 브로드캐스트
+    public static final int UF_LINE_UNLOCK_BROADCAST = 0x02B; // 라인 락 해제 브로드캐스트
 
     private ProtocolConstants() {
         // Private constructor to prevent instantiation

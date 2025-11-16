@@ -286,14 +286,23 @@ public class ClientSocketManager {
                 case ProtocolConstants.UF_ADD_FOLDER_RESPONSE:
                     callback.onAddFolderResponse(finalPacket.getPayload()[0] != 0);
                     break;
-                case ProtocolConstants.UF_LINE_UNLOCK_RESPONSE:
-                    JSONObject lockUpdateJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
-                    callback.onLineLockUpdate(
-                        lockUpdateJson.getString("path"),
-                        lockUpdateJson.getInt("lineNumber"),
-                        lockUpdateJson.getString("user_id"),
-                        lockUpdateJson.getString("user_nickname")
-                    );
+                case ProtocolConstants.UF_LINE_LOCK_BROADCAST:
+                    {
+                        JSONObject lockJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
+                        String filePath = lockJson.getString("path");
+                        int line = lockJson.getInt("lineNumber");
+                        String lockOwner = lockJson.getString("lockOwner");
+                        callback.onLineLockUpdate(filePath, line, lockOwner, lockOwner);
+                    }
+                    break;
+                case ProtocolConstants.UF_LINE_UNLOCK_BROADCAST:
+                    {
+                        JSONObject unlockJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
+                        String filePath = unlockJson.getString("path");
+                        int line = unlockJson.getInt("lineNumber");
+                        // No owner means the lock is released.
+                        callback.onLineLockUpdate(filePath, line, null, null);
+                    }
                     break;
                 case ProtocolConstants.UF_LINE_LOCK_RESPONSE:
                     JSONObject lockResponseJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
@@ -318,9 +327,11 @@ public class ClientSocketManager {
                         JSONObject editJson = new JSONObject(jsonString);
                         String editPath = editJson.getString("path");
                         String editType = editJson.getString("type");
+                        String user = editJson.getString("user"); // 규약에 따라 user 정보 파싱
                         int editPosition = editJson.getInt("position");
                         String text = editJson.optString("text", "");
                         int length = editJson.optInt("length", 0);
+                        // TODO: onFileEditBroadcast 콜백에 user 정보를 전달하도록 추후 수정 필요
                         callback.onFileEditBroadcast(editPath, editType, editPosition, text, length);
                     }
                     break;
@@ -329,10 +340,9 @@ public class ClientSocketManager {
                     System.out.println("[DEBUG] ClientSocketManager: Received UF_CURSOR_MOVE_BROADCAST: " + jsonString);
                     JSONObject cursorJson = new JSONObject(jsonString);
                     String cursorPath = cursorJson.getString("path");
-                    String userId = cursorJson.getString("user_id");
-                    String userNickname = cursorJson.optString("user_nickname", userId);
+                    String user = cursorJson.getString("user");
                     int cursorPosition = cursorJson.getInt("cursorPosition");
-                    callback.onCursorMoveBroadcast(cursorPath, userId, userNickname, cursorPosition);
+                    callback.onCursorMoveBroadcast(cursorPath, user, user, cursorPosition);
                     break;
                 default:
                     callback.onPacketReceived(finalPacket);

@@ -227,10 +227,11 @@ public class EditorFactory {
         lineLabel.setText(String.valueOf(lineIndex + 1)); // Always set the line number without nickname
 
         if (lockInfoOpt.isPresent()) {
+            EditorStateManager.UserLockInfo lockInfo = lockInfoOpt.get();
             String currentUserId = projectController.getCurrentUserId().orElse("");
-            boolean lockedByCurrentUser = lockInfoOpt.get().userId.equals(currentUserId);
-
-            if (!lockedByCurrentUser) {
+            
+            // Check if the lock owner is valid and not the current user
+            if (lockInfo.userId != null && !"null".equals(lockInfo.userId) && !lockInfo.userId.equals(currentUserId)) {
                 lineLabel.setStyle(LOCKED_BY_OTHER_STYLE);
                 return; // Locked by other, so no other style applies
             }

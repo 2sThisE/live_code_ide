@@ -545,6 +545,7 @@ public class MainScreen {
     }
 
     private void changeToProjectDirView(UserProjectsInfo userProjectsInfo, ProjectController projectController, MainController mainController) {
+        mainController.setCurrentActiveProject(userProjectsInfo);
         performTransition(() -> {
             this.currentProjectForFileTree = userProjectsInfo;
             setFileTreeCellFactory(projectController, userProjectsInfo.getProjectID(), userProjectsInfo, mainController);
