@@ -7,6 +7,7 @@ import com.ethis2s.service.EditorInputManager;
 import com.ethis2s.service.AntlrLanguageService.AnalysisResult;
 import com.ethis2s.service.AntlrLanguageService.BracketPair;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
+import com.ethis2s.service.ChangeInitiator;
 import com.ethis2s.util.Tm4eSyntaxHighlighter.StyleToken;
 import com.ethis2s.view.editor.EditorStateManager;
 
@@ -58,8 +59,6 @@ public class HybridManager {
     private long tm4eRequestCounter = 0;
 
     private boolean isLargeUpdate = false;
-    private int expectedLargeUpdateSize = 0;
-    private int currentLargeUpdateSize = 0;
     private List<StyleToken> previouslyRenderedBrackets; // 경량 렌더러가 이전에 그렸던 위치를 기억
     private boolean isTyping = false; // 타이핑 상태를 추적할 깃발
     private final ProjectController projectController;
@@ -165,7 +164,7 @@ public class HybridManager {
         projectController.fileEditOperationRequest(this.filePath, type, position, text, length);
     }
 
-    public void controlledReplaceText(int start, int end, String text, com.ethis2s.service.ChangeInitiator initiator) {
+    public void controlledReplaceText(int start, int end, String text, ChangeInitiator initiator) {
         if (inputManager != null) {
             inputManager.controlledReplaceText(start, end, text, initiator);
         }
@@ -201,8 +200,6 @@ public class HybridManager {
             return;
         }
         this.isLargeUpdate = true;
-        this.expectedLargeUpdateSize = expectedSize;
-        this.currentLargeUpdateSize = 0;
         analysisDebouncer.stop();
     }
 

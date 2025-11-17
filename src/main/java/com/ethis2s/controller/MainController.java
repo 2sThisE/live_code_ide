@@ -1,6 +1,5 @@
 package com.ethis2s.controller;
 
-import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -20,7 +19,6 @@ import com.ethis2s.service.ChangeInitiator;
 import com.ethis2s.service.ClientSocketManager;
 import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.MacosNativeUtil;
-import com.ethis2s.util.MaximizationPatcher;
 import com.ethis2s.util.WindowsNativeUtil;
 import com.ethis2s.view.DebugView;
 import com.ethis2s.view.EditorTabView;
@@ -629,9 +627,6 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     @Override
     public void onFileEditErrorResponse(int lineNumber, String lockOwnerId, String lockOwnerNickname) {
         Platform.runLater(() -> {
-            // An edit was rejected. The server is providing us with the ground truth.
-            // We will always pass this down to self-correct our state.
-            // The view layer will decide how to display it (e.g., ignore "null" owners for UI).
             editorTabView.getActiveCodeArea()
                 .flatMap(activeArea -> editorTabView.getStateManager().findTabIdForCodeArea(activeArea))
                 .ifPresent(tabId -> {
@@ -643,10 +638,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
 
     @Override
     public void onCursorMoveBroadcast(String filePath, String userId, String userNickname, int position) {
-        // Do not process our own cursor movements broadcasted back to us.
-        if (userInfo != null && userInfo.getId().equals(userId)) {
-            return;
-        }
+        if (userInfo != null && userInfo.getId().equals(userId)) return;
         
         Platform.runLater(() -> {
             if (editorTabView != null) {

@@ -1,6 +1,5 @@
 package com.ethis2s.view;
 
-import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.TextArea;
 

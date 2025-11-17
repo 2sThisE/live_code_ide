@@ -83,14 +83,15 @@ public class EditorInputManager {
         });
 
         codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
-            // Send cursor move event
-            manager.cursorMoveRequest(newPos);
-
-            // Handle line lock debouncing
-            int currentLine = codeArea.getCurrentParagraph();
-            if (currentLine != lastCaretLine) {
-                lineLockDebouncer.stop();
-                lineLockDebouncer.play();
+            System.out.println("EditorInputManager lastInitiator: "+(lastInitiator==ChangeInitiator.USER?"user":"system"));
+            if(lastInitiator==ChangeInitiator.USER){
+                manager.cursorMoveRequest(newPos);
+                // 디바운싱
+                int currentLine = codeArea.getCurrentParagraph();
+                if (currentLine != lastCaretLine) {
+                    lineLockDebouncer.stop();
+                    lineLockDebouncer.play();
+                }
             }
         });
 

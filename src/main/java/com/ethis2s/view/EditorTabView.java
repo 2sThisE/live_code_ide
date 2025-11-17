@@ -8,13 +8,14 @@ import com.ethis2s.util.EditorSearchHandler;
 import com.ethis2s.view.ProblemsView.Problem;
 import com.ethis2s.view.editor.EditorFactory;
 import com.ethis2s.view.editor.EditorStateManager;
+import com.ethis2s.view.editor.TabPaneFocusManager;
 import com.ethis2s.model.UserProjectsInfo;
 
 import javafx.application.Platform;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.StringProperty;
 import javafx.beans.property.SimpleStringProperty;
-import javafx.geometry.Orientation;
+
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -46,9 +47,10 @@ public class EditorTabView {
     private final EditorFactory editorFactory;
     private final TabDragDropManager dragDropManager;
     private final EditorSearchHandler searchHandler;
+    private final TabPaneFocusManager focusManager;
+
 
     private final Set<TabPane> managedTabPanes = new HashSet<>();
-    private TabPane activeTabPane;
     private CodeArea activeCodeArea;
     private final StringProperty activeTabTitle = new SimpleStringProperty("검색...");
 
@@ -60,10 +62,11 @@ public class EditorTabView {
         this.editorFactory = new EditorFactory(mainController, stateManager, this, mainController.getProjectController());
         this.dragDropManager = new TabDragDropManager(this, rootContainer);
         this.searchHandler = new EditorSearchHandler(stateManager, mainController);
+        this.focusManager = new TabPaneFocusManager(mainController, this, stateManager, managedTabPanes);
         
         TabPane primaryTabPane = createNewTabPane();
         this.rootContainer.getItems().add(primaryTabPane);
-        this.activeTabPane = primaryTabPane;
+        focusManager.setActiveTabPane(primaryTabPane);
     }
     
     // --- Public API ---
@@ -160,7 +163,7 @@ public class EditorTabView {
         if (managedTabPanes.isEmpty()) {
             TabPane primaryTabPane = createNewTabPane();
             this.rootContainer.getItems().add(primaryTabPane);
-            this.activeTabPane = primaryTabPane;
+            focusManager.setActiveTabPane(primaryTabPane);
         }
     }
 
@@ -273,44 +276,7 @@ public class EditorTabView {
         tabPane.setTabDragPolicy(TabDragPolicy.REORDER);
         managedTabPanes.add(tabPane);
         dragDropManager.registerDropTarget(tabPane);
-    
-        // 탭 선택 또는 포커스 변경 시 검색 컨텍스트를 업데이트하고 자동 재검색을 수행하는 통합 리스너
-        Runnable updateAndResearch = () -> {
-            Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
-        
-            if (selectedTab != null && selectedTab.getUserData() instanceof UserProjectsInfo projectInfo) {
-                mainController.setCurrentActiveProject(projectInfo);
-            }
-            
-            String oldCodeAreaHash = getActiveCodeAreaHash();
-            
-            if (selectedTab != null && selectedTab.getId() != null) {
-                stateManager.getCodeArea(selectedTab.getId()).ifPresentOrElse(
-                    codeArea -> {this.activeCodeArea = codeArea;},
-                    () -> {this.activeCodeArea = null;}
-                );
-            } else {
-                this.activeCodeArea = null;
-            }
-            
-            updateSearchPrompt(selectedTab);
-            
-            String query = mainController.getSearchQuery();
-            if (query != null && !query.isEmpty()) mainController.triggerSearch();
-        };
-        
-        tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
-            if (tabPane.isFocused() || activeTabPane == tabPane) {
-                updateAndResearch.run();
-            }
-        });
-        
-        tabPane.focusedProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal) {
-                activeTabPane = tabPane;
-                updateAndResearch.run();
-            }
-        });
+        focusManager.registerTabPane(tabPane);
         
         try {
             String css = ConfigManager.getInstance().getThemePath("design","topTabsTheme");
@@ -352,7 +318,9 @@ public class EditorTabView {
     private void cleanupEmptyPane(TabPane pane) {
         Parent container = dragDropManager.findContainerOf(pane);
         managedTabPanes.remove(pane);
-        if (activeTabPane == pane) activeTabPane = managedTabPanes.stream().findFirst().orElse(null);
+        if (focusManager.getActiveTabPane() == pane) {
+            focusManager.setActiveTabPane(managedTabPanes.stream().findFirst().orElse(null));
+        }
 
         if (container instanceof SplitPane parentSplitPane) {
             parentSplitPane.getItems().remove(pane);
@@ -476,7 +444,7 @@ public class EditorTabView {
         dragDropManager.registerDraggableTab(newTab, tabGraphic); // 드래그 기능도 모든 탭에 등록
 
         // 탭을 TabPane에 추가
-        TabPane targetPane = (activeTabPane != null) ? activeTabPane : managedTabPanes.stream().findFirst().orElse(null);
+        TabPane targetPane = (focusManager.getActiveTabPane() != null) ? focusManager.getActiveTabPane() : managedTabPanes.stream().findFirst().orElse(null);
         if (targetPane != null) {
             targetPane.getTabs().add(newTab);
             targetPane.getSelectionModel().select(newTab);
