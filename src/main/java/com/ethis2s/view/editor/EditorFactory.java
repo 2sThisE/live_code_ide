@@ -18,6 +18,8 @@ import javafx.scene.layout.StackPane;
 
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
+
+import java.nio.file.Paths;
 import java.util.Base64;
 import com.ethis2s.service.RemoteCursorManager;
 
@@ -43,7 +45,7 @@ public class EditorFactory {
     }
 
     public Node createEditorForFile(String filePath, String content, String tabId) {
-        String fileName = java.nio.file.Paths.get(filePath).getFileName().toString();
+        String fileName = Paths.get(filePath).getFileName().toString();
         CodeArea codeArea = new CodeArea();
         codeArea.getStyleClass().add("code-area");
 

@@ -1,6 +1,7 @@
 package com.ethis2s.view.editor;
 
 import com.ethis2s.controller.MainController;
+import com.ethis2s.controller.ProjectController;
 import com.ethis2s.service.TabDragDropManager;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
 import com.ethis2s.util.ConfigManager;
@@ -84,19 +85,21 @@ public class EditorTabView {
         // Finalize initialization for this tab
         stateManager.setInitializing(tabId, false);
         stateManager.processPendingUpdates(tabId);
+        String fileName = Paths.get(filePath).getFileName().toString();
 
-        Runnable onClose = () -> {
+        Tab newTab = createTab(tabId, null, editorContent, null);
+        newTab.setOnClosed(e -> {
             stateManager.unregisterTab(tabId);
             aggregateAndSendProblems(); // 문제가 있는 탭이 닫혔으므로 목록 업데이트
+            ProjectController projectController= mainController.getProjectController();
+            projectController.closeFileRequest(projectInfoOpt.orElseThrow(),filePath);
             Platform.runLater(this::checkAndCleanupAllPanes);
-        };
+        });
 
-        Tab newTab = createTab(tabId, null, editorContent, onClose);
         if (newTab == null) return;
 
         projectInfoOpt.ifPresent(newTab::setUserData);
 
-        String fileName = Paths.get(filePath).getFileName().toString();
         HBox tabGraphic = createTabGraphic(fileName, newTab);
         newTab.setGraphic(tabGraphic);
 

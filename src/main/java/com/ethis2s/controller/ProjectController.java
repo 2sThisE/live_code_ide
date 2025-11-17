@@ -49,6 +49,16 @@ public class ProjectController {
         sendRequest(payload, ProtocolConstants.UF_CREATE_PROJECT_REQUEST);
     }
 
+    public void closeFileRequest(UserProjectsInfo userProjectsInfo, String filePath){
+        if (userInfo == null) return;
+        JSONObject payload = new JSONObject();
+        payload.put("requester", userInfo.getId());
+        payload.put("project_id", userProjectsInfo.getProjectID());
+        payload.put("owner", userProjectsInfo.getOwner());
+        payload.put("path", filePath);
+        sendRequest(payload, ProtocolConstants.UF_FILE_CLOSE_REQUEST);
+    }
+
     public void projectListRequest() {
         if (userInfo == null) return;
         JSONObject payload = new JSONObject();

@@ -115,11 +115,6 @@ public class MainScreen {
                 if (!problemsTab.getStyleClass().contains("tab-error")) {
                     problemsTab.getStyleClass().add("tab-error");
                 }
-
-                // 탭을 선택하는 로직은 그대로 유지합니다.
-                if (bottomTabPane != null) {
-                    bottomTabPane.getSelectionModel().select(problemsTab);
-                }
             } else {
                 problemsTab.getStyleClass().remove("tab-error");
             }
