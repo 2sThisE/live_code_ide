@@ -43,6 +43,7 @@ public class EditorInputManager {
     private boolean suggestionsHiddenManually = false;
     private int lastCaretLine = -1;
     private ChangeInitiator lastInitiator = ChangeInitiator.USER;
+    private boolean isProcessingServerChange = false;
 
     public EditorInputManager(CodeArea codeArea, EditorEnhancer enhancer, CompletionService completionService, HybridManager manager) {
         this.codeArea = codeArea;
@@ -62,6 +63,10 @@ public class EditorInputManager {
     }
 
     public void controlledReplaceText(int start, int end, String text, ChangeInitiator initiator) {
+        System.out.println("[DEBUG] contorolledReplaceText initator: "+(initiator==ChangeInitiator.USER?"User":"not User"));
+        if (initiator == ChangeInitiator.SERVER) {
+            isProcessingServerChange = true;
+        }
         this.lastInitiator = initiator;
         codeArea.replaceText(start, end, text);
     }
@@ -83,8 +88,8 @@ public class EditorInputManager {
         });
 
         codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
-            System.out.println("EditorInputManager lastInitiator: "+(lastInitiator==ChangeInitiator.USER?"user":"system"));
-            if(lastInitiator==ChangeInitiator.USER){
+            if(lastInitiator == ChangeInitiator.USER && !isProcessingServerChange){
+                System.out.println("[DEBUG] contorolledReplaceText initator: "+(lastInitiator==ChangeInitiator.USER?"User":"not User"));
                 manager.cursorMoveRequest(newPos);
                 // 디바운싱
                 int currentLine = codeArea.getCurrentParagraph();
@@ -101,6 +106,10 @@ public class EditorInputManager {
 
             if (initiator == ChangeInitiator.USER) {
                 interpreter.interpretAndSend(change);
+            }
+
+            if (isProcessingServerChange) {
+                Platform.runLater(() -> isProcessingServerChange = false);
             }
         });
     }

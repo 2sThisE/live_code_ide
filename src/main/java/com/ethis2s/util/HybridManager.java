@@ -164,6 +164,7 @@ public class HybridManager {
     }
 
     public void controlledReplaceText(int start, int end, String text, ChangeInitiator initiator) {
+        System.out.println("[Debug] HybridManger initiator: "+(initiator==ChangeInitiator.USER?"User":"not User"));
         if (inputManager != null) {
             inputManager.controlledReplaceText(start, end, text, initiator);
         }

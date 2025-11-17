@@ -114,6 +114,7 @@ public class EditorTabView {
     }
 
     public void updateUserCursor(String filePath, String userId, String userNickname, int position) {
+        System.out.println(String.format("[Debug] Cursor State: Passing User='%s' to RemoteCursorManager", userNickname));
         String tabId = "file-" + filePath;
         stateManager.getCursorManager(tabId).ifPresent(cursorManager -> {
             cursorManager.updateCursor(userId, userNickname, position);
