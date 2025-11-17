@@ -83,17 +83,14 @@ public class ClientSocketManager {
                 sslSocket.close(); // This will interrupt the blocking read() call
             }
             if (receivingThread != null && receivingThread.isAlive()) {
-                System.out.println("DEBUG: Waiting for receiving thread to join.");
                 receivingThread.join(1000); // Wait for the thread to die
                 if (receivingThread.isAlive()) {
-                    System.out.println("DEBUG: Thread is still alive, interrupting.");
                     receivingThread.interrupt(); // Forcefully interrupt if it's stuck
                 }
             }
         } catch (IOException e) {
             // Ignore errors on close
         } catch (InterruptedException e) {
-            System.out.println("DEBUG: Interrupted while waiting for thread to join.");
             Thread.currentThread().interrupt(); // Preserve interrupt status
         }
         System.out.println("DEBUG: ClientSocketManager.disconnect() finished.");
@@ -231,9 +228,7 @@ public class ClientSocketManager {
                 userField,
                 finalPayload
             );
-
             // All subsequent logic will now operate on the consistent finalPacket.
-            System.out.println("ReciveFormServer: "+new String(finalPacket.getPayload()));
             switch (finalPacket.getUserField()) {
                 case ProtocolConstants.UF_REGISTER_RESPONSE:
                     callback.onRegisterResponse(ByteBuffer.wrap(finalPacket.getPayload()).getInt());
@@ -323,7 +318,6 @@ public class ClientSocketManager {
                 case ProtocolConstants.UF_FILE_EDIT_BROADCAST:
                     {
                         String jsonString = new String(finalPacket.getPayload(), StandardCharsets.UTF_8);
-                        System.out.println("[DEBUG] ClientSocketManager: Received UF_FILE_EDIT_BROADCAST: " + jsonString);
                         JSONObject editJson = new JSONObject(jsonString);
                         String editPath = editJson.getString("path");
                         String editType = editJson.getString("type");
@@ -337,7 +331,6 @@ public class ClientSocketManager {
                     break;
                 case ProtocolConstants.UF_CURSOR_MOVE_BROADCAST:
                     String jsonString = new String(finalPacket.getPayload(), StandardCharsets.UTF_8);
-                    System.out.println("[DEBUG] ClientSocketManager: Received UF_CURSOR_MOVE_BROADCAST: " + jsonString);
                     JSONObject cursorJson = new JSONObject(jsonString);
                     String cursorPath = cursorJson.getString("path");
                     String user = cursorJson.getString("user");
@@ -350,6 +343,7 @@ public class ClientSocketManager {
         } catch (PacketException | JSONException | IOException e) {
             if (callback != null) {
                 callback.onError("Error parsing packet: " + e.getMessage());
+                e.printStackTrace();
             }
         }
     }

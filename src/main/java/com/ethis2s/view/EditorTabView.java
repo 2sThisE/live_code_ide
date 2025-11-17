@@ -112,7 +112,6 @@ public class EditorTabView {
     }
 
     public void updateUserCursor(String filePath, String userId, String userNickname, int position) {
-        System.out.println(String.format("[DEBUG] EditorTabView: updateUserCursor called -> File: %s, User: %s, Pos: %d", filePath, userNickname, position));
         String tabId = "file-" + filePath;
         stateManager.getCursorManager(tabId).ifPresent(cursorManager -> {
             cursorManager.updateCursor(userId, userNickname, position);

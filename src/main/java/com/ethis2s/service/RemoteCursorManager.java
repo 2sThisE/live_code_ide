@@ -47,7 +47,6 @@ public class RemoteCursorManager {
     }
 
     public void updateCursor(String userId, String nickname, int position) {
-        System.out.println(String.format("[DEBUG] RemoteCursorManager: Updating cursor for %s to position %d", nickname, position));
         if (!activeCursors.containsKey(userId)) {
             createCursorForUser(userId, nickname);
         }
@@ -74,10 +73,13 @@ public class RemoteCursorManager {
 
         overlayPane.getChildren().add(cursorNode);
         activeCursors.put(userId, new UserCursorInfo(nickname, userColor, cursorNode));
-        System.out.println("[DEBUG] RemoteCursorManager: Created new cursor UI for " + nickname);
     }
 
     private void updateCursorPosition(UserCursorInfo cursorInfo) {
+        if (cursorInfo.position > codeArea.getLength()) {
+            cursorInfo.node.setVisible(false);
+            return;
+        }
         Optional<Bounds> boundsOpt = codeArea.getCharacterBoundsOnScreen(cursorInfo.position, cursorInfo.position);
 
         if (boundsOpt.isPresent()) {
@@ -88,12 +90,11 @@ public class RemoteCursorManager {
             double x = bounds.getMinX() - overlayBounds.getMinX();
             double y = bounds.getMinY() - overlayBounds.getMinY();
             
-            System.out.println(String.format("[DEBUG] RemoteCursorManager: Relocating cursor for %s to (%.2f, %.2f)", cursorInfo.nickname, x, y));
+
 
             cursorInfo.node.relocate(x, y);
             cursorInfo.node.setVisible(true);
         } else {
-            System.out.println("[DEBUG] RemoteCursorManager: Character bounds not present for " + cursorInfo.nickname + " at pos " + cursorInfo.position + ". Hiding cursor.");
             cursorInfo.node.setVisible(false);
         }
     }

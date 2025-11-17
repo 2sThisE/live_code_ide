@@ -607,7 +607,6 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     }
     @Override
     public void onFileEditBroadcast(String filePath, String type, int position, String text, int length) {
-        System.out.println(String.format("[DEBUG] MainController: onFileEditBroadcast received -> File: %s, Type: %s, Pos: %d, Text: '%s', Length: %d", filePath, type, position, text, length));
         String tabId = "file-" + filePath;
         
         Runnable updateAction = () -> {
@@ -621,7 +620,6 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         };
 
         if (editorTabView.getStateManager().isInitializing(tabId)) {
-            System.out.println("[DEBUG] MainController: Tab " + tabId + " is initializing. Queuing update.");
             editorTabView.getStateManager().queueUpdate(tabId, updateAction);
         } else {
             Platform.runLater(updateAction);
@@ -630,7 +628,6 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
 
     @Override
     public void onFileEditErrorResponse(int lineNumber, String lockOwnerId, String lockOwnerNickname) {
-        System.out.println(String.format("[DEBUG] MainController: onFileEditErrorResponse received -> Line: %d, Owner: %s(%s)", lineNumber, lockOwnerNickname, lockOwnerId));
         Platform.runLater(() -> {
             // An edit was rejected. The server is providing us with the ground truth.
             // We will always pass this down to self-correct our state.
@@ -646,7 +643,6 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
 
     @Override
     public void onCursorMoveBroadcast(String filePath, String userId, String userNickname, int position) {
-        System.out.println(String.format("[DEBUG] MainController: onCursorMoveBroadcast received -> File: %s, User: %s(%s), Pos: %d", filePath, userNickname, userId, position));
         // Do not process our own cursor movements broadcasted back to us.
         if (userInfo != null && userInfo.getId().equals(userId)) {
             return;

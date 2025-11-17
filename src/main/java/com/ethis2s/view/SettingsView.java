@@ -196,6 +196,5 @@ public class SettingsView {
             }
         }
         configManager.saveConfig();
-        System.out.println("Settings saved to config.json!");
     }
 }
