@@ -4,8 +4,9 @@ import com.ethis2s.controller.MainController;
 import com.ethis2s.controller.ProjectController;
 import com.ethis2s.service.ChangeInitiator;
 import com.ethis2s.util.ConfigManager;
+import com.ethis2s.util.EditorListenerManager;
+import com.ethis2s.util.EditorStateManager;
 import com.ethis2s.util.HybridManager;
-import com.ethis2s.view.EditorTabView;
 
 import javafx.application.Platform;
 import javafx.scene.Node;

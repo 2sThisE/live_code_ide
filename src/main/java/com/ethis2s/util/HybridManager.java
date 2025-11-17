@@ -9,7 +9,6 @@ import com.ethis2s.service.AntlrLanguageService.BracketPair;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
 import com.ethis2s.service.ChangeInitiator;
 import com.ethis2s.util.Tm4eSyntaxHighlighter.StyleToken;
-import com.ethis2s.view.editor.EditorStateManager;
 
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;

@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-import com.ethis2s.view.EditorTabView;
+import com.ethis2s.view.editor.EditorTabView;
 
 /**
  * 탭의 드래그 앤 드롭, 창 분할 및 병합 로직을 처리하는 클래스입니다.

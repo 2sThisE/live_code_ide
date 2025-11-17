@@ -2,7 +2,6 @@ package com.ethis2s.util;
 
 import com.ethis2s.controller.MainController;
 import com.ethis2s.util.Tm4eSyntaxHighlighter.StyleToken;
-import com.ethis2s.view.editor.EditorStateManager;
 
 import org.fxmisc.richtext.CodeArea;
 

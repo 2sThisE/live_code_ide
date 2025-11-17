@@ -1,6 +1,5 @@
 package com.ethis2s.service;
 
-import com.ethis2s.view.editor.EditorStateManager;
 import javafx.geometry.Bounds;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
@@ -9,6 +8,8 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Line;
 import org.fxmisc.richtext.CodeArea;
+
+import com.ethis2s.util.EditorStateManager;
 
 import java.util.HashMap;
 import java.util.Map;

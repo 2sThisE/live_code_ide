@@ -1,9 +1,9 @@
-package com.ethis2s.view.editor;
+package com.ethis2s.util;
 
 import com.ethis2s.controller.ProjectController;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
-import com.ethis2s.util.ConfigManager;
-import com.ethis2s.view.EditorTabView;
+import com.ethis2s.util.EditorStateManager.UserLockInfo;
+import com.ethis2s.view.editor.EditorTabView;
 
 import javafx.animation.PauseTransition;
 import javafx.beans.property.DoubleProperty;

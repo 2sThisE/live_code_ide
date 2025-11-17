@@ -1,14 +1,13 @@
-package com.ethis2s.view;
+package com.ethis2s.view.editor;
 
 import com.ethis2s.controller.MainController;
 import com.ethis2s.service.TabDragDropManager;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
 import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.EditorSearchHandler;
+import com.ethis2s.util.EditorStateManager;
+import com.ethis2s.util.TabPaneFocusManager;
 import com.ethis2s.view.ProblemsView.Problem;
-import com.ethis2s.view.editor.EditorFactory;
-import com.ethis2s.view.editor.EditorStateManager;
-import com.ethis2s.view.editor.TabPaneFocusManager;
 import com.ethis2s.model.UserProjectsInfo;
 
 import javafx.application.Platform;

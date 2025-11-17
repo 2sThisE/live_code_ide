@@ -1,8 +1,9 @@
-package com.ethis2s.view.editor;
+package com.ethis2s.util;
 
 import com.ethis2s.controller.MainController;
 import com.ethis2s.model.UserProjectsInfo;
-import com.ethis2s.view.EditorTabView;
+import com.ethis2s.view.editor.EditorTabView;
+
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import org.fxmisc.richtext.CodeArea;

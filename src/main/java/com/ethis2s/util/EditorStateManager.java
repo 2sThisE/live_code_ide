@@ -1,8 +1,7 @@
-package com.ethis2s.view.editor;
+package com.ethis2s.util;
 
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
 import com.ethis2s.service.RemoteCursorManager;
-import com.ethis2s.util.HybridManager;
 
 import javafx.application.Platform;
 import javafx.beans.property.IntegerProperty;
