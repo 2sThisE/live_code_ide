@@ -43,25 +43,35 @@ public class ProjectController {
 
     public void createProjectRequest(String projectName) {
         if (userInfo == null) return;
-        byte[] payload = String.format("{\"requester\":\"%s\", \"name\":\"%s\"}", userInfo.getId(), projectName).getBytes(StandardCharsets.UTF_8);
+        JSONObject payload = new JSONObject();
+        payload.put("requester", userInfo.getId());
+        payload.put("name", projectName);
         sendRequest(payload, ProtocolConstants.UF_CREATE_PROJECT_REQUEST);
     }
 
     public void projectListRequest() {
         if (userInfo == null) return;
-        byte[] payload = String.format("{\"requester\":\"%s\"}", userInfo.getId()).getBytes(StandardCharsets.UTF_8);
+        JSONObject payload = new JSONObject();
+        payload.put("requester", userInfo.getId());
         sendRequest(payload, ProtocolConstants.UF_PROJECT_LIST_REQUEST);
     }
 
     public void fileListRequest(UserProjectsInfo userProjectsInfo) {
         if (userInfo == null) return;
-        byte[] payload = String.format("{\"requester\":\"%s\", \"project_id\":\"%s\", \"owner\":\"%s\"}", userInfo.getId(), userProjectsInfo.getProjectID(),userProjectsInfo.getOwner()).getBytes(StandardCharsets.UTF_8);
+        JSONObject payload = new JSONObject();
+        payload.put("requester", userInfo.getId());
+        payload.put("project_id", userProjectsInfo.getProjectID());
+        payload.put("owner", userProjectsInfo.getOwner());
         sendRequest(payload, ProtocolConstants.UF_FILETREE_LIST_REQUEST);
     }
 
     public void fileContentRequest(UserProjectsInfo userProjectsInfo, String path) {
         if (userInfo == null) return;
-        byte[] payload = String.format("{\"requester\":\"%s\", \"project_id\":\"%s\", \"owner\":\"%s\", \"path\":\"%s\"}", userInfo.getId(), userProjectsInfo.getProjectID(), userProjectsInfo.getOwner(), path).getBytes(StandardCharsets.UTF_8);
+        JSONObject payload = new JSONObject();
+        payload.put("requester", userInfo.getId());
+        payload.put("project_id", userProjectsInfo.getProjectID());
+        payload.put("owner", userProjectsInfo.getOwner());
+        payload.put("path", path);
         sendRequest(payload, ProtocolConstants.UF_FILE_CONTENT_REQUEST);
     }
 
@@ -81,27 +91,20 @@ public class ProjectController {
             } else if ("DELETE".equals(type)) {
                 payload.put("length", length);
             }
-            
-            try {
-                socketManager.sendJsonPacket(payload, ProtocolConstants.UF_FILE_EDIT_OPERATION, ProtocolConstants.PTYPE_JSON);
-            } catch (Exception e) {
-                System.err.println("Request failed for fileEditOperationRequest: " + e.getMessage());
-                socketManager.initiateReconnection();
-            }
+            System.out.println("[debug] packet: "+payload.toString());
+            sendRequest(payload, ProtocolConstants.UF_FILE_EDIT_OPERATION);
         });
     }
 
     public void lineLockRequest(String filePath, int line) {
         if (userInfo == null) return;
         mainController.getCurrentActiveProject().ifPresent(projectInfo -> {
-            byte[] payload = String.format(
-                "{\"requester\":\"%s\", \"project_id\":\"%s\", \"owner\":\"%s\", \"path\":\"%s\", \"lineNumber\":%d}",
-                userInfo.getId(),
-                projectInfo.getProjectID(),
-                projectInfo.getOwner(),
-                filePath,
-                line
-            ).getBytes(StandardCharsets.UTF_8);
+            JSONObject payload = new JSONObject();
+            payload.put("requester", userInfo.getId());
+            payload.put("project_id", projectInfo.getProjectID());
+            payload.put("owner", projectInfo.getOwner());
+            payload.put("path", filePath);
+            payload.put("lineNumber", line);
             sendRequest(payload, ProtocolConstants.UF_LINE_LOCK_REQUEST);
         });
     }
@@ -115,67 +118,89 @@ public class ProjectController {
             payload.put("owner", projectInfo.getOwner());
             payload.put("path", filePath);
             payload.put("cursorPosition", cursorPosition);
-            
-            try {
-                // Use sendJsonPacket for consistency, though cursor updates are small.
-                socketManager.sendJsonPacket(payload, ProtocolConstants.UF_CURSOR_MOVE, ProtocolConstants.PTYPE_JSON);
-            } catch (Exception e) {
-                System.err.println("Request failed for cursorMoveRequest: " + e.getMessage());
-            }
+            sendRequest(payload, ProtocolConstants.UF_CURSOR_MOVE);
         });
     }
 
     public void projectDeleteRequest(String projectId) {
         if (userInfo == null) return;
-        byte[] payload = String.format("{\"project_id\":\"%s\", \"requester\":\"%s\"}", projectId, userInfo.getId()).getBytes(StandardCharsets.UTF_8);
+        JSONObject payload = new JSONObject();
+        payload.put("project_id", projectId);
+        payload.put("requester", userInfo.getId());
         sendRequest(payload, ProtocolConstants.UF_DELETE_PROJECT_REQUEST);
     }
     
     public void sharedListRequest(String projectId) {
         if (userInfo == null) return;
-        byte[] payload = String.format("{\"requester\":\"%s\", \"project_id\":\"%s\"}", userInfo.getId(), projectId).getBytes(StandardCharsets.UTF_8);
+        JSONObject payload = new JSONObject();
+        payload.put("requester", userInfo.getId());
+        payload.put("project_id", projectId);
         sendRequest(payload, ProtocolConstants.UF_SHARED_LIST_REQUEST);
     }
 
     public void addShareRequest(String projectId, String nickname, String tag) {
         if (userInfo == null) return;
-        byte[] payload = String.format("{\"project_id\":\"%s\", \"requester\":\"%s\", \"target_name\":\"%s\", \"target_tag\":\"%s\"}", projectId, userInfo.getId(), nickname, tag).getBytes(StandardCharsets.UTF_8);
+        JSONObject payload = new JSONObject();
+        payload.put("project_id", projectId);
+        payload.put("requester", userInfo.getId());
+        payload.put("target_name", nickname);
+        payload.put("target_tag", tag);
         sendRequest(payload, ProtocolConstants.UF_ADD_SHARE_REQUEST);
     }
 
     public void shareDeleteRequest(String projectId, String targetName, String targetTag) {
         if (userInfo == null) return;
-        byte[] payload = String.format("{\"project_id\":\"%s\", \"requester\":\"%s\", \"target_name\":\"%s\", \"target_tag\":\"%s\"}", projectId, userInfo.getId(), targetName, targetTag).getBytes(StandardCharsets.UTF_8);
+        JSONObject payload = new JSONObject();
+        payload.put("project_id", projectId);
+        payload.put("requester", userInfo.getId());
+        payload.put("target_name", targetName);
+        payload.put("target_tag", targetTag);
         sendRequest(payload, ProtocolConstants.UF_DELETE_SHARE_REQUEST);
     }
 
     public void addFileRequest(String projectId, String path, String owner) {
         if (userInfo == null) return;
-        byte[] payload = String.format("{\"requester\":\"%s\", \"project_id\":\"%s\", \"path\":\"%s\", \"owner\":\"%s\"}", userInfo.getId(),projectId, path, owner).getBytes(StandardCharsets.UTF_8);
+        JSONObject payload = new JSONObject();
+        payload.put("requester", userInfo.getId());
+        payload.put("project_id", projectId);
+        payload.put("path", path);
+        payload.put("owner", owner);
         sendRequest(payload, ProtocolConstants.UF_ADD_FILE_REQUEST);
     }
 
     public void delFileRequest(String projectId, String path, String owner){
         if (userInfo == null) return;
-        byte[] payload = String.format("{\"requester\":\"%s\", \"project_id\":\"%s\", \"path\":\"%s\", \"owner\":\"%s\"}", userInfo.getId(),projectId, path, owner).getBytes(StandardCharsets.UTF_8);
+        JSONObject payload = new JSONObject();
+        payload.put("requester", userInfo.getId());
+        payload.put("project_id", projectId);
+        payload.put("path", path);
+        payload.put("owner", owner);
         sendRequest(payload, ProtocolConstants.UF_DELETE_FILE_REQUEST);
     }
 
     public void addFolderRequest(String projectId, String path, String owner) {
         if (userInfo == null) return;
-        byte[] payload = String.format("{\"requester\":\"%s\", \"project_id\":\"%s\", \"path\":\"%s\", \"owner\":\"%s\"}", userInfo.getId(),projectId, path, owner).getBytes(StandardCharsets.UTF_8);
+        JSONObject payload = new JSONObject();
+        payload.put("requester", userInfo.getId());
+        payload.put("project_id", projectId);
+        payload.put("path", path);
+        payload.put("owner", owner);
         sendRequest(payload, ProtocolConstants.UF_ADD_FOLDER_REQUEST);
     }
     public void delDirRequest(String projectId, String path, String owner){
         if (userInfo == null) return;
-        byte[] payload = String.format("{\"requester\":\"%s\", \"project_id\":\"%s\", \"path\":\"%s\", \"owner\":\"%s\"}", userInfo.getId(),projectId, path, owner).getBytes(StandardCharsets.UTF_8);
+        JSONObject payload = new JSONObject();
+        payload.put("requester", userInfo.getId());
+        payload.put("project_id", projectId);
+        payload.put("path", path);
+        payload.put("owner", owner);
         sendRequest(payload, ProtocolConstants.UF_DELETE_FOLDER_REQUEST);
     }
 
-    private void sendRequest(byte[] payload, int userField) {
+    private void sendRequest(JSONObject payload, int userField) {
         new Thread(() -> {
             try {
-                socketManager.sendPacket(payload, ProtocolConstants.UNFRAGED, userField, ProtocolConstants.PTYPE_JSON);
+                socketManager.sendJsonPacket(payload, userField, ProtocolConstants.PTYPE_JSON);
             } catch (Exception ex) {
                 System.err.println("Request failed for userField " + userField + ": " + ex.getMessage());
             }

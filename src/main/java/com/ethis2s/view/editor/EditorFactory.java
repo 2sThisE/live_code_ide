@@ -73,8 +73,15 @@ public class EditorFactory {
         RemoteCursorManager cursorManager = new RemoteCursorManager(codeArea, cursorOverlay, stateManager);
         stateManager.registerCursorManager(tabId, cursorManager);
 
-        manager.controlledReplaceText(0, 0, content, ChangeInitiator.SYSTEM);
+        // Move caret to the beginning before inserting content
         
+        manager.controlledReplaceText(0, 0, content, ChangeInitiator.SYSTEM);
+        manager.resetInitiatorToUser(); // Explicitly reset initiator after initial load
+        
+        // Notify the manager that the initial content is loaded and trigger the first analysis
+        
+
+
         VirtualizedScrollPane<CodeArea> scrollPane = new VirtualizedScrollPane<>(codeArea);
         
         // Create a StackPane to hold the editor and the cursor overlay

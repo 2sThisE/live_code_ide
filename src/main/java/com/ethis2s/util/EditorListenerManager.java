@@ -46,7 +46,6 @@ public class EditorListenerManager {
         attachFocusListener();
         attachParagraphsListener();
         attachCurrentParagraphListener();
-        attachCaretPositionListener();
         attachErrorTooltipListeners();
     }
 
@@ -101,10 +100,6 @@ public class EditorListenerManager {
             getLineNumberLabel(codeArea, oldParagraph).ifPresent(label -> updateLineNumberStyle(label, oldParagraph, tabId, codeArea, DEFAULT_LINE_STYLE, CARET_LINE_STYLE, ERR_LINE_STYLE));
             getLineNumberLabel(codeArea, newParagraph).ifPresent(label -> updateLineNumberStyle(label, newParagraph, tabId, codeArea, DEFAULT_LINE_STYLE, CARET_LINE_STYLE, ERR_LINE_STYLE));
         });
-    }
-
-    private void attachCaretPositionListener() {
-        codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> codeArea.requestFollowCaret());
     }
 
     private void attachErrorTooltipListeners() {

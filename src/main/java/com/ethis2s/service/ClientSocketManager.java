@@ -47,7 +47,7 @@ public class ClientSocketManager {
     private volatile boolean isRunning = true;
     private Thread receivingThread;
     private final Map<Integer, ByteArrayOutputStream> fragmentBuffers = new HashMap<>();
-    private static final int MAX_PAYLOAD_SIZE = 8188; // 8196 - 8 (Header + CRC32)
+    private static final int MAX_PAYLOAD_SIZE = 8100; // Use a safer margin below the theoretical max of 8188
 
     public ClientSocketManager(ClientSocketCallback callback) {
         this.callback = callback;
@@ -98,29 +98,43 @@ public class ClientSocketManager {
 
     public void sendJsonPacket(JSONObject json, int userValue, byte payloadType) throws IOException {
         byte[] payload = json.toString().getBytes(StandardCharsets.UTF_8);
-        int payloadSize = payload.length;
+        int totalSize = payload.length;
 
-        if (payloadSize <= MAX_PAYLOAD_SIZE) {
-            sendPacket(payload, ProtocolConstants.UNFRAGED, userValue, payloadType);
+        if (totalSize == 0) {
+            sendPacket(new byte[0], ProtocolConstants.UNFRAGED, userValue, payloadType);
+            out.flush();
             return;
         }
 
+        // The raw JSON bytes are split here, which is the correct, intended behavior.
         int offset = 0;
-        while (offset < payloadSize) {
-            int length = Math.min(MAX_PAYLOAD_SIZE, payloadSize - offset);
-            byte[] chunk = Arrays.copyOfRange(payload, offset, offset + length);
-            
-            offset += length; // Move offset before the check for the last chunk
+        int chunksSent = 0;
+        final int FLUSH_INTERVAL = 16; // Flush every 16 chunks
 
-            byte fragFlag = (offset >= payloadSize) ? ProtocolConstants.UNFRAGED : ProtocolConstants.FRAGED;
+        while (offset < totalSize) {
+            int chunkSize = Math.min(MAX_PAYLOAD_SIZE, totalSize - offset);
+            byte[] chunk = new byte[chunkSize];
+            System.arraycopy(payload, offset, chunk, 0, chunkSize);
+
+            offset += chunkSize;
+
+            byte fragFlag = (offset >= totalSize) ? ProtocolConstants.UNFRAGED : ProtocolConstants.FRAGED;
             
             sendPacket(chunk, fragFlag, userValue, payloadType);
+            chunksSent++;
+
+            if (chunksSent >= FLUSH_INTERVAL) {
+                out.flush();
+                chunksSent = 0;
+            }
         }
+        // Flush any remaining data in the buffer
+        out.flush();
     }
 
     public void sendPacket(byte[] payload, byte fragFlag, int userValue, byte payloadType) throws IOException {
         if (out == null) throw new IOException("Output stream is not initialized.");
-        byte[] packetBytes = protocol.toBytes(payload, fragFlag, payloadType, userValue, 8192);
+        byte[] packetBytes = protocol.toBytes(payload, fragFlag, payloadType, userValue, 8196);
         out.write(packetBytes);
         out.flush();
     }

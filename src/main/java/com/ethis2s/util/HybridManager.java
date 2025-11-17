@@ -64,6 +64,7 @@ public class HybridManager {
     private String filePath;
     private final EditorStateManager stateManager;
     private EditorInputManager inputManager;
+    
 
     public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate, Runnable onAnalysisStart, Runnable onAnalysisFinish, ProjectController projectController, String filePath, EditorStateManager stateManager) {
         this.codeArea = codeArea;
@@ -132,6 +133,9 @@ public class HybridManager {
                             if (lastBracketTokens != null) {
                                 shiftTokens(lastBracketTokens, change.getPosition(), diff);
                             }
+                            if (previouslyRenderedBrackets != null) {
+                                shiftTokens(previouslyRenderedBrackets, change.getPosition(), diff);
+                            }
                         }
                     }
                     // 타이핑 시에는 무거운 전체 렌더러 호출
@@ -142,12 +146,11 @@ public class HybridManager {
             });
         
         codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
-            if (isTyping) { // 깃발 확인
-                return; // 타이핑 중이면 아무것도 하지 않음
+            if (inputManager.getLastInitiator() == ChangeInitiator.USER) {
+                // 커서 이동 시에는 데이터 업데이트 후, 가벼운 괄호 전용 렌더러 호출
+                updateBracketHighlightingData();
+                renderBracketHighlightOnly();
             }
-            // 커서 이동 시에는 데이터 업데이트 후, 가벼운 괄호 전용 렌더러 호출
-            updateBracketHighlightingData();
-            renderBracketHighlightOnly();
         });
     }
 
@@ -164,9 +167,14 @@ public class HybridManager {
     }
 
     public void controlledReplaceText(int start, int end, String text, ChangeInitiator initiator) {
-        System.out.println("[Debug] HybridManger initiator: "+(initiator==ChangeInitiator.USER?"User":"not User"));
         if (inputManager != null) {
             inputManager.controlledReplaceText(start, end, text, initiator);
+        }
+    }
+
+    public void resetInitiatorToUser() {
+        if (inputManager != null) {
+            inputManager.resetInitiatorToUser();
         }
     }
 
@@ -360,17 +368,24 @@ public class HybridManager {
     }
 
     private void renderBracketHighlightOnly() {
+        int docLength = codeArea.getLength();
         if (previouslyRenderedBrackets != null) {
             for (StyleToken oldToken : previouslyRenderedBrackets) {
-                List<String> style = codeArea.getStyleOfChar(oldToken.start).stream().filter(s -> !s.equals("bracket-highlight")).collect(Collectors.toList());
-                codeArea.setStyle(oldToken.start, oldToken.end, style);
+                // Defensive check to prevent IndexOutOfBoundsException
+                if (oldToken.start < docLength && oldToken.end <= docLength) {
+                    List<String> style = codeArea.getStyleOfChar(oldToken.start).stream().filter(s -> !s.equals("bracket-highlight")).collect(Collectors.toList());
+                    codeArea.setStyle(oldToken.start, oldToken.end, style);
+                }
             }
         }
 
         if (lastBracketTokens != null) {
             for (StyleToken newToken : lastBracketTokens) {
-                List<String> style = Stream.concat(codeArea.getStyleOfChar(newToken.start).stream(), Stream.of("bracket-highlight")).distinct().collect(Collectors.toList());
-                codeArea.setStyle(newToken.start, newToken.end, style);
+                // Defensive check to prevent IndexOutOfBoundsException
+                if (newToken.start < docLength && newToken.end <= docLength) {
+                    List<String> style = Stream.concat(codeArea.getStyleOfChar(newToken.start).stream(), Stream.of("bracket-highlight")).distinct().collect(Collectors.toList());
+                    codeArea.setStyle(newToken.start, newToken.end, style);
+                }
             }
         }
         
@@ -378,21 +393,31 @@ public class HybridManager {
     }
 
     private StyleSpans<Collection<String>> tokensToSpans(List<StyleToken> tokens) {
-        if (tokens == null || tokens.isEmpty()) {
-            return StyleSpans.singleton(Collections.emptyList(), codeArea.getLength());
+        int docLength = codeArea.getLength();
+        if (tokens == null || tokens.isEmpty() || docLength == 0) {
+            return StyleSpans.singleton(Collections.emptyList(), docLength);
         }
         StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
         int lastEnd = 0;
+        
+        // Sort tokens just in case they are out of order
+        tokens.sort(Comparator.comparingInt(t -> t.start));
+
         for (StyleToken token : tokens) {
-            if (token.start > lastEnd) {
-                spansBuilder.add(Collections.emptyList(), token.start - lastEnd);
+            // Clamp values to be within the document bounds
+            int start = Math.min(token.start, docLength);
+            int end = Math.min(token.end, docLength);
+
+            // Ensure tokens are valid and non-overlapping
+            if (start < end && start >= lastEnd) {
+                 if (start > lastEnd) {
+                    spansBuilder.add(Collections.emptyList(), start - lastEnd);
+                }
+                spansBuilder.add(token.styleClasses, end - start);
+                lastEnd = end;
             }
-            if (token.end > token.start) {
-                spansBuilder.add(token.styleClasses, token.end - token.start);
-            }
-            lastEnd = Math.max(lastEnd, token.end);
         }
-        int remaining = codeArea.getLength() - lastEnd;
+        int remaining = docLength - lastEnd;
         if (remaining > 0) {
             spansBuilder.add(Collections.emptyList(), remaining);
         }

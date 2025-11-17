@@ -631,7 +631,19 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                 .flatMap(activeArea -> editorTabView.getStateManager().findTabIdForCodeArea(activeArea))
                 .ifPresent(tabId -> {
                     String filePath = tabId.substring("file-".length());
-                    editorTabView.updateLineLockIndicator(filePath, lineNumber, lockOwnerId, lockOwnerNickname);
+
+                    if ("null".equals(lockOwnerId)) {
+                        // This is a synchronization error. Close the corrupted tab.
+                        // The subsequent file content request will reopen it with fresh data.
+                        System.err.println("Synchronization error detected for " + filePath + ". Closing tab and re-requesting content to self-heal.");
+                        editorTabView.closeTab(tabId);
+                        mainScreen.getCurrentProjectForFileTree().ifPresent(projectInfo -> {
+                            projectController.fileContentRequest(projectInfo, filePath);
+                        });
+                    } else {
+                        // This is a line lock conflict, update the UI to show the correct lock owner.
+                        editorTabView.updateLineLockIndicator(filePath, lineNumber, lockOwnerId, lockOwnerNickname);
+                    }
                 });
         });
     }
