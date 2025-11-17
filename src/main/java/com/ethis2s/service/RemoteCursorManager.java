@@ -48,7 +48,6 @@ public class RemoteCursorManager {
     }
 
     public void updateCursor(String userId, String nickname, int position) {
-        System.out.println(String.format("[Debug] RemoteCursorManager.updateCursor: Updating UI for user=%s, position=%d", nickname, position));
         if (!activeCursors.containsKey(userId)) {
             createCursorForUser(userId, nickname);
         }

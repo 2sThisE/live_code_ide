@@ -254,21 +254,21 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         }
 
         final String OS = System.getProperty("os.name").toLowerCase();
-        if (OS.contains("mac")) {
-            // Mac 관련 설정
-            MacosNativeUtil.applyUnifiedTitleBarStyle(primaryStage);
-        } else if (OS.contains("win")) {
+        primaryStage.setOnShown(e->{
+            if (OS.contains("mac")) {
+                // Mac 관련 설정
+                MacosNativeUtil.applyUnifiedTitleBarStyle(primaryStage);
+            } else if (OS.contains("win")) {
             // 1. 네이티브 스타일링을 먼저 적용합니다.
-            primaryStage.setOnShown(e->{
                 WindowsNativeUtil.applyCustomWindowStyle(
                 primaryStage, 
                 mainScreen.getTopPane(),
                 mainScreen.getNonDraggableNodes()
                 );
-            });
-        
-            // MaximizationPatcher.apply(primaryStage, rootPane);
-        } else System.out.println("미지원 OS");
+                
+                // MaximizationPatcher.apply(primaryStage, rootPane);
+            } else System.out.println("미지원 OS");
+        });
         
         primaryStage.maximizedProperty().addListener((obs, oldVal, isMaximized) -> {
             if (isMaximized) {

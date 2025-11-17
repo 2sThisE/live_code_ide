@@ -91,7 +91,6 @@ public class ProjectController {
             } else if ("DELETE".equals(type)) {
                 payload.put("length", length);
             }
-            System.out.println("[debug] packet: "+payload.toString());
             sendRequest(payload, ProtocolConstants.UF_FILE_EDIT_OPERATION);
         });
     }
