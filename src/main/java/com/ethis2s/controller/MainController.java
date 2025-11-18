@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+
+import org.jcodings.exception.ErrorCodes;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -26,6 +28,7 @@ import com.ethis2s.view.MainScreen;
 import com.ethis2s.view.ProblemsView;
 import com.ethis2s.view.ProblemsView.Problem;
 import com.ethis2s.view.editor.EditorTabView;
+import com.google.gson.Gson;
 import com.ethis2s.view.ProjectPropertiesScreen;
 import com.ethis2s.view.RegisterScreen;
 import com.ethis2s.view.SettingsView;
@@ -36,10 +39,13 @@ import javafx.beans.binding.Bindings;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
+import javafx.scene.control.Alert.AlertType;
+import javafx.scene.control.ButtonType;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
@@ -345,7 +351,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             this.lastLoggedInPassword = null;
         }
         projectController.clearUserInfo();
-
+        socketManager.disconnect(true);
         Platform.runLater(() -> {
             mainScreen.clearProjectView();
             statusBarLabel.setText("로그인되지 않았습니다.");
@@ -625,26 +631,63 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     }
 
     @Override
-    public void onFileEditErrorResponse(int lineNumber, String lockOwnerId, String lockOwnerNickname) {
+    public void onClientErrorResponse(JSONObject errData) {
+        int ErrCode=errData.getInt("errorCode");
+        Alert alert=new Alert(Alert.AlertType.ERROR,"",ButtonType.OK);
+        alert.initOwner(primaryStage);
+        Gson gson=new Gson();
+        StringBuilder context=new StringBuilder("에러코드: "+ErrCode);
+        try {
+            Map<String, String> contextMap=gson.fromJson(errData.getJSONObject("context").toString(), Map.class);
+            contextMap.forEach((k,v)->context.append("\t"+k+": "+v+"\n"));
+            alert.setHeaderText(errData.getString("errorMessage"));
+            alert.setContentText(context.toString());
+            alert.getDialogPane().lookupButton(ButtonType.OK).addEventFilter(
+                javafx.event.ActionEvent.ACTION,
+                event -> {socketManager.disconnect(true);}
+            );
+        } catch (Exception e) {}
         Platform.runLater(() -> {
-            editorTabView.getActiveCodeArea()
-                .flatMap(activeArea -> editorTabView.getStateManager().findTabIdForCodeArea(activeArea))
-                .ifPresent(tabId -> {
-                    String filePath = tabId.substring("file-".length());
-
-                    if ("null".equals(lockOwnerId)) {
-                        // This is a synchronization error. Close the corrupted tab.
-                        // The subsequent file content request will reopen it with fresh data.
-                        System.err.println("Synchronization error detected for " + filePath + ". Closing tab and re-requesting content to self-heal.");
-                        editorTabView.closeTab(tabId);
-                        mainScreen.getCurrentProjectForFileTree().ifPresent(projectInfo -> {
-                            projectController.fileContentRequest(projectInfo, filePath);
+            switch (ErrCode) {
+                case ProtocolConstants.ERROR_CODE_NOT_AUTHORIZED:{
+                    alert.setTitle("세션 권한 없음");
+                    alert.showAndWait();
+                    break;
+                }
+                case ProtocolConstants.ERROR_CODE_OWNER_VERIFICATION_FAILED:{
+                    alert.setTitle("유효하지 않은 접근");
+                    alert.showAndWait();
+                    break;
+                }
+                case ProtocolConstants.ERROR_CODE_PROJECT_OWNER_VERIFICATION_FAILED:{
+                    alert.setTitle("소유자 검증 실패");
+                    alert.showAndWait();
+                    break;
+                }
+                case ProtocolConstants.ERROR_CODE_LINE_LOCKED:
+                case ProtocolConstants.ERROR_CODE_SYNC_ERROR:{
+                    int lineNumber = errData.getInt("lineNumber");
+                    String lockOwnerId = errData.getString("lockOwner");
+                    String lockOwnerNickname = errData.optString("lockOwnerNickname", lockOwnerId);
+                    editorTabView.getActiveCodeArea()
+                        .flatMap(activeArea -> editorTabView.getStateManager().findTabIdForCodeArea(activeArea))
+                        .ifPresent(tabId -> {
+                            String filePath = tabId.substring("file-".length());
+                            
+                            if ("null".equals(lockOwnerId)) {
+                                System.err.println("Synchronization error detected for " + filePath + ". Closing tab and re-requesting content to self-heal.");
+                                editorTabView.closeTab(tabId);
+                                mainScreen.getCurrentProjectForFileTree().ifPresent(projectInfo -> {
+                                    projectController.fileContentRequest(projectInfo, filePath);
+                                });
+                            } else {
+                                // This is a line lock conflict, update the UI to show the correct lock owner.
+                                editorTabView.updateLineLockIndicator(filePath, lineNumber, lockOwnerId, lockOwnerNickname);
+                            }
                         });
-                    } else {
-                        // This is a line lock conflict, update the UI to show the correct lock owner.
-                        editorTabView.updateLineLockIndicator(filePath, lineNumber, lockOwnerId, lockOwnerNickname);
-                    }
-                });
+                    break;
+                }
+            }
         });
     }
 

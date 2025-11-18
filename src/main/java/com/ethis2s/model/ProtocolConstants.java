@@ -1,4 +1,5 @@
 package com.ethis2s.model;
+
 public final class ProtocolConstants {
     // Fragment flags
     public static final byte FRAGED = 0x01;
@@ -62,6 +63,20 @@ public final class ProtocolConstants {
     public static final int UF_FILE_CLOSE_RESPONSE = 0x029; // 파일 닫기 응답
     public static final int UF_LINE_LOCK_BROADCAST = 0x02A; // 라인 락 브로드캐스트
     public static final int UF_LINE_UNLOCK_BROADCAST = 0x02B; // 라인 락 해제 브로드캐스트
+
+    // --- 클라이언트 에러 코드 (정수) ---
+
+    // 1000번대: 실시간 편집 관련 에러
+    public static final int ERROR_CODE_LINE_LOCKED = 1001; // 다른 사용자가 라인을 잠금
+    public static final int ERROR_CODE_INVALID_POSITION_INSERT = 1002; // INSERT 연산의 position이 유효 범위를 벗어남
+    public static final int ERROR_CODE_INVALID_POSITION_DELETE = 1003; // DELETE 연산의 position 또는 length가 유효 범위를 벗어남
+    public static final int ERROR_CODE_SYNC_ERROR = 1004; // 서버의 파일 내용과 클라이언트의 연산 간 동기화 오류 (IndexOutOfBounds 등)
+
+    // 2000번대: 권한 및 일반 요청 에러
+    public static final int ERROR_CODE_NOT_AUTHORIZED = 2001; // 해당 파일 세션에 대한 권한이 없음 (캐시 확인 실패)
+    public static final int ERROR_CODE_OWNER_VERIFICATION_FAILED = 2002; // 프로젝트 소유자 검증 실패 (경로 조작 시도 등)
+    public static final int ERROR_CODE_INVALID_OPERATION = 2003; // 유효하지 않은 연산 타입 또는 필수 파라미터 누락
+    public static final int ERROR_CODE_PROJECT_OWNER_VERIFICATION_FAILED = 2004; // 프로젝트 소유자 검증 실패 (DB 조회 시점)
 
     private ProtocolConstants() {
         // Private constructor to prevent instantiation

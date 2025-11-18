@@ -82,9 +82,6 @@ public class LoginScreen {
                 case 0:
                     actiontarget.setText("로그인 실패: 잘못된 아이디 또는 비밀번호.");
                     break;
-                default:
-                    actiontarget.setText("로그인 실패: 서버와 통신할 수 없습니다.");
-                    break;
             }
         });
     }

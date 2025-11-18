@@ -74,7 +74,7 @@ public class ClientSocketManager {
         receivingThread.start();
     }
 
-    public void disconnect() {
+    public void disconnect(boolean reconnect) {
         System.out.println("DEBUG: ClientSocketManager.disconnect() called.");
         isRunning = false; // Signal the loop to stop
         try {
@@ -94,7 +94,23 @@ public class ClientSocketManager {
             Thread.currentThread().interrupt(); // Preserve interrupt status
         }
         System.out.println("DEBUG: ClientSocketManager.disconnect() finished.");
+
+        if (reconnect) {
+            boolean socketDead = (sslSocket == null || sslSocket.isClosed());
+            boolean threadDead = (receivingThread == null || !receivingThread.isAlive());
+            if (socketDead && threadDead) {
+                try {
+                    isRunning = true;
+                    connect();
+                } catch (Exception e) {
+                    System.out.println("DEBUG: ClientSocketManager.connect() fail: " + e);
+                    isRunning = false;
+                }
+            }
+        }
     }
+
+
 
     public void sendJsonPacket(JSONObject json, int userValue, byte payloadType) throws IOException {
         byte[] payload = json.toString().getBytes(StandardCharsets.UTF_8);
@@ -322,12 +338,7 @@ public class ClientSocketManager {
                     break;
                 case ProtocolConstants.UF_CLIENT_ERROR:
                     JSONObject errorJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
-                    if (errorJson.has("lineNumber") && errorJson.has("lockOwner")) {
-                        int lineNumber = errorJson.getInt("lineNumber");
-                        String lockOwnerId = errorJson.getString("lockOwner");
-                        String lockOwnerNickname = errorJson.optString("lockOwnerNickname", lockOwnerId);
-                        callback.onFileEditErrorResponse(lineNumber, lockOwnerId, lockOwnerNickname);
-                    }
+                    callback.onClientErrorResponse(errorJson);
                     break;
                 case ProtocolConstants.UF_FILE_EDIT_BROADCAST:
                     {
@@ -384,7 +395,7 @@ public class ClientSocketManager {
         void onLineLockUpdate(String filePath, int line, String userId, String userNickname);
         void onLineLockResponse(boolean success, int line);
         void onFileEditBroadcast(String filePath, String type, int position, String text, int length);
-        void onFileEditErrorResponse(int lineNumber, String lockOwnerId, String lockOwnerNickname);
+        void onClientErrorResponse(JSONObject error);
         void onCursorMoveBroadcast(String filePath, String userId, String userNickname, int position);
     }
 }

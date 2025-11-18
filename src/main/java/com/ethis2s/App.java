@@ -101,7 +101,7 @@ public class App extends Application {
             mainController.shutdown();
         }
         if (socketManager != null) {
-            socketManager.disconnect();
+            socketManager.disconnect(false);
         }
         super.stop();
     }
