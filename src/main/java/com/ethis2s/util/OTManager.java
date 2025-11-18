@@ -22,6 +22,10 @@ public class OTManager {
     private final Queue<Operation> unconfirmedOps = new LinkedList<>();
     private long uniqIdCounter = 0;
 
+    // --- Concurrency Control ---
+    private boolean isRebasing = false;
+    private final Queue<Operation> pendingInputQueue = new LinkedList<>();
+
     private final ProjectController projectController;
     private final HybridManager hybridManager; // To apply changes
     private final String filePath;
@@ -60,6 +64,7 @@ public class OTManager {
         } else {
             // This is an operation from another user.
             System.out.println("[OT_DEBUG] Received op from other user. Rebasing local operations against: " + serverOp);
+            isRebasing = true;
             hybridManager.setApplyingServerChange(true);
             
             // Rebase our pending operations against the server's operation.
@@ -89,8 +94,12 @@ public class OTManager {
             }
 
             this.localVersion = newVersion;
-            sendNextPendingOperation(); // After rebase, try sending the first pending op.
+            
             hybridManager.setApplyingServerChange(false);
+            isRebasing = false;
+            
+            processPendingInputs();
+            sendNextPendingOperation(); // After rebase, try sending the first pending op.
         }
     }
 
@@ -135,6 +144,7 @@ public class OTManager {
 
     private void abortUnconfirmedOperations(Operation serverOp) {
         System.err.println("Prediction failed! Aborting and rebasing unconfirmed operations.");
+        isRebasing = true;
         hybridManager.setApplyingServerChange(true);
         
         Queue<Operation> rebasedOps = new LinkedList<>();
@@ -161,11 +171,21 @@ public class OTManager {
         }
 
         this.localVersion = serverOp.getVersion();
-        sendNextPendingOperation();
+        
         hybridManager.setApplyingServerChange(false);
+        isRebasing = false;
+
+        processPendingInputs();
+        sendNextPendingOperation();
     }
 
     public void sendOperation(Operation op) {
+        if (isRebasing) {
+            pendingInputQueue.add(op);
+            System.out.println("[OT_DEBUG] Rebasing in progress. Queuing operation temporarily: " + op);
+            return;
+        }
+
         projectController.getCurrentUserNicknameAndTag().ifPresent(userId -> {
             long lastVersion = unconfirmedOps.isEmpty() 
                 ? this.localVersion 
@@ -183,6 +203,14 @@ public class OTManager {
                 sendNextPendingOperation();
             }
         });
+    }
+
+    private void processPendingInputs() {
+        while (!pendingInputQueue.isEmpty()) {
+            Operation pendingOp = pendingInputQueue.poll();
+            System.out.println("[OT_DEBUG] Processing temporarily queued operation: " + pendingOp);
+            sendOperation(pendingOp);
+        }
     }
 
     private void sendNextPendingOperation() {
