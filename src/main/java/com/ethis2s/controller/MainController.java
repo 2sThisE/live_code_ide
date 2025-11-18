@@ -22,6 +22,7 @@ import com.ethis2s.service.ClientSocketManager;
 import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.MacosNativeUtil;
 import com.ethis2s.util.WindowsNativeUtil;
+import com.ethis2s.view.CustomAlert;
 import com.ethis2s.view.DebugView;
 import com.ethis2s.view.LoginScreen;
 import com.ethis2s.view.MainScreen;
@@ -633,21 +634,17 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     @Override
     public void onClientErrorResponse(JSONObject errData) {
         int ErrCode=errData.getInt("errorCode");
-        Alert alert=new Alert(Alert.AlertType.ERROR,"",ButtonType.OK);
-        alert.initOwner(primaryStage);
         Gson gson=new Gson();
+        
         StringBuilder context=new StringBuilder("에러코드: "+ErrCode);
-        try {
-            Map<String, String> contextMap=gson.fromJson(errData.getJSONObject("context").toString(), Map.class);
-            contextMap.forEach((k,v)->context.append("\t"+k+": "+v+"\n"));
-            alert.setHeaderText(errData.getString("errorMessage"));
-            alert.setContentText(context.toString());
-            alert.getDialogPane().lookupButton(ButtonType.OK).addEventFilter(
-                javafx.event.ActionEvent.ACTION,
-                event -> {socketManager.disconnect(true);}
-            );
-        } catch (Exception e) {}
         Platform.runLater(() -> {
+            CustomAlert alert=null;
+            try {
+                alert=new CustomAlert(primaryStage, null, errData.getString("errorMessage"), null, ()->performLogout());
+                Map<String, String> contextMap=gson.fromJson(errData.getJSONObject("context").toString(), Map.class);
+                contextMap.forEach((k,v)->context.append("\t"+k+": "+v+"\n"));
+                alert.setContext(context.toString());
+            } catch (Exception e) {}
             switch (ErrCode) {
                 case ProtocolConstants.ERROR_CODE_NOT_AUTHORIZED:{
                     alert.setTitle("세션 권한 없음");
@@ -664,8 +661,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                     alert.showAndWait();
                     break;
                 }
-                case ProtocolConstants.ERROR_CODE_LINE_LOCKED:
-                case ProtocolConstants.ERROR_CODE_SYNC_ERROR:{
+                case ProtocolConstants.ERROR_CODE_LINE_LOCKED: {
                     int lineNumber = errData.getInt("lineNumber");
                     String lockOwnerId = errData.getString("lockOwner");
                     String lockOwnerNickname = errData.optString("lockOwnerNickname", lockOwnerId);
@@ -673,17 +669,20 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                         .flatMap(activeArea -> editorTabView.getStateManager().findTabIdForCodeArea(activeArea))
                         .ifPresent(tabId -> {
                             String filePath = tabId.substring("file-".length());
-                            
-                            if ("null".equals(lockOwnerId)) {
-                                System.err.println("Synchronization error detected for " + filePath + ". Closing tab and re-requesting content to self-heal.");
-                                editorTabView.closeTab(tabId);
-                                mainScreen.getCurrentProjectForFileTree().ifPresent(projectInfo -> {
-                                    projectController.fileContentRequest(projectInfo, filePath);
-                                });
-                            } else {
-                                // This is a line lock conflict, update the UI to show the correct lock owner.
-                                editorTabView.updateLineLockIndicator(filePath, lineNumber, lockOwnerId, lockOwnerNickname);
-                            }
+                            editorTabView.updateLineLockIndicator(filePath, lineNumber, lockOwnerId, lockOwnerNickname);
+                        });
+                    break;
+                }
+                case ProtocolConstants.ERROR_CODE_SYNC_ERROR: {
+                    editorTabView.getActiveCodeArea()
+                        .flatMap(activeArea -> editorTabView.getStateManager().findTabIdForCodeArea(activeArea))
+                        .ifPresent(tabId -> {
+                            String filePath = tabId.substring("file-".length());
+                            System.err.println("Synchronization error detected for " + filePath + ". Closing tab and re-requesting content to self-heal.");
+                            editorTabView.closeTab(tabId);
+                            mainScreen.getCurrentProjectForFileTree().ifPresent(projectInfo -> {
+                                projectController.fileContentRequest(projectInfo, filePath);
+                            });
                         });
                     break;
                 }

@@ -63,6 +63,7 @@ public final class ProtocolConstants {
     public static final int UF_FILE_CLOSE_RESPONSE = 0x029; // 파일 닫기 응답
     public static final int UF_LINE_LOCK_BROADCAST = 0x02A; // 라인 락 브로드캐스트
     public static final int UF_LINE_UNLOCK_BROADCAST = 0x02B; // 라인 락 해제 브로드캐스트
+    public static final int UF_HISTORY = 0x02C; // 과거 클라이언트가 놓친 정보 업데이트
 
     // --- 클라이언트 에러 코드 (정수) ---
 

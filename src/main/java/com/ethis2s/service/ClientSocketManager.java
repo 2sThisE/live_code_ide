@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
@@ -60,16 +61,23 @@ public class ClientSocketManager {
             public void checkClientTrusted(X509Certificate[] certs, String authType) {}
             public void checkServerTrusted(X509Certificate[] certs, String authType) {}
         }};
+
         SSLContext sslContext = SSLContext.getInstance("TLS");
         sslContext.init(null, trustAllCerts, new SecureRandom());
-        SSLSocketFactory factory = sslContext.getSocketFactory();
-        sslSocket = (SSLSocket) factory.createSocket(SERVER_IP, SERVER_PORT);
-        sslSocket.startHandshake();
 
+        SSLSocketFactory factory = sslContext.getSocketFactory();
+
+        // 타임아웃 5초로 지정
+        SSLSocket tempSocket = (SSLSocket) factory.createSocket();
+        tempSocket.connect(new InetSocketAddress(SERVER_IP, SERVER_PORT), 5000);
+        tempSocket.startHandshake();
+
+        sslSocket = tempSocket;
         out = new DataOutputStream(sslSocket.getOutputStream());
         in = new DataInputStream(sslSocket.getInputStream());
 
         if (callback != null) callback.onConnected();
+
         receivingThread = new Thread(this::startReceiving);
         receivingThread.start();
     }
@@ -201,15 +209,9 @@ public class ClientSocketManager {
         isReconnecting = true;
         
         try {
-            if (sslSocket != null && !sslSocket.isClosed()) {
-                sslSocket.close();
-            }
-        } catch (IOException e) {
-            // Ignore
-        }
-
+            if (sslSocket != null && !sslSocket.isClosed()) sslSocket.close();
+        } catch (IOException e) {}
         if (callback != null) callback.onDisconnected();
-
         Thread reconnectThread = new Thread(() -> {
             while (isRunning) {
                 try {
@@ -350,6 +352,8 @@ public class ClientSocketManager {
                         int editPosition = editJson.getInt("position");
                         String text = editJson.optString("text", "");
                         int length = editJson.optInt("length", 0);
+                        long version= editJson.getLong("version");
+                        String uniqId=editJson.getString("uniqId");
                         // TODO: onFileEditBroadcast 콜백에 user 정보를 전달하도록 추후 수정 필요
                         callback.onFileEditBroadcast(editPath, editType, editPosition, text, length);
                     }

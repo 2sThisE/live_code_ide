@@ -60,18 +60,9 @@ public class App extends Application {
         if (OS.contains("mac")) primaryStage.initStyle(StageStyle.UNIFIED);
         else if (OS.contains("win")) primaryStage.initStyle(StageStyle.TRANSPARENT);
         
-        
-        
-
         mainController = new MainController(primaryStage);
-        
-        // Pass the controller as the callback for socket events
         socketManager = new ClientSocketManager(mainController);
-        
-        // Inject the socket manager into the controller
         mainController.setSocketManager(socketManager);
-
-        // Initialize the main UI
         mainController.initMainScreen();
 
         // Redirect console output to the DebugView
