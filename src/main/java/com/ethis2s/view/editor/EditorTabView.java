@@ -71,7 +71,7 @@ public class EditorTabView {
     
     // --- Public API ---
 
-    public void openFileInEditor(String filePath, String content) {
+    public void openFileInEditor(String filePath, String content, long initialVersion) {
         String tabId = "file-" + filePath;
         if (hasTab(tabId)) {
             selectTab(tabId);
@@ -80,7 +80,7 @@ public class EditorTabView {
 
         Optional<UserProjectsInfo> projectInfoOpt = mainController.getCurrentActiveProject();
 
-        Node editorContent = editorFactory.createEditorForFile(filePath, content, tabId);
+        Node editorContent = editorFactory.createEditorForFile(filePath, content, tabId, initialVersion);
 
         // Finalize initialization for this tab
         stateManager.setInitializing(tabId, false);

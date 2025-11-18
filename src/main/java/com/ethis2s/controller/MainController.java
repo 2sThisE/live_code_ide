@@ -14,6 +14,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import com.ethis2s.App;
+import com.ethis2s.model.Operation;
 import com.ethis2s.model.ProtocolConstants;
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
@@ -518,11 +519,11 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     }
 
     @Override
-    public void onFileContentResponse(String path, String content, String hash) {
+    public void onFileContentResponse(String path, String content, String hash, long version) {
         String calculatedHash = calculateSHA256(content);
         if (calculatedHash.equals(hash)) {
             Platform.runLater(() -> {
-                editorTabView.openFileInEditor(path, content);
+                editorTabView.openFileInEditor(path, content, version);
             });
         } else {
             System.err.println("File content hash mismatch for: " + path + ". Retrying...");
@@ -611,16 +612,19 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         }
     }
     @Override
-    public void onFileEditBroadcast(String filePath, String type, int position, String text, int length) {
+    public void onFileEditBroadcast(String filePath, String type, int position, String text, int length, long newVersion, String uniqId, String requesterId) {
         String tabId = "file-" + filePath;
         
         Runnable updateAction = () -> {
             editorTabView.getStateManager().getHybridManager(tabId).ifPresent(manager -> {
+                // Create an Operation object from the broadcast data
+                Operation op;
                 if ("INSERT".equals(type)) {
-                    manager.controlledReplaceText(position, position, text, ChangeInitiator.SERVER);
-                } else if ("DELETE".equals(type)) {
-                    manager.controlledReplaceText(position, position + length, "", ChangeInitiator.SERVER);
+                    op = new Operation(Operation.Type.INSERT, position, text, -1, newVersion, uniqId);
+                } else { // "DELETE"
+                    op = new Operation(Operation.Type.DELETE, position, text, length, -1, newVersion, uniqId);
                 }
+                manager.getOtManager().handleBroadcast(newVersion, uniqId, requesterId, op);
             });
         };
 
@@ -629,6 +633,16 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         } else {
             Platform.runLater(updateAction);
         }
+    }
+
+    @Override
+    public void onCatchUpResponse(String filePath, JSONArray operations) {
+        String tabId = "file-" + filePath;
+        Platform.runLater(() -> {
+            editorTabView.getStateManager().getHybridManager(tabId).ifPresent(manager -> {
+                manager.getOtManager().handleCatchUp(operations);
+            });
+        });
     }
 
     @Override

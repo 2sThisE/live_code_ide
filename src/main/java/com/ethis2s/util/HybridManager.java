@@ -1,6 +1,7 @@
 package com.ethis2s.util;
 
 import com.ethis2s.controller.ProjectController;
+import com.ethis2s.model.Operation;
 import com.ethis2s.service.AntlrCompletionService;
 import com.ethis2s.service.AntlrLanguageService;
 import com.ethis2s.service.EditorInputManager;
@@ -17,13 +18,17 @@ import org.antlr.v4.runtime.Token;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.model.StyleSpans;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
 import java.util.Stack;
 import java.util.concurrent.CompletableFuture;
@@ -64,9 +69,13 @@ public class HybridManager {
     private String filePath;
     private final EditorStateManager stateManager;
     private EditorInputManager inputManager;
+
+    // --- Version Control ---
+    private final OTManager otManager;
+    private boolean isApplyingServerChange = false;
     
 
-    public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate, Runnable onAnalysisStart, Runnable onAnalysisFinish, ProjectController projectController, String filePath, EditorStateManager stateManager) {
+    public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate, Runnable onAnalysisStart, Runnable onAnalysisFinish, ProjectController projectController, String filePath, EditorStateManager stateManager, long initialVersion) {
         this.codeArea = codeArea;
         this.onErrorUpdate = onErrorUpdate;
         this.onAnalysisStart = onAnalysisStart;
@@ -74,6 +83,8 @@ public class HybridManager {
         this.projectController = projectController;
         this.filePath = filePath;
         this.stateManager = stateManager;
+        
+        this.otManager = new OTManager(initialVersion, projectController, this, filePath);
         
         this.highlighter = new Tm4eSyntaxHighlighter(codeArea, fileExtension);
 
@@ -154,6 +165,30 @@ public class HybridManager {
         });
     }
 
+    // --- OTManager Delegation ---
+
+    public OTManager getOtManager() {
+        return otManager;
+    }
+
+    public void handleBroadcast(long newVersion, String uniqId, String requesterId, Operation serverOp) {
+        otManager.handleBroadcast(newVersion, uniqId, requesterId, serverOp);
+    }
+
+    public void handleCatchUp(JSONArray operations) {
+        otManager.handleCatchUp(operations);
+    }
+
+    public boolean isApplyingServerChange() {
+        return isApplyingServerChange;
+    }
+
+    public void setApplyingServerChange(boolean isApplyingServerChange) {
+        this.isApplyingServerChange = isApplyingServerChange;
+    }
+
+    // --- End of OTManager Delegation ---
+
     public void requestLineLock(int line) {
         projectController.lineLockRequest(this.filePath, line);
     }
@@ -162,8 +197,8 @@ public class HybridManager {
         projectController.cursorMoveRequest(this.filePath, cursorPosition);
     }
 
-    public void requestFileEditOperation(String type, int position, String text, int length) {
-        projectController.fileEditOperationRequest(this.filePath, type, position, text, length);
+    public void requestFileEditOperation(String type, int position, String text, int length, int cursorPosition, long version, String uniqId) {
+        projectController.fileEditOperationRequest(this.filePath, type, position, text, length, cursorPosition, version, uniqId);
     }
 
     public void controlledReplaceText(int start, int end, String text, ChangeInitiator initiator) {

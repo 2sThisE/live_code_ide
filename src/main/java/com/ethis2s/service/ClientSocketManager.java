@@ -287,7 +287,12 @@ public class ClientSocketManager {
                     break;
                 case ProtocolConstants.UF_FILE_CONTENT_RESPONSE:
                     JSONObject fileContentJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
-                    callback.onFileContentResponse(fileContentJson.getString("path"), fileContentJson.getString("content"), fileContentJson.getString("hash"));
+                    callback.onFileContentResponse(
+                        fileContentJson.getString("path"), 
+                        fileContentJson.getString("content"), 
+                        fileContentJson.getString("hash"),
+                        fileContentJson.getLong("version")
+                    );
                     break;
                 case ProtocolConstants.UF_CREATE_PROJECT_RSPONSE:
                     callback.onCreateProjectResponse(finalPacket.getPayload()[0] != 0);
@@ -348,14 +353,24 @@ public class ClientSocketManager {
                         JSONObject editJson = new JSONObject(jsonString);
                         String editPath = editJson.getString("path");
                         String editType = editJson.getString("type");
-                        String user = editJson.getString("user"); // 규약에 따라 user 정보 파싱
+                        String requesterId = editJson.getString("user");
                         int editPosition = editJson.getInt("position");
                         String text = editJson.optString("text", "");
                         int length = editJson.optInt("length", 0);
-                        long version= editJson.getLong("version");
-                        String uniqId=editJson.getString("uniqId");
-                        // TODO: onFileEditBroadcast 콜백에 user 정보를 전달하도록 추후 수정 필요
-                        callback.onFileEditBroadcast(editPath, editType, editPosition, text, length);
+                        long newVersion = editJson.getLong("version");
+                        String uniqId = editJson.getString("uniqId");
+                        callback.onFileEditBroadcast(editPath, editType, editPosition, text, length, newVersion, uniqId, requesterId);
+                    }
+                    break;
+                case ProtocolConstants.UF_HISTORY:
+                    {
+                        String jsonString = new String(finalPacket.getPayload(), StandardCharsets.UTF_8);
+                        JSONArray opsArray = new JSONArray(jsonString);
+                        if (!opsArray.isEmpty()) {
+                            // 파일 경로는 모든 연산에서 동일하므로 첫 번째 연산에서 추출
+                            String filePath = opsArray.getJSONObject(0).getString("path");
+                            callback.onCatchUpResponse(filePath, opsArray);
+                        }
                     }
                     break;
                 case ProtocolConstants.UF_CURSOR_MOVE_BROADCAST:
@@ -388,7 +403,7 @@ public class ClientSocketManager {
         void onUserInfoReceived(UserInfo userInfo);
         void onProjectListResponse(List<UserProjectsInfo> projectList);
         void onFileListResponse(String projectID, JSONObject fileList);
-        void onFileContentResponse(String path, String content, String hash);
+        void onFileContentResponse(String path, String content, String hash, long version);
         void onCreateProjectResponse(boolean result);
         void onDeleteProjectResponse(boolean result);
         void onSharedListResponse(String projectId, JSONArray sharedList);
@@ -398,8 +413,9 @@ public class ClientSocketManager {
         void onAddFolderResponse(boolean result);
         void onLineLockUpdate(String filePath, int line, String userId, String userNickname);
         void onLineLockResponse(boolean success, int line);
-        void onFileEditBroadcast(String filePath, String type, int position, String text, int length);
+        void onFileEditBroadcast(String filePath, String type, int position, String text, int length, long newVersion, String uniqId, String requesterId);
         void onClientErrorResponse(JSONObject error);
         void onCursorMoveBroadcast(String filePath, String userId, String userNickname, int position);
+        void onCatchUpResponse(String filePath, JSONArray operations);
     }
 }

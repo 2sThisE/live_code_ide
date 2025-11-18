@@ -1,9 +1,13 @@
 package com.ethis2s.service;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import com.ethis2s.model.Operation;
 import com.ethis2s.util.HybridManager;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.model.PlainTextChange;
-import org.fxmisc.richtext.model.TwoDimensional.Bias;
 
 public class InputInterpreter {
 
@@ -16,24 +20,31 @@ public class InputInterpreter {
     }
 
     /**
-     * Interprets a user-initiated text change, checks for line locks,
-     * and sends the appropriate edit operation to the server.
-     * @param change The text change to interpret.
+     * Interprets a PlainTextChange and sends it to the HybridManager as a list of Operations.
+     * @param change The change event from the CodeArea.
+     * @return A list of generated Operation objects.
      */
-    public void interpretAndSend(PlainTextChange change) {
-        int startPos = change.getPosition();
-        int startLine = codeArea.offsetToPosition(startPos, Bias.Forward).getMajor();
-
-        if (manager.isLineLockedByOther(startLine)) return;
-        
-        String removed = change.getRemoved();
+    public List<Operation> interpret(PlainTextChange change) {
         String inserted = change.getInserted();
+        String removed = change.getRemoved();
+        int position = change.getPosition();
+        int cursorPosition = codeArea.getCaretPosition(); // Get current caret position after the change
 
-        if (!removed.isEmpty()) {
-            manager.requestFileEditOperation("DELETE", change.getPosition(), "", removed.length());
+        if (!inserted.isEmpty() && removed.isEmpty()) {
+            // INSERT operation
+            Operation op = new Operation(Operation.Type.INSERT, position, inserted, cursorPosition, -1, null);
+            return Collections.singletonList(op);
+        } else if (inserted.isEmpty() && !removed.isEmpty()) {
+            // DELETE operation
+            Operation op = new Operation(Operation.Type.DELETE, position, removed, removed.length(), cursorPosition, -1, null);
+            return Collections.singletonList(op);
+        } else if (!inserted.isEmpty() && !removed.isEmpty()) {
+            // REPLACE operation, modeled as DELETE then INSERT
+            List<Operation> ops = new ArrayList<>();
+            ops.add(new Operation(Operation.Type.DELETE, position, removed, removed.length(), -1, -1, null)); // Cursor pos is irrelevant for the intermediate delete
+            ops.add(new Operation(Operation.Type.INSERT, position, inserted, cursorPosition, -1, null));
+            return ops;
         }
-        if (!inserted.isEmpty()) {
-            manager.requestFileEditOperation("INSERT", change.getPosition(), inserted, 0);
-        }
+        return Collections.emptyList(); // No actual change
     }
 }

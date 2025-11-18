@@ -1,5 +1,6 @@
 package com.ethis2s.service;
 
+import com.ethis2s.model.Operation;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.scene.control.IndexRange;
@@ -17,6 +18,7 @@ import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.EditorEnhancer;
 import com.ethis2s.util.HybridManager;
 
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -132,9 +134,28 @@ public class EditorInputManager {
 
         codeArea.plainTextChanges().subscribe(change -> {
             ChangeInitiator initiator = this.lastInitiator;
-
             if (initiator == ChangeInitiator.USER) {
-                interpreter.interpretAndSend(change);
+                if (manager.isLineLockedByOther(codeArea.getCurrentParagraph())) {
+                    // This is a secondary check. The primary block is in the key event handler.
+                    // This handles programmatic changes that might bypass the key handler.
+                    Platform.runLater(() -> {
+                        // We need to revert this change.
+                        // This is complex. For now, we log it. A robust solution would apply an inverse operation.
+                        System.err.println("Warning: A user change occurred on a locked line.");
+                    });
+                    return;
+                }
+
+                Platform.runLater(() -> {
+                    if (interpreter != null) {
+                        List<Operation> ops = interpreter.interpret(change);
+                        for (Operation op : ops) {
+                            if (op != null) {
+                                manager.getOtManager().sendOperation(op);
+                            }
+                        }
+                    }
+                });
             }
 
             if (isProcessingServerChange) {

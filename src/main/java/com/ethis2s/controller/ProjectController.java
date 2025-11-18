@@ -2,6 +2,8 @@ package com.ethis2s.controller;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import org.json.JSONObject;
 
@@ -20,10 +22,43 @@ public class ProjectController {
     private final MainController mainController;
     private UserInfo userInfo;
 
+    private final BlockingQueue<RequestRecord> requestQueue = new LinkedBlockingQueue<>();
+    private final Thread requestWorkerThread;
+
+    // 내부 클래스로 요청 데이터 구조화
+    private static class RequestRecord {
+        final JSONObject payload;
+        final int userField;
+
+        RequestRecord(JSONObject payload, int userField) {
+            this.payload = payload;
+            this.userField = userField;
+        }
+    }
+
     public ProjectController(ClientSocketManager socketManager, MainScreen mainScreen, MainController mainController) {
         this.socketManager = socketManager;
         this.mainScreen = mainScreen;
         this.mainController = mainController;
+
+        // 요청을 순차적으로 처리할 워커 스레드 시작
+        this.requestWorkerThread = new Thread(() -> {
+            try {
+                while (!Thread.currentThread().isInterrupted()) {
+                    RequestRecord request = requestQueue.take(); // 큐에서 요청을 꺼냄 (없으면 대기)
+                    try {
+                        socketManager.sendJsonPacket(request.payload, request.userField, ProtocolConstants.PTYPE_JSON);
+                    } catch (Exception ex) {
+                        System.err.println("Request failed for userField " + request.userField + ": " + ex.getMessage());
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // 인터럽트 상태 유지
+                System.out.println("Request worker thread interrupted.");
+            }
+        });
+        this.requestWorkerThread.setDaemon(true);
+        this.requestWorkerThread.start();
     }
 
     public void setUserInfo(UserInfo userInfo) {
@@ -32,6 +67,13 @@ public class ProjectController {
 
     public Optional<String> getCurrentUserId() {
         return (userInfo != null) ? Optional.of(userInfo.getId()) : Optional.empty();
+    }
+
+    public Optional<String> getCurrentUserNicknameAndTag() {
+        if (userInfo != null) {
+            return Optional.of(userInfo.getNickname() + "#" + userInfo.getTag());
+        }
+        return Optional.empty();
     }
 
     public void clearUserInfo() {
@@ -84,7 +126,7 @@ public class ProjectController {
         sendRequest(payload, ProtocolConstants.UF_FILE_CONTENT_REQUEST);
     }
 
-    public void fileEditOperationRequest(String filePath, String type, int position, String text, int length) {
+    public void fileEditOperationRequest(String filePath, String type, int position, String text, int length, int cursorPosition, long version, String uniqId) {
         if (userInfo == null || socketManager == null) return;
         mainController.getCurrentActiveProject().ifPresent(projectInfo -> {
             JSONObject payload = new JSONObject();
@@ -94,6 +136,9 @@ public class ProjectController {
             payload.put("path", filePath);
             payload.put("type", type);
             payload.put("position", position);
+            payload.put("cursorPosition", cursorPosition);
+            payload.put("version", version);
+            payload.put("uniqId", uniqId);
 
             if ("INSERT".equals(type)) {
                 payload.put("text", text);
@@ -206,13 +251,7 @@ public class ProjectController {
     }
 
     private void sendRequest(JSONObject payload, int userField) {
-        new Thread(() -> {
-            try {
-                socketManager.sendJsonPacket(payload, userField, ProtocolConstants.PTYPE_JSON);
-            } catch (Exception ex) {
-                System.err.println("Request failed for userField " + userField + ": " + ex.getMessage());
-            }
-        }).start();
+        requestQueue.add(new RequestRecord(payload, userField));
     }
 
     // --- Response Handlers ---

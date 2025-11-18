@@ -137,7 +137,17 @@ public class EditorEnhancer {
         while (start >= 0 && Character.isJavaIdentifierPart(text.charAt(start))) {
             start--;
         }
+        start++; // Move to the beginning of the word.
 
-        codeArea.replaceText(start + 1, caretPosition, suggestion);
+        String prefix = codeArea.getText(start, caretPosition);
+
+        // Only insert the part of the suggestion that is not already typed.
+        if (suggestion.startsWith(prefix)) {
+            String suffix = suggestion.substring(prefix.length());
+            codeArea.replaceText(caretPosition, caretPosition, suffix);
+        } else {
+            // Fallback to original behavior if something is unusual.
+            codeArea.replaceText(start, caretPosition, suggestion);
+        }
     }
 }

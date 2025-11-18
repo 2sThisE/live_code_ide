@@ -44,7 +44,7 @@ public class EditorFactory {
         errorTooltip.getStyleClass().add("error-tooltip");
     }
 
-    public Node createEditorForFile(String filePath, String content, String tabId) {
+    public Node createEditorForFile(String filePath, String content, String tabId, long initialVersion) {
         String fileName = Paths.get(filePath).getFileName().toString();
         CodeArea codeArea = new CodeArea();
         codeArea.getStyleClass().add("code-area");
@@ -59,7 +59,8 @@ public class EditorFactory {
             mainController::notifyAntlrTaskFinished,
             projectController,
             filePath,
-            stateManager
+            stateManager,
+            initialVersion
         );
 
         stateManager.registerTab(tabId, fileName, codeArea, manager);
