@@ -10,7 +10,14 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import javafx.animation.AnimationTimer; // --- [추가] AnimationTimer 임포트
+import javafx.animation.Interpolator;
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
+import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.SimpleIntegerProperty;
+import javafx.util.Duration;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,22 +42,11 @@ public class OTManager {
     private final HybridManager hybridManager; // To apply changes
     private final String filePath;
 
-    // --- [추가] UI 렌더링 최적화를 위한 멤버 변수들 ---
-    /**
-     * 레이아웃 및 커서 업데이트 작업을 화면 주사율에 맞춰 실행하는 타이머입니다.
-     * 이를 통해 여러 연산이 짧은 시간 안에 들어와도 무거운 UI 작업은 한 프레임에 한 번만 실행되도록 제어합니다.
-     */
-    private final AnimationTimer layoutUpdater;
-    /**
-     * 다음 프레임에서 레이아웃 업데이트가 필요한지를 나타내는 플래그입니다.
-     * 여러 스레드에서 접근할 수 있으므로 volatile로 선언합니다.
-     */
-    private volatile boolean layoutUpdateNeeded = false;
-    /**
-     * 한 프레임 동안 업데이트해야 할 모든 사용자의 커서 위치를 저장하는 맵입니다.
-     * Key: 사용자 ID (requesterId), Value: 커서 위치 (cursorPosition)
-     */
-    private final Map<String, Integer> pendingCursorUpdates = new ConcurrentHashMap<>();
+    // --- 애니메이션 ---
+    private final Map<String, Timeline> userTimelines = new ConcurrentHashMap<>();
+    private final Map<String, KeyValue> userKeyValues = new ConcurrentHashMap<>();
+    private final Map<String, IntegerProperty> userVisualCursors = new ConcurrentHashMap<>();
+    
 
 
     public OTManager(long initialVersion, ProjectController projectController, HybridManager hybridManager, String filePath) {
@@ -59,32 +55,7 @@ public class OTManager {
         this.hybridManager = hybridManager;
         this.filePath = filePath;
         
-        this.layoutUpdater = new AnimationTimer() {
-            @Override
-            public void handle(long now) {
-                // '레이아웃 업데이트 필요' 플래그가 켜져 있을 때만 실행합니다.
-                if (layoutUpdateNeeded) {
-                    // 플래그를 즉시 내려서 다음 프레임에서 중복 실행되는 것을 방지합니다.
-                    layoutUpdateNeeded = false;
-
-                    // 1. 모든 텍스트 변경이 반영된 최종 상태에서 layout을 한 번만 실행합니다.
-                    hybridManager.getCodeArea().layout();
-
-                    // 2. 맵에 기록된 모든 사용자의 커서를 최신 레이아웃 기준으로 업데이트합니다.
-                    String tabId = "file-" + filePath;
-                    hybridManager.getStateManager().getCursorManager(tabId).ifPresent(cursorManager -> {
-                        pendingCursorUpdates.forEach((requesterId, cursorPosition) -> {
-                            cursorManager.updateCursor(requesterId, requesterId, cursorPosition);
-                        });
-                    });
-
-                    // 3. 처리가 끝난 맵을 비워서 다음 프레임을 준비합니다.
-                    pendingCursorUpdates.clear();
-                }
-            }
-        };
-        // OTManager가 생성될 때 타이머를 시작합니다.
-        this.layoutUpdater.start();
+        
     }
 
     /**
@@ -92,7 +63,12 @@ public class OTManager {
      * 에디터 탭이 닫히는 등의 시점에 반드시 호출해야 메모리 누수를 방지할 수 있습니다.
      */
     public void dispose() {
-        this.layoutUpdater.stop();
+        Platform.runLater(() -> {
+            userTimelines.values().forEach(Timeline::stop);
+            userTimelines.clear();
+            userKeyValues.clear();
+            userVisualCursors.clear();
+        });
     }
 
     // --- 기존 메서드들은 그대로 유지 ---
@@ -158,6 +134,69 @@ public class OTManager {
             processPendingInputs();
             sendNextPendingOperation(); // After rebase, try sending the first pending op.
         }
+    }
+
+
+    private void applyOperationToCodeArea(Operation op, String requesterId) {
+        if (op == null) return;
+        Platform.runLater(() -> {
+            if (op.getType() == Operation.Type.INSERT) {
+                hybridManager.controlledReplaceText(op.getPosition(), op.getPosition(), op.getText(), ChangeInitiator.SERVER);
+            } else { // DELETE
+                hybridManager.controlledReplaceText(op.getPosition(), op.getPosition() + op.getLength(), "", ChangeInitiator.SERVER);
+            }
+
+            if (requesterId != null) {
+                hybridManager.getCodeArea().layout();
+                Platform.runLater(() -> updateAndPlayAnimation(requesterId, op.getCursorPosition()));
+            }
+        });
+    }
+
+     public void requestCursorUpdate(String requesterId, int cursorPosition) {
+        if (requesterId != null) {
+            updateAndPlayAnimation(requesterId, cursorPosition);
+        }
+    }
+
+
+
+    private void updateAndPlayAnimation(String requesterId, int newTargetPosition) {
+        Platform.runLater(() -> {
+            // 1. 해당 사용자의 시각적 커서 위치(IntegerProperty)를 가져오거나 새로 만듭니다.
+            IntegerProperty visualCursor = userVisualCursors.computeIfAbsent(requesterId, id -> {
+                SimpleIntegerProperty property = new SimpleIntegerProperty(newTargetPosition);
+                String tabId = "file-" + filePath;
+                property.addListener((obs, oldVal, newVal) -> {
+                    hybridManager.getStateManager().getCursorManager(tabId).ifPresent(cursorManager -> {
+                        cursorManager.updateCursor(requesterId, requesterId, newVal.intValue());
+                    });
+                });
+                return property;
+            });
+
+            // 2. 해당 사용자의 애니메이션(Timeline)을 가져오거나 새로 만듭니다.
+            Timeline timeline = userTimelines.computeIfAbsent(requesterId, id -> {
+                // KeyValue는 목표값이 계속 바뀔 것이므로, 일단 아무 값으로나 만듭니다.
+                KeyValue keyValue = new KeyValue(visualCursor, newTargetPosition, Interpolator.EASE_OUT);
+                userKeyValues.put(id, keyValue); // 나중에 목표를 바꿀 수 있도록 맵에 저장
+
+                // KeyFrame에 KeyValue를 연결합니다.
+                KeyFrame keyFrame = new KeyFrame(Duration.millis(200), keyValue);
+                return new Timeline(keyFrame);
+            });
+
+            // 3. [가장 중요한 부분] 저장해두었던 KeyValue의 최종 목표값을 새로운 위치로 업데이트합니다.
+            KeyValue currentKeyValue = userKeyValues.get(requesterId);
+            
+            // KeyValue는 불변(immutable) 객체일 수 있으므로, 새로운 KeyValue를 만들어서 Timeline을 재구성하는 것이 안전합니다.
+            KeyValue newKeyValue = new KeyValue(visualCursor, newTargetPosition, Interpolator.EASE_OUT);
+            KeyFrame newKeyFrame = new KeyFrame(Duration.millis(200), newKeyValue);
+            
+            timeline.stop(); // 일단 멈추고
+            timeline.getKeyFrames().setAll(newKeyFrame); // 새로운 목표가 담긴 키프레임으로 교체한 뒤
+            timeline.playFromStart(); // 다시 재생합니다.
+        });
     }
 
     public void handleCatchUp(JSONArray operations) {
@@ -260,37 +299,7 @@ public class OTManager {
         sendNextPendingOperation();
     }
     
-    // --- [교체] applyOperationToCodeArea 메서드 ---
-    /**
-     * 수신된 Operation을 CodeArea에 적용합니다.
-     * 이 메서드는 실제 텍스트 변경만 즉시 수행하고, 무거운 레이아웃 계산과 커서 업데이트는
-     * AnimationTimer에게 다음 렌더링 프레임에 처리하도록 예약을 겁니다.
-     *
-     * @param op 적용할 Operation
-     * @param requesterId 연산을 발생시킨 사용자의 ID (커서 업데이트에 사용됨)
-     */
-    private void applyOperationToCodeArea(Operation op, String requesterId) {
-        if (op == null) return;
-
-        Platform.runLater(() -> {
-            // 1. 텍스트 변경은 즉시 실행하여 실시간성을 보장합니다. (이 작업은 비교적 가볍습니다)
-            if (op.getType() == Operation.Type.INSERT) {
-                hybridManager.controlledReplaceText(op.getPosition(), op.getPosition(), op.getText(), ChangeInitiator.SERVER);
-            } else { // DELETE
-                hybridManager.controlledReplaceText(op.getPosition(), op.getPosition() + op.getLength(), "", ChangeInitiator.SERVER);
-            }
-
-            // 2. 커서 업데이트가 필요한 경우, 'pendingCursorUpdates' 맵에 요청을 기록합니다.
-            //    (requesterId가 null인 경우는 undo나 catch-up 상황이므로 커서를 그리지 않습니다)
-            if (requesterId != null) {
-                pendingCursorUpdates.put(requesterId, op.getCursorPosition());
-            }
-
-            // 3. '레이아웃 업데이트가 필요하다'고 플래그만 설정합니다.
-            //    실제 무거운 작업은 AnimationTimer가 다음 프레임에 한 번만 수행할 것입니다.
-            layoutUpdateNeeded = true;
-        });
-    }
+    
 
     // --- 이하 나머지 메서드들은 변경 없음 ---
     private void processPendingInputs() {
