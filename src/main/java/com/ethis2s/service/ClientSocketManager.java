@@ -353,13 +353,14 @@ public class ClientSocketManager {
                         JSONObject editJson = new JSONObject(jsonString);
                         String editPath = editJson.getString("path");
                         String editType = editJson.getString("type");
-                        String requesterId = editJson.getString("user");
+                        String nicknameAndTag = editJson.getString("user");
                         int editPosition = editJson.getInt("position");
                         String text = editJson.optString("text", "");
                         int length = editJson.optInt("length", 0);
                         long newVersion = editJson.getLong("version");
                         String uniqId = editJson.getString("uniqId");
-                        callback.onFileEditBroadcast(editPath, editType, editPosition, text, length, newVersion, uniqId, requesterId);
+                        int cursorPosition = editJson.optInt("cursorPosition", -1); // Read the cursor position
+                        callback.onFileEditBroadcast(editPath, editType, editPosition, text, length, newVersion, uniqId, nicknameAndTag, cursorPosition);
                     }
                     break;
                 case ProtocolConstants.UF_HISTORY:
@@ -374,12 +375,14 @@ public class ClientSocketManager {
                     }
                     break;
                 case ProtocolConstants.UF_CURSOR_MOVE_BROADCAST:
-                    String jsonString = new String(finalPacket.getPayload(), StandardCharsets.UTF_8);
-                    JSONObject cursorJson = new JSONObject(jsonString);
-                    String cursorPath = cursorJson.getString("path");
-                    String user = cursorJson.getString("user");
-                    int cursorPosition = cursorJson.getInt("cursorPosition");
-                    callback.onCursorMoveBroadcast(cursorPath, user, user, cursorPosition);
+                    {
+                        String jsonString = new String(finalPacket.getPayload(), StandardCharsets.UTF_8);
+                        JSONObject cursorJson = new JSONObject(jsonString);
+                        String cursorPath = cursorJson.getString("path");
+                        String nicknameAndTag = cursorJson.getString("user"); // 'user' is actually nickname#tag
+                        int cursorPosition = cursorJson.getInt("cursorPosition");
+                        callback.onCursorMoveBroadcast(cursorPath, nicknameAndTag, cursorPosition);
+                    }
                     break;
                 default:
                     callback.onPacketReceived(finalPacket);
@@ -413,9 +416,9 @@ public class ClientSocketManager {
         void onAddFolderResponse(boolean result);
         void onLineLockUpdate(String filePath, int line, String userId, String userNickname);
         void onLineLockResponse(boolean success, int line);
-        void onFileEditBroadcast(String filePath, String type, int position, String text, int length, long newVersion, String uniqId, String requesterId);
+        void onFileEditBroadcast(String filePath, String type, int position, String text, int length, long newVersion, String uniqId, String requesterId, int cursorPosition);
         void onClientErrorResponse(JSONObject error);
-        void onCursorMoveBroadcast(String filePath, String userId, String userNickname, int position);
+        void onCursorMoveBroadcast(String filePath, String nicknameAndTag, int position);
         void onCatchUpResponse(String filePath, JSONArray operations);
     }
 }

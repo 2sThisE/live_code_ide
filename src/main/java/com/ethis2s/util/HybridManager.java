@@ -174,6 +174,13 @@ public class HybridManager {
     }
 
     public void handleBroadcast(long newVersion, String uniqId, String requesterId, Operation serverOp) {
+        // This is where the text is actually applied to the CodeArea for remote changes.
+        // We must label this change with SERVER initiator to prevent local auto-completion.
+        if (serverOp.getType() == Operation.Type.INSERT) {
+            controlledReplaceText(serverOp.getPosition(), serverOp.getPosition(), serverOp.getText(), ChangeInitiator.SERVER);
+        } else if (serverOp.getType() == Operation.Type.DELETE) {
+            controlledReplaceText(serverOp.getPosition(), serverOp.getPosition() + serverOp.getLength(), "", ChangeInitiator.SERVER);
+        }
         otManager.handleBroadcast(newVersion, uniqId, requesterId, serverOp);
     }
 

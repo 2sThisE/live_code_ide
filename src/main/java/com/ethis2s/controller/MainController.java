@@ -612,7 +612,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         }
     }
     @Override
-    public void onFileEditBroadcast(String filePath, String type, int position, String text, int length, long newVersion, String uniqId, String requesterId) {
+    public void onFileEditBroadcast(String filePath, String type, int position, String text, int length, long newVersion, String uniqId, String requesterId, int cursorPosition) {
         String tabId = "file-" + filePath;
         
         Runnable updateAction = () -> {
@@ -625,6 +625,10 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                     op = new Operation(Operation.Type.DELETE, position, text, length, -1, newVersion, uniqId);
                 }
                 manager.getOtManager().handleBroadcast(newVersion, uniqId, requesterId, op);
+
+                String myNicknameAndTag = (userInfo != null) ? userInfo.getNickname() + "#" + userInfo.getTag() : "";
+                if (myNicknameAndTag.equals(requesterId)) return;
+                editorTabView.updateUserCursor(filePath, requesterId, requesterId, cursorPosition);
             });
         };
 
@@ -705,12 +709,16 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     }
 
     @Override
-    public void onCursorMoveBroadcast(String filePath, String userId, String userNickname, int position) {
-        if (userInfo != null && userInfo.getId().equals(userId)) return;
+    public void onCursorMoveBroadcast(String filePath, String nicknameAndTag, int position) {
+        // Do not show our own cursor from the server broadcast.
+        if (userInfo != null && (userInfo.getNickname() + "#" + userInfo.getTag()).equals(nicknameAndTag)) {
+            return;
+        }
         
         Platform.runLater(() -> {
             if (editorTabView != null) {
-                editorTabView.updateUserCursor(filePath, userId, userNickname, position);
+                // Use the full nickname#tag for both the key and the display name.
+                editorTabView.updateUserCursor(filePath, nicknameAndTag, nicknameAndTag, position);
             }
         });
     }
