@@ -10,6 +10,7 @@ import com.ethis2s.service.AntlrLanguageService.BracketPair;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
 import com.ethis2s.service.ChangeInitiator;
 import com.ethis2s.util.Tm4eSyntaxHighlighter.StyleToken;
+import com.ethis2s.view.editor.EditorTabView;
 
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
@@ -69,13 +70,16 @@ public class HybridManager {
     private String filePath;
     private final EditorStateManager stateManager;
     private EditorInputManager inputManager;
+    
 
     // --- Version Control ---
     private final OTManager otManager;
     private boolean isApplyingServerChange = false;
     
 
-    public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate, Runnable onAnalysisStart, Runnable onAnalysisFinish, ProjectController projectController, String filePath, EditorStateManager stateManager, long initialVersion) {
+    public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate, 
+                            Runnable onAnalysisStart, Runnable onAnalysisFinish, ProjectController projectController,
+                            String filePath, EditorStateManager stateManager, long initialVersion) {
         this.codeArea = codeArea;
         this.onErrorUpdate = onErrorUpdate;
         this.onAnalysisStart = onAnalysisStart;
@@ -109,7 +113,6 @@ public class HybridManager {
 
         codeArea.multiPlainChanges()
             .subscribe(changes -> {
-                System.out.println("--- Typing Engine START ---");
                 isTyping = true; // 텍스트 변경 시작 -> 깃발 올리기
                 if (isLargeUpdate) { /* ... large update logic ... */ 
                     Platform.runLater(() -> isTyping = false);
@@ -117,16 +120,10 @@ public class HybridManager {
                 }
 
                 if (lastTm4eTokens != null) {
-                    if (lastBracketTokens != null && previouslyRenderedBrackets != null) {
-                        System.out.println("DEBUG: lastBracketTokens == previouslyRenderedBrackets ? " + (lastBracketTokens == previouslyRenderedBrackets));
-                    }
                     for (var change : changes) {
                         int diff = change.getInserted().length() - change.getRemoved().length();
                         
                         if (diff != 0) {
-                            System.out.println("--- Bracket Correction START ---");
-                            System.out.println("Before correction: " + (lastBracketTokens != null ? lastBracketTokens.stream().map(StyleToken::toString).collect(Collectors.joining(", ")) : "null"));
-                            
                             shiftTokens(lastTm4eTokens, change.getPosition(), diff);
                             if (lastAnalysisResult != null && lastAnalysisResult.symbolTokens != null) {
                                 shiftTokens(lastAnalysisResult.symbolTokens, change.getPosition(), diff);
@@ -143,11 +140,6 @@ public class HybridManager {
                             if (lastBracketTokens != null) {
                                 shiftTokens(lastBracketTokens, change.getPosition(), diff);
                             }
-                            // if (previouslyRenderedBrackets != null) {
-                            //     shiftTokens(previouslyRenderedBrackets, change.getPosition(), diff);
-                            // }
-                            System.out.println("After correction: " + (lastBracketTokens != null ? lastBracketTokens.stream().map(StyleToken::toString).collect(Collectors.joining(", ")) : "null"));
-                            System.out.println("--- Bracket Correction END ---");
                         }
                     }
                     applyHighlighting();
@@ -181,7 +173,6 @@ public class HybridManager {
         } else if (serverOp.getType() == Operation.Type.DELETE) {
             controlledReplaceText(serverOp.getPosition(), serverOp.getPosition() + serverOp.getLength(), "", ChangeInitiator.SERVER);
         }
-        otManager.handleBroadcast(newVersion, uniqId, requesterId, serverOp);
     }
 
     public void handleCatchUp(JSONArray operations) {

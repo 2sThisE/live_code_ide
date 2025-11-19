@@ -350,17 +350,18 @@ public class ClientSocketManager {
                 case ProtocolConstants.UF_FILE_EDIT_BROADCAST:
                     {
                         String jsonString = new String(finalPacket.getPayload(), StandardCharsets.UTF_8);
+                        System.out.println("UF_FILE_EDIT_BROADCAST_payload: "+jsonString);
                         JSONObject editJson = new JSONObject(jsonString);
                         String editPath = editJson.getString("path");
                         String editType = editJson.getString("type");
-                        String nicknameAndTag = editJson.getString("user");
+                        String requesterId = editJson.getString("user");
                         int editPosition = editJson.getInt("position");
                         String text = editJson.optString("text", "");
                         int length = editJson.optInt("length", 0);
                         long newVersion = editJson.getLong("version");
                         String uniqId = editJson.getString("uniqId");
-                        int cursorPosition = editJson.optInt("cursorPosition", -1); // Read the cursor position
-                        callback.onFileEditBroadcast(editPath, editType, editPosition, text, length, newVersion, uniqId, nicknameAndTag, cursorPosition);
+                        int cursorPosition = editJson.optInt("cursorPosition", -1);
+                        callback.onFileEditBroadcast(editPath, editType, editPosition, text, length, newVersion, uniqId, requesterId, cursorPosition);
                     }
                     break;
                 case ProtocolConstants.UF_HISTORY:
@@ -377,6 +378,7 @@ public class ClientSocketManager {
                 case ProtocolConstants.UF_CURSOR_MOVE_BROADCAST:
                     {
                         String jsonString = new String(finalPacket.getPayload(), StandardCharsets.UTF_8);
+                        System.out.println("UF_CURSOR_MOVE_BROADCAST_payload: "+jsonString);
                         JSONObject cursorJson = new JSONObject(jsonString);
                         String cursorPath = cursorJson.getString("path");
                         String nicknameAndTag = cursorJson.getString("user"); // 'user' is actually nickname#tag

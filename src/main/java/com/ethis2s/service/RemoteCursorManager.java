@@ -40,7 +40,7 @@ public class RemoteCursorManager {
         this.codeArea = codeArea;
         this.overlayPane = overlayPane;
         this.stateManager = stateManager;
-
+        
         // Add listeners to redraw cursors when the view scrolls or changes
         codeArea.estimatedScrollXProperty().addListener((obs, old, n) -> updateAllCursorPositions());
         codeArea.estimatedScrollYProperty().addListener((obs, old, n) -> updateAllCursorPositions());

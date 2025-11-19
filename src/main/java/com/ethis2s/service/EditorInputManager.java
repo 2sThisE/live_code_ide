@@ -46,6 +46,7 @@ public class EditorInputManager {
     private int lastCaretLine = -1;
     private ChangeInitiator lastInitiator = ChangeInitiator.USER;
     private boolean isProcessingServerChange = false;
+    private boolean isTyping = false;
 
     public EditorInputManager(CodeArea codeArea, EditorEnhancer enhancer, CompletionService completionService, HybridManager manager) {
         this.codeArea = codeArea;
@@ -122,7 +123,8 @@ public class EditorInputManager {
         codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
             if(lastInitiator == ChangeInitiator.USER && !isProcessingServerChange){
                 codeArea.requestFollowCaret();
-                manager.cursorMoveRequest(newPos);
+                if (!isTyping) manager.cursorMoveRequest(newPos); //파일 연산에 의한 캐럿움직임은 전달하지 않음
+                
                 // 디바운싱
                 int currentLine = codeArea.getCurrentParagraph();
                 if (currentLine != lastCaretLine) {
@@ -133,15 +135,15 @@ public class EditorInputManager {
         });
 
         codeArea.plainTextChanges().subscribe(change -> {
+            isTyping = true;
             ChangeInitiator initiator = this.lastInitiator;
             if (initiator == ChangeInitiator.USER) {
                 if (manager.isLineLockedByOther(codeArea.getCurrentParagraph())) {
                     // This is a secondary check. The primary block is in the key event handler.
                     // This handles programmatic changes that might bypass the key handler.
                     Platform.runLater(() -> {
-                        // We need to revert this change.
-                        // This is complex. For now, we log it. A robust solution would apply an inverse operation.
-                        System.err.println("Warning: A user change occurred on a locked line.");
+                        this.lastInitiator = ChangeInitiator.USER;
+                        isTyping = false; // ★★★ 텍스트 변경 끝! ★★★
                     });
                     return;
                 }

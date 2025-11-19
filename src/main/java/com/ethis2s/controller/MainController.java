@@ -616,19 +616,17 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         String tabId = "file-" + filePath;
         
         Runnable updateAction = () -> {
+            
             editorTabView.getStateManager().getHybridManager(tabId).ifPresent(manager -> {
-                // Create an Operation object from the broadcast data
                 Operation op;
                 if ("INSERT".equals(type)) {
-                    op = new Operation(Operation.Type.INSERT, position, text, -1, newVersion, uniqId);
+                    op = new Operation(Operation.Type.INSERT, position, text, cursorPosition, newVersion, uniqId);
                 } else { // "DELETE"
-                    op = new Operation(Operation.Type.DELETE, position, text, length, -1, newVersion, uniqId);
+                    op = new Operation(Operation.Type.DELETE, position, text, length, cursorPosition, newVersion, uniqId);
                 }
-                manager.getOtManager().handleBroadcast(newVersion, uniqId, requesterId, op);
 
-                String myNicknameAndTag = (userInfo != null) ? userInfo.getNickname() + "#" + userInfo.getTag() : "";
-                if (myNicknameAndTag.equals(requesterId)) return;
-                editorTabView.updateUserCursor(filePath, requesterId, requesterId, cursorPosition);
+                // Delegate EVERYTHING to the OTManager.
+                manager.getOtManager().handleBroadcast(newVersion, uniqId, requesterId, op);
             });
         };
 
