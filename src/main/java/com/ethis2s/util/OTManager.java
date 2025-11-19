@@ -13,6 +13,7 @@ import javafx.animation.AnimationTimer; // --- [추가] AnimationTimer 임포트
 import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
+import javafx.animation.PauseTransition;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.property.IntegerProperty;
@@ -46,7 +47,6 @@ public class OTManager {
     private final Map<String, Timeline> userTimelines = new ConcurrentHashMap<>();
     private final Map<String, KeyValue> userKeyValues = new ConcurrentHashMap<>();
     private final Map<String, IntegerProperty> userVisualCursors = new ConcurrentHashMap<>();
-    
 
 
     public OTManager(long initialVersion, ProjectController projectController, HybridManager hybridManager, String filePath) {
@@ -146,12 +146,10 @@ public class OTManager {
                 hybridManager.controlledReplaceText(op.getPosition(), op.getPosition() + op.getLength(), "", ChangeInitiator.SERVER);
             }
 
-            Platform.runLater(() -> {
+            if (requesterId != null) {
                 hybridManager.getCodeArea().layout();
-                Platform.runLater(()->{
-                    if (requesterId != null) updateAndPlayAnimation(requesterId, op.getCursorPosition());
-                });
-            });
+                Platform.runLater(() -> updateAndPlayAnimation(requesterId, op.getCursorPosition()));
+            }
         });
     }
 
@@ -167,18 +165,12 @@ public class OTManager {
     // 멤버 변수에서 userKeyValues는 이제 필요 없습니다.
     // private final Map<String, KeyValue> userKeyValues = new ConcurrentHashMap<>();
 
+    // --- [핵심] "목표점 갱신" 애니메이션 로직 ---
     private void updateAndPlayAnimation(String requesterId, int newTargetPosition) {
         Platform.runLater(() -> {
-            // 1. [데이터 안전성] 애니메이션 시작 직전, 현재 문서 길이를 기준으로 목표 위치를 보정합니다.
-            int currentDocLength = hybridManager.getCodeArea().getLength();
-            int safeTargetPosition = Math.min(newTargetPosition, currentDocLength);
-
-            // 2. 해당 사용자의 '시각적 커서 위치'를 나타내는 IntegerProperty를 가져오거나 새로 만듭니다.
+            // 1. 해당 사용자의 시각적 커서 위치(IntegerProperty)를 가져오거나 새로 만듭니다.
             IntegerProperty visualCursor = userVisualCursors.computeIfAbsent(requesterId, id -> {
-                // 처음 생성될 때는 보정된 안전한 위치에서 시작합니다.
-                SimpleIntegerProperty property = new SimpleIntegerProperty(safeTargetPosition);
-                
-                // 이 프로퍼티의 값이 변경될 때마다 실제 커서를 그리는 리스너를 추가합니다. (단 한 번만 설정됨)
+                SimpleIntegerProperty property = new SimpleIntegerProperty(newTargetPosition);
                 String tabId = "file-" + filePath;
                 property.addListener((obs, oldVal, newVal) -> {
                     hybridManager.getStateManager().getCursorManager(tabId).ifPresent(cursorManager -> {
@@ -188,18 +180,27 @@ public class OTManager {
                 return property;
             });
 
-            // 3. 해당 사용자의 애니메이션(Timeline)을 가져오거나, 없으면 빈 Timeline을 새로 만듭니다.
-            Timeline timeline = userTimelines.computeIfAbsent(requesterId, id -> new Timeline());
-            
-            // 4. [애니메이션 목표 설정]
-            //    '안전하게 보정된' 목표 위치(safeTargetPosition)로 가는 KeyValue와 KeyFrame을 '항상' 새로 만듭니다.
-            KeyValue newKeyValue = new KeyValue(visualCursor, safeTargetPosition, Interpolator.EASE_OUT);
-            KeyFrame newKeyFrame = new KeyFrame(Duration.millis(180), newKeyValue); // 애니메이션 시간은 100ms로 조절
+            // 2. 해당 사용자의 애니메이션(Timeline)을 가져오거나 새로 만듭니다.
+            Timeline timeline = userTimelines.computeIfAbsent(requesterId, id -> {
+                // KeyValue는 목표값이 계속 바뀔 것이므로, 일단 아무 값으로나 만듭니다.
+                KeyValue keyValue = new KeyValue(visualCursor, newTargetPosition, Interpolator.EASE_OUT);
+                userKeyValues.put(id, keyValue); // 나중에 목표를 바꿀 수 있도록 맵에 저장
 
-            // 5. [애니메이션 실행]
-            timeline.stop(); // 이전에 실행 중이던 애니메이션이 있다면 즉시 중지합니다.
-            timeline.getKeyFrames().setAll(newKeyFrame); // Timeline의 내용을 새로운 목표가 담긴 KeyFrame으로 완전히 교체합니다.
-            timeline.playFromStart(); // 처음부터 다시 재생합니다.
+                // KeyFrame에 KeyValue를 연결합니다.
+                KeyFrame keyFrame = new KeyFrame(Duration.millis(200), keyValue);
+                return new Timeline(keyFrame);
+            });
+
+            // 3. [가장 중요한 부분] 저장해두었던 KeyValue의 최종 목표값을 새로운 위치로 업데이트합니다.
+            KeyValue currentKeyValue = userKeyValues.get(requesterId);
+            
+            // KeyValue는 불변(immutable) 객체일 수 있으므로, 새로운 KeyValue를 만들어서 Timeline을 재구성하는 것이 안전합니다.
+            KeyValue newKeyValue = new KeyValue(visualCursor, newTargetPosition, Interpolator.EASE_OUT);
+            KeyFrame newKeyFrame = new KeyFrame(Duration.millis(200), newKeyValue);
+            
+            timeline.stop(); // 일단 멈추고
+            timeline.getKeyFrames().setAll(newKeyFrame); // 새로운 목표가 담긴 키프레임으로 교체한 뒤
+            timeline.playFromStart(); // 다시 재생합니다.
         });
     }
 
