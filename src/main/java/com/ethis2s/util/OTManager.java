@@ -148,46 +148,58 @@ public class OTManager {
 
             Platform.runLater(() -> {
                 hybridManager.getCodeArea().layout();
-                if (requesterId != null) updateAndPlayAnimation(requesterId, op.getCursorPosition());
+                Platform.runLater(()->{
+                    if (requesterId != null) updateAndPlayAnimation(requesterId, op.getCursorPosition());
+                });
             });
         });
     }
 
-     public void requestCursorUpdate(String requesterId, int cursorPosition) {
+    public void requestCursorUpdate(String requesterId, int cursorPosition) {
         if (requesterId != null) {
             updateAndPlayAnimation(requesterId, cursorPosition);
         }
     }
 
 
-    private void updateAndPlayAnimation(String requesterId, int newTargetPosition) { // 메서드 이름을 바꿨습니다.
-        Platform.runLater(() -> {
-            // --- ▼▼▼ 데이터 안전성 확보 코드 ▼▼▼ ---
-            // 1. 애니메이션을 시작하기 직전, CodeArea의 '현재' 길이를 가져옵니다.
-            int currentDocLength = hybridManager.getCodeArea().getLength();
-            
-            // 2. 목표 위치가 현재 문서 길이를 초과하지 않도록 '보정(Clamp)'합니다.
-            //    이것이 '사라진 위치'로 가려는 시도를 원천 차단합니다.
-            int safeTargetPosition = Math.min(newTargetPosition, currentDocLength);
-            // --- ▲▲▲ 데이터 안전성 확보 완료 ▲▲▲ ---
 
-            // 이제 '안전한' 목표 위치를 가지고 애니메이션을 진행합니다.
+    // OTManager.java
+    // 멤버 변수에서 userKeyValues는 이제 필요 없습니다.
+    // private final Map<String, KeyValue> userKeyValues = new ConcurrentHashMap<>();
+
+    private void updateAndPlayAnimation(String requesterId, int newTargetPosition) {
+        Platform.runLater(() -> {
+            // 1. [데이터 안전성] 애니메이션 시작 직전, 현재 문서 길이를 기준으로 목표 위치를 보정합니다.
+            int currentDocLength = hybridManager.getCodeArea().getLength();
+            int safeTargetPosition = Math.min(newTargetPosition, currentDocLength);
+
+            // 2. 해당 사용자의 '시각적 커서 위치'를 나타내는 IntegerProperty를 가져오거나 새로 만듭니다.
             IntegerProperty visualCursor = userVisualCursors.computeIfAbsent(requesterId, id -> {
-                // ... (이하 로직은 이전과 동일) ...
-                // 초기 위치는 '안전한' 위치로 설정합니다.
-                SimpleIntegerProperty property = new SimpleIntegerProperty(safeTargetPosition); 
-                // ...
+                // 처음 생성될 때는 보정된 안전한 위치에서 시작합니다.
+                SimpleIntegerProperty property = new SimpleIntegerProperty(safeTargetPosition);
+                
+                // 이 프로퍼티의 값이 변경될 때마다 실제 커서를 그리는 리스너를 추가합니다. (단 한 번만 설정됨)
+                String tabId = "file-" + filePath;
+                property.addListener((obs, oldVal, newVal) -> {
+                    hybridManager.getStateManager().getCursorManager(tabId).ifPresent(cursorManager -> {
+                        cursorManager.updateCursor(requesterId, requesterId, newVal.intValue());
+                    });
+                });
                 return property;
             });
 
-            KeyValue newKeyValue = new KeyValue(visualCursor, safeTargetPosition, Interpolator.EASE_OUT);
-            KeyFrame newKeyFrame = new KeyFrame(Duration.millis(80), newKeyValue);
-            
+            // 3. 해당 사용자의 애니메이션(Timeline)을 가져오거나, 없으면 빈 Timeline을 새로 만듭니다.
             Timeline timeline = userTimelines.computeIfAbsent(requesterId, id -> new Timeline());
+            
+            // 4. [애니메이션 목표 설정]
+            //    '안전하게 보정된' 목표 위치(safeTargetPosition)로 가는 KeyValue와 KeyFrame을 '항상' 새로 만듭니다.
+            KeyValue newKeyValue = new KeyValue(visualCursor, safeTargetPosition, Interpolator.EASE_OUT);
+            KeyFrame newKeyFrame = new KeyFrame(Duration.millis(180), newKeyValue); // 애니메이션 시간은 100ms로 조절
 
-            timeline.stop();
-            timeline.getKeyFrames().setAll(newKeyFrame);
-            timeline.playFromStart();
+            // 5. [애니메이션 실행]
+            timeline.stop(); // 이전에 실행 중이던 애니메이션이 있다면 즉시 중지합니다.
+            timeline.getKeyFrames().setAll(newKeyFrame); // Timeline의 내용을 새로운 목표가 담긴 KeyFrame으로 완전히 교체합니다.
+            timeline.playFromStart(); // 처음부터 다시 재생합니다.
         });
     }
 
