@@ -617,7 +617,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         
         Runnable updateAction = () -> {
             
-            editorTabView.getStateManager().getHybridManager(tabId).ifPresent(manager -> {
+            editorTabView.getStateManager().getOTManager(tabId).ifPresent(otManager -> {
                 Operation op;
                 if ("INSERT".equals(type)) {
                     op = new Operation(Operation.Type.INSERT, position, text, cursorPosition, newVersion, uniqId);
@@ -626,17 +626,9 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                 }
 
                 // Delegate EVERYTHING to the OTManager.
-                manager.getOtManager().handleBroadcast(newVersion, uniqId, requesterId, op);
+                otManager.handleBroadcast(newVersion, uniqId, requesterId, op);
             });
         };
-        System.out.println("userinfo:"+(userInfo.getNickname()+"#"+userInfo.getTag())+" requester: "+requesterId);
-        if(!(userInfo.getNickname()+"#"+userInfo.getTag()).equals(requesterId)){
-            Platform.runLater(()->{
-                editorTabView.getStateManager().getCursorManager(tabId).ifPresent(cursorManager -> {
-                    cursorManager.updateCursor(requesterId, requesterId, cursorPosition);
-                });
-            });
-        }
         if (editorTabView.getStateManager().isInitializing(tabId)) {
             editorTabView.getStateManager().queueUpdate(tabId, updateAction);
         } else {
@@ -648,9 +640,10 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     public void onCatchUpResponse(String filePath, JSONArray operations) {
         String tabId = "file-" + filePath;
         Platform.runLater(() -> {
-            editorTabView.getStateManager().getHybridManager(tabId).ifPresent(manager -> {
-                manager.getOtManager().handleCatchUp(operations);
-            });
+            editorTabView.getStateManager().getOTManager(tabId).ifPresent(otManager -> {
+            // 이제 otManager 변수는 진짜 OTManager 객체입니다.
+            otManager.handleCatchUp(operations);
+        });
         });
     }
 

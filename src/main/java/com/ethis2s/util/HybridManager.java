@@ -69,17 +69,15 @@ public class HybridManager {
     private final ProjectController projectController;
     private String filePath;
     private final EditorStateManager stateManager;
+    private final String tabId;
     private EditorInputManager inputManager;
     
 
-    // --- Version Control ---
-    private final OTManager otManager;
-    private boolean isApplyingServerChange = false;
     
 
     public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate, 
                             Runnable onAnalysisStart, Runnable onAnalysisFinish, ProjectController projectController,
-                            String filePath, EditorStateManager stateManager, long initialVersion) {
+                            String filePath, EditorStateManager stateManager, long initialVersion, String tabId) {
         this.codeArea = codeArea;
         this.onErrorUpdate = onErrorUpdate;
         this.onAnalysisStart = onAnalysisStart;
@@ -87,9 +85,7 @@ public class HybridManager {
         this.projectController = projectController;
         this.filePath = filePath;
         this.stateManager = stateManager;
-        
-        this.otManager = new OTManager(initialVersion, projectController, this, filePath);
-        
+        this.tabId=tabId;
         this.highlighter = new Tm4eSyntaxHighlighter(codeArea, fileExtension);
 
         if (AntlrLanguageService.isSupported(fileExtension)) {
@@ -101,7 +97,7 @@ public class HybridManager {
         }
         
         EditorEnhancer enhancer = new EditorEnhancer(codeArea, this.completionService, this);
-        this.inputManager = new EditorInputManager(codeArea, enhancer, this.completionService, this);
+        this.inputManager = new EditorInputManager(codeArea, enhancer, this.completionService, this, stateManager, tabId);
         this.inputManager.registerEventHandlers();
 
         this.analysisDebouncer = new PauseTransition(Duration.millis(300));
@@ -111,41 +107,62 @@ public class HybridManager {
             runAntlrAnalysis();
         });
 
-        codeArea.multiPlainChanges()
-            .subscribe(changes -> {
-                isTyping = true; // 텍스트 변경 시작 -> 깃발 올리기
-                if (isLargeUpdate) { /* ... large update logic ... */ 
-                    Platform.runLater(() -> isTyping = false);
-                    return; 
-                }
+        // "적응형 통합 디바운서" 로직이 적용된 최종 리스너 코드
+        codeArea.multiPlainChanges().subscribe(changes -> {
+            if (isLargeUpdate) { return; }
 
-                if (lastTm4eTokens != null) {
-                    for (var change : changes) {
-                        int diff = change.getInserted().length() - change.getRemoved().length();
-                        
-                        if (diff != 0) {
-                            shiftTokens(lastTm4eTokens, change.getPosition(), diff);
-                            if (lastAnalysisResult != null && lastAnalysisResult.symbolTokens != null) {
-                                shiftTokens(lastAnalysisResult.symbolTokens, change.getPosition(), diff);
-                            }
-                            if (lastErrorTokens != null) {
-                                shiftTokens(lastErrorTokens, change.getPosition(), diff);
-                            }
-                            if (lastBracketColorTokens != null) {
-                                shiftTokens(lastBracketColorTokens, change.getPosition(), diff);
-                            }
-                            if (lastSearchHighlightTokens != null) {
-                                shiftTokens(lastSearchHighlightTokens, change.getPosition(), diff);
-                            }
-                            if (lastBracketTokens != null) {
-                                shiftTokens(lastBracketTokens, change.getPosition(), diff);
+            // "꼬리표"를 확인하여 디바운서의 대기 시간을 동적으로 조절하고 재시작합니다.
+            // 이것이 서버와 유저 입력을 모두 아우르는 통합 트리거입니다.
+            switch (inputManager.getLastInitiator()) {
+                case USER:
+                    isTyping = true; // 유저 입력 시에만 타이핑 상태로 간주
+                    
+                    // USER 입력에 대해서는 예측 스타일링을 즉시 적용하여 반응성을 높입니다.
+                    if (lastTm4eTokens != null) {
+                        for (var change : changes) {
+                            int diff = change.getInserted().length() - change.getRemoved().length();
+                            if (diff != 0) {
+                                shiftTokens(lastTm4eTokens, change.getPosition(), diff);
+                                if (lastAnalysisResult != null && lastAnalysisResult.symbolTokens != null) {
+                                    shiftTokens(lastAnalysisResult.symbolTokens, change.getPosition(), diff);
+                                }
+                                if (lastErrorTokens != null) {
+                                    shiftTokens(lastErrorTokens, change.getPosition(), diff);
+                                }
+                                if (lastBracketColorTokens != null) {
+                                    shiftTokens(lastBracketColorTokens, change.getPosition(), diff);
+                                }
+                                if (lastSearchHighlightTokens != null) {
+                                    shiftTokens(lastSearchHighlightTokens, change.getPosition(), diff);
+                                }
+                                if (lastBracketTokens != null) {
+                                    shiftTokens(lastBracketTokens, change.getPosition(), diff);
+                                }
                             }
                         }
+                        applyHighlighting();
                     }
-                    applyHighlighting();
-                }
-                analysisDebouncer.playFromStart();
-            });
+
+                    // 1. 대기 시간을 '짧게(300ms)' 설정합니다.
+                    analysisDebouncer.setDuration(Duration.millis(300));
+                    // 2. 타이머를 재시작합니다.
+                    analysisDebouncer.playFromStart();
+                    break;
+                
+                case SERVER:
+                    // 1. 대기 시간을 '길게(1500ms)' 설정합니다.
+                    analysisDebouncer.setDuration(Duration.millis(1500));
+                    // 2. 타이머를 재시작합니다.
+                    analysisDebouncer.playFromStart();
+                    break;
+
+                case SYSTEM:
+                    // 시스템 변경 시에는 타이머를 완전히 멈춥니다.
+                    // 외부(EditorFactory)에서 requestImmediateAnalysis()를 직접 호출할 것이기 때문입니다.
+                    analysisDebouncer.stop();
+                    break;
+            }
+        });
         
         codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
             if (isTyping) {
@@ -161,8 +178,12 @@ public class HybridManager {
 
     // --- OTManager Delegation ---
 
-    public OTManager getOtManager() {
-        return otManager;
+    public EditorStateManager getStateManager() {
+        return stateManager;
+    }
+
+    public CodeArea getCodeArea() {
+        return codeArea;
     }
 
     public void handleBroadcast(long newVersion, String uniqId, String requesterId, Operation serverOp) {
@@ -175,17 +196,6 @@ public class HybridManager {
         }
     }
 
-    public void handleCatchUp(JSONArray operations) {
-        otManager.handleCatchUp(operations);
-    }
-
-    public boolean isApplyingServerChange() {
-        return isApplyingServerChange;
-    }
-
-    public void setApplyingServerChange(boolean isApplyingServerChange) {
-        this.isApplyingServerChange = isApplyingServerChange;
-    }
 
     // --- End of OTManager Delegation ---
 

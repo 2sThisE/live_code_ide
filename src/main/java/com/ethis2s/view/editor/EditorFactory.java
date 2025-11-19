@@ -7,6 +7,7 @@ import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.EditorListenerManager;
 import com.ethis2s.util.EditorStateManager;
 import com.ethis2s.util.HybridManager;
+import com.ethis2s.util.OTManager;
 
 import javafx.application.Platform;
 import javafx.scene.Node;
@@ -60,8 +61,11 @@ public class EditorFactory {
             projectController,
             filePath,
             stateManager,
-            initialVersion
+            initialVersion,
+            tabId
         );
+        OTManager otManager = new OTManager(initialVersion, projectController, manager, filePath);
+        stateManager.registerOTManager(tabId, otManager);
 
         stateManager.registerTab(tabId, fileName, codeArea, manager);
 
@@ -79,6 +83,7 @@ public class EditorFactory {
         // Move caret to the beginning before inserting content
         
         manager.controlledReplaceText(0, 0, content, ChangeInitiator.SYSTEM);
+        Platform.runLater(manager::requestImmediateAnalysis);
         manager.resetInitiatorToUser(); // Explicitly reset initiator after initial load
         
         // Notify the manager that the initial content is loaded and trigger the first analysis

@@ -16,8 +16,10 @@ import org.fxmisc.richtext.model.TwoDimensional.Position;
 
 import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.EditorEnhancer;
+import com.ethis2s.util.EditorStateManager;
 import com.ethis2s.util.HybridManager;
 
+import java.beans.Statement;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -40,6 +42,8 @@ public class EditorInputManager {
     private final HybridManager manager;
     private final PauseTransition lineLockDebouncer;
     private final InputInterpreter interpreter;
+    private final EditorStateManager stateManager;
+    private final String tabId;
 
     private final StringBuilder currentWord = new StringBuilder();
     private boolean suggestionsHiddenManually = false;
@@ -48,12 +52,16 @@ public class EditorInputManager {
     private boolean isProcessingServerChange = false;
     private boolean isTyping = false;
 
-    public EditorInputManager(CodeArea codeArea, EditorEnhancer enhancer, CompletionService completionService, HybridManager manager) {
+    public EditorInputManager(CodeArea codeArea, EditorEnhancer enhancer, 
+                            CompletionService completionService, HybridManager manager,
+                            EditorStateManager stateManager, String tabId) {
         this.codeArea = codeArea;
         this.enhancer = enhancer;
         this.completionService = completionService;
         this.manager = manager;
         this.interpreter = new InputInterpreter(manager, codeArea);
+        this.stateManager=stateManager;
+        this.tabId=tabId;
 
         this.lineLockDebouncer = new PauseTransition(Duration.millis(500));
         this.lineLockDebouncer.setOnFinished(event -> {
@@ -148,7 +156,9 @@ public class EditorInputManager {
                         List<Operation> ops = interpreter.interpret(change);
                         for (Operation op : ops) {
                             if (op != null) {
-                                manager.getOtManager().sendOperation(op);
+                                stateManager.getOTManager(tabId).ifPresent(otManager -> {
+                                    otManager.sendOperation(op);
+                                });
                             }
                         }
                     }

@@ -9,6 +9,7 @@ import javafx.beans.property.SimpleIntegerProperty;
 import org.fxmisc.richtext.CodeArea;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -39,6 +40,7 @@ public class EditorStateManager {
     private final List<HybridManager> activeManagers = new ArrayList<>();
     private final Map<String, Boolean> initializingTabs = new HashMap<>();
     private final Map<String, Queue<Runnable>> pendingUpdatesMap = new HashMap<>();
+    private final Map<String, OTManager> otManagers = new ConcurrentHashMap<>();
 
     // --- Search Properties ---
     private final IntegerProperty totalMatches = new SimpleIntegerProperty(0);
@@ -78,6 +80,7 @@ public class EditorStateManager {
         remoteCursorManagerMap.remove(tabId);
         initializingTabs.remove(tabId);
         pendingUpdatesMap.remove(tabId);
+        otManagers.remove(tabId);
     }
 
     public void shutdownAllManagers() {
@@ -113,6 +116,12 @@ public class EditorStateManager {
                 Platform.runLater(queue.poll());
             }
         }
+    }
+    public void registerOTManager(String tabId, OTManager otManager) {
+        this.otManagers.put(tabId, otManager);
+    }
+    public Optional<OTManager> getOTManager(String tabId) {
+        return Optional.ofNullable(this.otManagers.get(tabId));
     }
 
     // --- Getters and Helpers ---
