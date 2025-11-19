@@ -116,6 +116,32 @@ public class OTManager {
                 transformedServerOp = transform(transformedServerOp, myOp);
                 if (transformedServerOp == null) break;
             }
+
+            final Operation finalOpForCorrection = transformedServerOp;
+            Platform.runLater(() -> {
+                // 현재 애니메이션이 진행 중인 모든 시각적 커서들에 대해...
+                for (Map.Entry<String, IntegerProperty> entry : userVisualCursors.entrySet()) {
+                    String userId = entry.getKey();
+                    IntegerProperty visualCursor = entry.getValue();
+
+                    // 이 커서가 방금 연산을 보낸 사용자(requesterId)의 것이라면 보정할 필요가 없습니다.
+                    // 왜냐하면 이 사용자의 커서는 어차피 곧 새로운 목표점으로 애니메이션이 '재시작'될 것이기 때문입니다.
+                    if (userId.equals(requesterId)) {
+                        continue;
+                    }
+
+                    int currentVisualPosition = visualCursor.get();
+
+                    // 'transform_position' 헬퍼 함수를 사용하여 현재 시각적 위치를 보정합니다.
+                    int newVisualPosition = transform_position(currentVisualPosition, finalOpForCorrection);
+                    
+                    // 위치가 실제로 변경되었다면, IntegerProperty의 값을 즉시 업데이트합니다.
+                    // 이렇게 하면 현재 진행 중인 Timeline 애니메이션이 이 새로운 위치를 기준으로 자연스럽게 경로를 이어갑니다.
+                    if (currentVisualPosition != newVisualPosition) {
+                        visualCursor.set(newVisualPosition);
+                    }
+                }
+            });
             applyOperationToCodeArea(transformedServerOp, requesterId);
 
             // Update the queue with rebased operations and recalculate expected versions.
@@ -136,6 +162,28 @@ public class OTManager {
         }
     }
 
+    private int transform_position(int position, Operation otherOp) {
+        int myPos = position;
+        int otherPos = otherOp.getPosition();
+        
+        // --- [수정] "앞의 애니메이션은 영향이 없다"는 규칙을 명시적으로 적용 ---
+        // 연산이 발생한 위치보다 앞에 있는 커서는 보정할 필요가 없습니다.
+        if (myPos < otherPos) {
+            return myPos;
+        }
+
+        int otherLen = otherOp.getLength();
+
+        if (otherOp.getType() == Operation.Type.INSERT) {
+            // myPos >= otherPos 인 경우에만
+            myPos += otherLen;
+        } else { // DELETE
+            // myPos >= otherPos 인 경우에만
+            myPos -= Math.min(myPos - otherPos, otherLen);
+        }
+        return myPos;
+    }
+
 
     private void applyOperationToCodeArea(Operation op, String requesterId) {
         if (op == null) return;
@@ -148,29 +196,24 @@ public class OTManager {
 
             if (requesterId != null) {
                 hybridManager.getCodeArea().layout();
-                Platform.runLater(() -> updateAndPlayAnimation(requesterId, op.getCursorPosition()));
+                Platform.runLater(() -> animateCursorTo(requesterId, op));
             }
         });
     }
 
     public void requestCursorUpdate(String requesterId, int cursorPosition) {
-        if (requesterId != null) {
-            updateAndPlayAnimation(requesterId, cursorPosition);
-        }
+        if (requesterId != null) animateCursorTo(requesterId, new Operation(Operation.Type.INSERT, 0, null, cursorPosition, 0, null));
     }
 
-
-
-    // OTManager.java
-    // 멤버 변수에서 userKeyValues는 이제 필요 없습니다.
-    // private final Map<String, KeyValue> userKeyValues = new ConcurrentHashMap<>();
-
-    // --- [핵심] "목표점 갱신" 애니메이션 로직 ---
-    private void updateAndPlayAnimation(String requesterId, int newTargetPosition) {
+    private void animateCursorTo(String requesterId, Operation op) {
         Platform.runLater(() -> {
-            // 1. 해당 사용자의 시각적 커서 위치(IntegerProperty)를 가져오거나 새로 만듭니다.
+            // 1. [데이터 안전장치] 목표 위치를 보정합니다. (필수)
+            int currentDocLength = hybridManager.getCodeArea().getLength();
+            int safeTargetPosition = Math.min(op.getCursorPosition(), currentDocLength);
+
+            // 2. IntegerProperty를 가져오거나 생성합니다.
             IntegerProperty visualCursor = userVisualCursors.computeIfAbsent(requesterId, id -> {
-                SimpleIntegerProperty property = new SimpleIntegerProperty(newTargetPosition);
+                SimpleIntegerProperty property = new SimpleIntegerProperty(safeTargetPosition);
                 String tabId = "file-" + filePath;
                 property.addListener((obs, oldVal, newVal) -> {
                     hybridManager.getStateManager().getCursorManager(tabId).ifPresent(cursorManager -> {
@@ -180,29 +223,32 @@ public class OTManager {
                 return property;
             });
 
-            // 2. 해당 사용자의 애니메이션(Timeline)을 가져오거나 새로 만듭니다.
-            Timeline timeline = userTimelines.computeIfAbsent(requesterId, id -> {
-                // KeyValue는 목표값이 계속 바뀔 것이므로, 일단 아무 값으로나 만듭니다.
-                KeyValue keyValue = new KeyValue(visualCursor, newTargetPosition, Interpolator.EASE_OUT);
-                userKeyValues.put(id, keyValue); // 나중에 목표를 바꿀 수 있도록 맵에 저장
+            // 3. [핵심] 연산 종류에 따라 애니메이션 시간을 동적으로 결정합니다.
+            Duration animationDuration;
+            if (op.getType() == Operation.Type.DELETE) {
+                // 삭제는 짧고 빠르게 반응하여 안정성을 높입니다. (40-60ms 추천)
+                animationDuration = Duration.millis(50);
+            } else { // INSERT 또는 순수 커서 이동
+                // 삽입은 부드러움을 위해 조금 더 길게 설정합니다. (100-150ms 추천)
+                animationDuration = Duration.millis(120); 
+            }
 
-                // KeyFrame에 KeyValue를 연결합니다.
-                KeyFrame keyFrame = new KeyFrame(Duration.millis(200), keyValue);
-                return new Timeline(keyFrame);
-            });
+            // 4. Timeline을 가져오거나 생성합니다.
+            Timeline timeline = userTimelines.computeIfAbsent(requesterId, id -> new Timeline());
+            
+            // 5. 결정된 시간과 안전한 목표로 애니메이션 KeyFrame을 생성합니다.
+            KeyValue newKeyValue = new KeyValue(visualCursor, safeTargetPosition, Interpolator.EASE_OUT);
+            KeyFrame newKeyFrame = new KeyFrame(animationDuration, newKeyValue);
 
-            // 3. [가장 중요한 부분] 저장해두었던 KeyValue의 최종 목표값을 새로운 위치로 업데이트합니다.
-            KeyValue currentKeyValue = userKeyValues.get(requesterId);
-            
-            // KeyValue는 불변(immutable) 객체일 수 있으므로, 새로운 KeyValue를 만들어서 Timeline을 재구성하는 것이 안전합니다.
-            KeyValue newKeyValue = new KeyValue(visualCursor, newTargetPosition, Interpolator.EASE_OUT);
-            KeyFrame newKeyFrame = new KeyFrame(Duration.millis(200), newKeyValue);
-            
-            timeline.stop(); // 일단 멈추고
-            timeline.getKeyFrames().setAll(newKeyFrame); // 새로운 목표가 담긴 키프레임으로 교체한 뒤
-            timeline.playFromStart(); // 다시 재생합니다.
+            // 6. 애니메이션을 실행합니다. (취소 후 재시작 방식)
+            timeline.stop();
+            timeline.getKeyFrames().setAll(newKeyFrame);
+            timeline.playFromStart();
         });
     }
+
+
+
 
     public void handleCatchUp(JSONArray operations) {
 
