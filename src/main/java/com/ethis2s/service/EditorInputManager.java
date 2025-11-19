@@ -139,12 +139,7 @@ public class EditorInputManager {
             ChangeInitiator initiator = this.lastInitiator;
             if (initiator == ChangeInitiator.USER) {
                 if (manager.isLineLockedByOther(codeArea.getCurrentParagraph())) {
-                    // This is a secondary check. The primary block is in the key event handler.
-                    // This handles programmatic changes that might bypass the key handler.
-                    Platform.runLater(() -> {
-                        this.lastInitiator = ChangeInitiator.USER;
-                        isTyping = false; // ★★★ 텍스트 변경 끝! ★★★
-                    });
+                    
                     return;
                 }
 
@@ -159,6 +154,10 @@ public class EditorInputManager {
                     }
                 });
             }
+            Platform.runLater(() -> {
+                this.lastInitiator = ChangeInitiator.USER;
+                isTyping = false; // ★★★ 텍스트 변경 끝! ★★★
+            });
 
             if (isProcessingServerChange) {
                 Platform.runLater(() -> isProcessingServerChange = false);
