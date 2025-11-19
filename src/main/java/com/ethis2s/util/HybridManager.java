@@ -117,6 +117,9 @@ public class HybridManager {
                 }
 
                 if (lastTm4eTokens != null) {
+                    if (lastBracketTokens != null && previouslyRenderedBrackets != null) {
+                        System.out.println("DEBUG: lastBracketTokens == previouslyRenderedBrackets ? " + (lastBracketTokens == previouslyRenderedBrackets));
+                    }
                     for (var change : changes) {
                         int diff = change.getInserted().length() - change.getRemoved().length();
                         
@@ -140,9 +143,9 @@ public class HybridManager {
                             if (lastBracketTokens != null) {
                                 shiftTokens(lastBracketTokens, change.getPosition(), diff);
                             }
-                            if (previouslyRenderedBrackets != null) {
-                                shiftTokens(previouslyRenderedBrackets, change.getPosition(), diff);
-                            }
+                            // if (previouslyRenderedBrackets != null) {
+                            //     shiftTokens(previouslyRenderedBrackets, change.getPosition(), diff);
+                            // }
                             System.out.println("After correction: " + (lastBracketTokens != null ? lastBracketTokens.stream().map(StyleToken::toString).collect(Collectors.joining(", ")) : "null"));
                             System.out.println("--- Bracket Correction END ---");
                         }
