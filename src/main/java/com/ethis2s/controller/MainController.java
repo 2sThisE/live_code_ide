@@ -629,7 +629,8 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                 manager.getOtManager().handleBroadcast(newVersion, uniqId, requesterId, op);
             });
         };
-        if(userInfo.getNickname()!=requesterId){
+        System.out.println("userinfo:"+(userInfo.getNickname()+"#"+userInfo.getTag())+" requester: "+requesterId);
+        if(!(userInfo.getNickname()+"#"+userInfo.getTag()).equals(requesterId)){
             Platform.runLater(()->{
                 editorTabView.getStateManager().getCursorManager(tabId).ifPresent(cursorManager -> {
                     cursorManager.updateCursor(requesterId, requesterId, cursorPosition);
