@@ -102,12 +102,14 @@ public class HybridManager {
 
         this.analysisDebouncer = new PauseTransition(Duration.millis(300));
         this.analysisDebouncer.setOnFinished(e -> {
+            isTyping = false; // Debouncer finished, so typing is officially over.
             runTm4eHighlighting();
             runAntlrAnalysis();
         });
 
         codeArea.multiPlainChanges()
             .subscribe(changes -> {
+                System.out.println("--- Typing Engine START ---");
                 isTyping = true; // 텍스트 변경 시작 -> 깃발 올리기
                 if (isLargeUpdate) { /* ... large update logic ... */ 
                     Platform.runLater(() -> isTyping = false);
@@ -117,16 +119,11 @@ public class HybridManager {
                 if (lastTm4eTokens != null) {
                     for (var change : changes) {
                         int diff = change.getInserted().length() - change.getRemoved().length();
-                        int endOfRemoval = change.getPosition() + change.getRemoved().length();
-
-                        // 삭제된 영역과 겹치는 에러 토큰을 미리 제거
-                        if (lastErrorTokens != null && change.getRemoved().length() > 0) {
-                            lastErrorTokens.removeIf(token -> 
-                                token.start < endOfRemoval && token.end > change.getPosition()
-                            );
-                        }
-
+                        
                         if (diff != 0) {
+                            System.out.println("--- Bracket Correction START ---");
+                            System.out.println("Before correction: " + (lastBracketTokens != null ? lastBracketTokens.stream().map(StyleToken::toString).collect(Collectors.joining(", ")) : "null"));
+                            
                             shiftTokens(lastTm4eTokens, change.getPosition(), diff);
                             if (lastAnalysisResult != null && lastAnalysisResult.symbolTokens != null) {
                                 shiftTokens(lastAnalysisResult.symbolTokens, change.getPosition(), diff);
@@ -140,23 +137,25 @@ public class HybridManager {
                             if (lastSearchHighlightTokens != null) {
                                 shiftTokens(lastSearchHighlightTokens, change.getPosition(), diff);
                             }
-                            // ★★★ 괄호 예측 스타일링 부활! ★★★
                             if (lastBracketTokens != null) {
                                 shiftTokens(lastBracketTokens, change.getPosition(), diff);
                             }
                             if (previouslyRenderedBrackets != null) {
                                 shiftTokens(previouslyRenderedBrackets, change.getPosition(), diff);
                             }
+                            System.out.println("After correction: " + (lastBracketTokens != null ? lastBracketTokens.stream().map(StyleToken::toString).collect(Collectors.joining(", ")) : "null"));
+                            System.out.println("--- Bracket Correction END ---");
                         }
                     }
-                    // 타이핑 시에는 무거운 전체 렌더러 호출
                     applyHighlighting();
                 }
                 analysisDebouncer.playFromStart();
-                Platform.runLater(() -> isTyping = false); // 모든 작업 후 -> 깃발 내리기 예약
             });
         
         codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
+            if (isTyping) {
+                return; // Typing Engine is running, Caret Engine must wait.
+            }
             if (inputManager.getLastInitiator() == ChangeInitiator.USER) {
                 // 커서 이동 시에는 데이터 업데이트 후, 가벼운 괄호 전용 렌더러 호출
                 updateBracketHighlightingData();
@@ -303,6 +302,7 @@ public class HybridManager {
                 analysisDebouncer.playFromStart(); 
                 return;
             }
+            updateBracketHighlightingData(); // Recalculate bracket positions based on the new analysis.
             this.onErrorUpdate.accept(analysisResult.errors);
             applyHighlighting(); // 분석 완료 후 전체 스타일링 다시 적용
         }, Platform::runLater);

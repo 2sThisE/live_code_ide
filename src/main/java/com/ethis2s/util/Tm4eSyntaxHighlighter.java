@@ -136,18 +136,26 @@ public class Tm4eSyntaxHighlighter {
     
     public void shutdown() { executor.shutdown(); }
 
-    public static class StyleToken {
-        public int start;
-        public int end;
-        public final List<String> styleClasses;
-
-        public StyleToken(int start, int end, List<String> styleClasses) {
-            this.start = start;
-            this.end = end;
-            this.styleClasses = styleClasses;
-        }
-    }
-
+            public static class StyleToken {
+                public int start;
+                public int end;
+                public List<String> styleClasses;
+    
+                public StyleToken(int start, int end, List<String> styleClasses) {
+                    this.start = start;
+                    this.end = end;
+                    this.styleClasses = styleClasses;
+                }
+    
+                @Override
+                public String toString() {
+                    return "StyleToken{" +
+                           "start=" + start +
+                           ", end=" + end +
+                           ", styles=" + styleClasses +
+                           '}';
+                }
+            }
      private class HighlightingTask extends Task<List<StyleToken>> {
         private final String text;
         public HighlightingTask(String text) { this.text = text; }
