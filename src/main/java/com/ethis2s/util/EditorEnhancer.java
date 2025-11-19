@@ -1,16 +1,18 @@
 package com.ethis2s.util;
 
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.fxmisc.richtext.CodeArea;
+
 import com.ethis2s.service.CompletionService;
+
 import javafx.application.Platform;
 import javafx.geometry.Bounds;
 import javafx.scene.control.ListView;
 import javafx.scene.control.PopupControl;
 import javafx.scene.input.MouseButton;
-import org.fxmisc.richtext.CodeArea;
-
-import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 자동 완성 제안 팝업의 UI를 생성하고 관리하는 클래스.
@@ -23,6 +25,7 @@ public class EditorEnhancer {
     private final CompletionService completionService;
     private final PopupControl suggestionsPopup;
     private final ListView<String> suggestionsListView;
+    private static double macosPopupYOffset = Double.NaN;
 
     public EditorEnhancer(CodeArea codeArea, CompletionService completionService, HybridManager hybridManager) {
         this.codeArea = codeArea;
@@ -69,8 +72,12 @@ public class EditorEnhancer {
 
             Optional<Bounds> caretBounds = codeArea.getCaretBounds();
             if (caretBounds.isPresent()) {
-                Bounds bounds = caretBounds.get();
-                suggestionsPopup.show(codeArea, bounds.getMinX(), bounds.getMaxY());
+                Bounds screenBounds = caretBounds.get();
+                if((System.getProperty("os.name").toLowerCase()).contains("mac")){
+                    double correctX = screenBounds.getMinX();
+                    double correctY = screenBounds.getMaxY()-MacosNativeUtil.getTitleBarHeightOffset();
+                    suggestionsPopup.show(codeArea.getScene().getWindow(), correctX, correctY);
+                }else suggestionsPopup.show(codeArea.getScene().getWindow(), screenBounds.getMinX(),screenBounds.getMaxY());
                 Platform.runLater(() -> selectSuggestion(0));
             }
         });

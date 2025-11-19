@@ -266,6 +266,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             if (OS.contains("mac")) {
                 // Mac 관련 설정
                 MacosNativeUtil.applyUnifiedTitleBarStyle(primaryStage);
+                MacosNativeUtil.calculateAndCacheOffset(primaryStage);
             } else if (OS.contains("win")) {
             // 1. 네이티브 스타일링을 먼저 적용합니다.
                 WindowsNativeUtil.applyCustomWindowStyle(
