@@ -49,13 +49,13 @@ public class OTManager {
     private final Map<String, IntegerProperty> userVisualCursors = new ConcurrentHashMap<>();
 
 
-    public OTManager(long initialVersion, ProjectController projectController, HybridManager hybridManager, String filePath) {
+    public OTManager(long initialVersion, EditorContext context, HybridManager hybridManager) {
         this.localVersion = initialVersion;
-        this.projectController = projectController;
         this.hybridManager = hybridManager;
-        this.filePath = filePath;
         
-        
+        // 컨텍스트 객체에서 필요한 정보를 꺼내 멤버 변수에 저장합니다.
+        this.projectController = context.getProjectController();
+        this.filePath = context.getFilePath();
     }
 
     /**

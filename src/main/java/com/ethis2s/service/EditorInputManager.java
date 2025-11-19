@@ -15,6 +15,7 @@ import org.fxmisc.richtext.model.TwoDimensional.Bias;
 import org.fxmisc.richtext.model.TwoDimensional.Position;
 
 import com.ethis2s.util.ConfigManager;
+import com.ethis2s.util.EditorContext;
 import com.ethis2s.util.EditorEnhancer;
 import com.ethis2s.util.EditorStateManager;
 import com.ethis2s.util.HybridManager;
@@ -54,14 +55,16 @@ public class EditorInputManager {
 
     public EditorInputManager(CodeArea codeArea, EditorEnhancer enhancer, 
                             CompletionService completionService, HybridManager manager,
-                            EditorStateManager stateManager, String tabId) {
+                            EditorContext context) {
         this.codeArea = codeArea;
         this.enhancer = enhancer;
         this.completionService = completionService;
         this.manager = manager;
         this.interpreter = new InputInterpreter(manager, codeArea);
-        this.stateManager=stateManager;
-        this.tabId=tabId;
+        
+        // 컨텍스트에서 필요한 정보를 꺼내 씁니다.
+        this.stateManager = context.getStateManager();
+        this.tabId = context.getTabId();
 
         this.lineLockDebouncer = new PauseTransition(Duration.millis(500));
         this.lineLockDebouncer.setOnFinished(event -> {

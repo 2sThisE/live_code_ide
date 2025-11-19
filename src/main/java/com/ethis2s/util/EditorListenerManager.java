@@ -33,12 +33,15 @@ public class EditorListenerManager {
     private final ProjectController projectController;
 
 
-    public EditorListenerManager(CodeArea codeArea, EditorTabView owner, EditorStateManager stateManager, String tabId, ProjectController projectController) {
+    public EditorListenerManager(CodeArea codeArea, EditorTabView owner, EditorContext context) {
         this.codeArea = codeArea;
         this.owner = owner;
-        this.stateManager = stateManager;
-        this.tabId = tabId;
-        this.projectController = projectController;
+        
+        // 컨텍스트에서 필요한 정보를 꺼내 씁니다.
+        this.stateManager = context.getStateManager();
+        this.tabId = context.getTabId();
+        this.projectController = context.getProjectController();
+        
         errorTooltip.getStyleClass().add("error-tooltip");
     }
 

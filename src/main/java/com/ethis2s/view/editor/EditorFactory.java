@@ -4,6 +4,7 @@ import com.ethis2s.controller.MainController;
 import com.ethis2s.controller.ProjectController;
 import com.ethis2s.service.ChangeInitiator;
 import com.ethis2s.util.ConfigManager;
+import com.ethis2s.util.EditorContext;
 import com.ethis2s.util.EditorListenerManager;
 import com.ethis2s.util.EditorStateManager;
 import com.ethis2s.util.HybridManager;
@@ -52,24 +53,24 @@ public class EditorFactory {
 
         applyStylesToCodeArea(codeArea);
 
+        // --- [핵심 리팩토링] 모든 공통 자원을 담은 컨텍스트 객체를 생성합니다. ---
+        EditorContext context = new EditorContext(projectController, stateManager, tabId, filePath);
+
         HybridManager manager = new HybridManager(
             codeArea,
             getFileExtension(filePath),
             (errors) -> Platform.runLater(() -> owner.handleErrorUpdate(tabId, fileName, errors)),
             mainController::notifyAntlrTaskStarted,
             mainController::notifyAntlrTaskFinished,
-            projectController,
-            filePath,
-            stateManager,
-            initialVersion,
-            tabId
+            context, // projectController, filePath, stateManager, tabId를 대체
+            initialVersion
         );
-        OTManager otManager = new OTManager(initialVersion, projectController, manager, filePath);
+        OTManager otManager = new OTManager(initialVersion, context, manager); // projectController, filePath를 대체
         stateManager.registerOTManager(tabId, otManager);
 
         stateManager.registerTab(tabId, fileName, codeArea, manager);
 
-        EditorListenerManager listenerManager = new EditorListenerManager(codeArea, owner, stateManager, tabId, projectController);
+        EditorListenerManager listenerManager = new EditorListenerManager(codeArea, owner, context); // stateManager, tabId, projectController를 대체
         listenerManager.attachListeners();
 
         // Create an overlay pane for remote cursors

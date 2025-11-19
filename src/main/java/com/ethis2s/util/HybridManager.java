@@ -76,16 +76,18 @@ public class HybridManager {
     
 
     public HybridManager(CodeArea codeArea, String fileExtension, Consumer<List<SyntaxError>> onErrorUpdate, 
-                            Runnable onAnalysisStart, Runnable onAnalysisFinish, ProjectController projectController,
-                            String filePath, EditorStateManager stateManager, long initialVersion, String tabId) {
+                            Runnable onAnalysisStart, Runnable onAnalysisFinish, EditorContext context, long initialVersion) {
         this.codeArea = codeArea;
         this.onErrorUpdate = onErrorUpdate;
         this.onAnalysisStart = onAnalysisStart;
         this.onAnalysisFinish = onAnalysisFinish;
-        this.projectController = projectController;
-        this.filePath = filePath;
-        this.stateManager = stateManager;
-        this.tabId=tabId;
+        
+        // 컨텍스트에서 필요한 정보를 꺼내 씁니다.
+        this.projectController = context.getProjectController();
+        this.filePath = context.getFilePath();
+        this.stateManager = context.getStateManager();
+        this.tabId = context.getTabId();
+
         this.highlighter = new Tm4eSyntaxHighlighter(codeArea, fileExtension);
 
         if (AntlrLanguageService.isSupported(fileExtension)) {
@@ -97,7 +99,8 @@ public class HybridManager {
         }
         
         EditorEnhancer enhancer = new EditorEnhancer(codeArea, this.completionService, this);
-        this.inputManager = new EditorInputManager(codeArea, enhancer, this.completionService, this, stateManager, tabId);
+        // 자식 객체인 EditorInputManager에게도 이 유용한 '도구함'을 그대로 물려줍니다.
+        this.inputManager = new EditorInputManager(codeArea, enhancer, this.completionService, this, context);
         this.inputManager.registerEventHandlers();
 
         this.analysisDebouncer = new PauseTransition(Duration.millis(300));
