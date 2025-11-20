@@ -153,6 +153,48 @@ public class EditorTabView {
     public void shutdownAllManagers() {
         stateManager.shutdownAllManagers();
     }
+
+    public boolean hasTabsFromOtherProjects(UserProjectsInfo selectedProject) {
+        if (selectedProject == null) return false;
+
+        for (TabPane pane : managedTabPanes) {
+            for (Tab tab : pane.getTabs()) {
+                Object userData = tab.getUserData();
+                if (userData instanceof UserProjectsInfo tabProjectInfo) {
+                    if (!tabProjectInfo.getProjectID().equals(selectedProject.getProjectID())) {
+                        return true; // 다른 프로젝트 탭을 발견하면 즉시 true 반환
+                    }
+                }
+            }
+        }
+        return false; // 검사가 끝날 때까지 다른 프로젝트 탭이 없으면 false 반환
+    }
+    
+    public void closeTabsBelongingToOtherProjects(UserProjectsInfo selectedProject) {
+        if (selectedProject == null) return;
+
+        List<Tab> tabsToClose = new ArrayList<>();
+        for (TabPane pane : managedTabPanes) {
+            for (Tab tab : pane.getTabs()) {
+                Object userData = tab.getUserData();
+                if (userData instanceof UserProjectsInfo tabProjectInfo) {
+                    if (!tabProjectInfo.getProjectID().equals(selectedProject.getProjectID())) {
+                        tabsToClose.add(tab);
+                    }
+                }
+            }
+        }
+
+        // 순회가 끝난 후 탭을 제거합니다.
+        for (Tab tab : tabsToClose) {
+            if (tab.getTabPane() != null) {
+                tab.getTabPane().getTabs().remove(tab);
+            }
+        }
+
+        // 모든 탭을 닫은 후, 빈 TabPane이 남아있을 수 있으므로 정리 로직을 호출합니다.
+        Platform.runLater(this::checkAndCleanupAllPanes);
+    }
     
     public void closeAllClosableTabs() {
         shutdownAllManagers();

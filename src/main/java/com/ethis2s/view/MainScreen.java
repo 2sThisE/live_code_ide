@@ -550,7 +550,17 @@ public class MainScreen {
     }
 
     private void changeToProjectDirView(UserProjectsInfo userProjectsInfo, ProjectController projectController, MainController mainController) {
-        mainController.setCurrentActiveProject(userProjectsInfo);
+        // 이제 이 메소드는 컨트롤러에 프로젝트 변경을 '요청'하는 역할만 합니다.
+        mainController.requestProjectSwitch(userProjectsInfo, projectController);
+    }
+
+    /**
+     * 컨트롤러의 확인 절차가 끝난 후, 실제 파일 트리 뷰로 전환하는 메소드입니다.
+     * @param userProjectsInfo 표시할 프로젝트 정보
+     * @param projectController 프로젝트 컨트롤러
+     * @param mainController 메인 컨트롤러
+     */
+    public void switchToProjectDirView(UserProjectsInfo userProjectsInfo, ProjectController projectController, MainController mainController) {
         performTransition(() -> {
             this.currentProjectForFileTree = userProjectsInfo;
             setFileTreeCellFactory(projectController, userProjectsInfo.getProjectID(), userProjectsInfo, mainController);

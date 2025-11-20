@@ -126,6 +126,32 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     //     return mainScreen.getTitleBarInteractiveNodes();
     // }
 
+    public void requestProjectSwitch(UserProjectsInfo selectedProject, ProjectController projectController) {
+        if (editorTabView.hasTabsFromOtherProjects(selectedProject)) {
+            // 닫을 탭이 있는 경우, 사용자에게 확인을 요청합니다.
+            String title = "프로젝트 변경 확인";
+            String header = "다른 프로젝트의 탭을 닫으시겠습니까?";
+            String context = "현재 열려있는 다른 프로젝트의 파일 탭들이 모두 닫힙니다.\n계속하시겠습니까?";
+
+            // 사용자가 '확인'을 눌렀을 때 실행될 동작
+            Runnable onConfirm = () -> {
+                setCurrentActiveProject(selectedProject);
+                editorTabView.closeTabsBelongingToOtherProjects(selectedProject);
+                mainScreen.switchToProjectDirView(selectedProject, projectController, this);
+            };
+            
+            // 사용자가 '취소'를 눌렀을 때 실행될 동작 (아무것도 안 함)
+            Runnable onCancel = () -> {};
+
+            CustomAlert confirmAlert = new CustomAlert(primaryStage, title, header, context, onConfirm, onCancel);
+            confirmAlert.showAndWait();
+        } else {
+            // 닫을 탭이 없는 경우, 즉시 프로젝트를 전환합니다.
+            setCurrentActiveProject(selectedProject);
+            mainScreen.switchToProjectDirView(selectedProject, projectController, this);
+        }
+    }
+
     public void setCurrentActiveProject(UserProjectsInfo projectInfo) {
         this.currentActiveProject = projectInfo;
     }
