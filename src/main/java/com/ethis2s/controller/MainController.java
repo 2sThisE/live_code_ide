@@ -1,5 +1,6 @@
 package com.ethis2s.controller;
 
+import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -16,12 +17,15 @@ import org.json.JSONObject;
 import com.ethis2s.App;
 import com.ethis2s.model.Operation;
 import com.ethis2s.model.ProtocolConstants;
+import com.ethis2s.model.RunConfiguration;
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
 import com.ethis2s.service.ChangeInitiator;
 import com.ethis2s.service.ClientSocketManager;
+import com.ethis2s.service.ExecutionService;
 import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.MacosNativeUtil;
+import com.ethis2s.util.VariableResolver;
 import com.ethis2s.util.WindowsNativeUtil;
 import com.ethis2s.view.CustomAlert;
 import com.ethis2s.view.DebugView;
@@ -33,6 +37,7 @@ import com.ethis2s.view.editor.EditorTabView;
 import com.google.gson.Gson;
 import com.ethis2s.view.ProjectPropertiesScreen;
 import com.ethis2s.view.RegisterScreen;
+import com.ethis2s.view.RunView;
 import com.ethis2s.view.SettingsView;
 import com.ethis2s.view.SharedOptionScreen;
 
@@ -88,6 +93,9 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     private final double SEARCH_FIELD_NARROW_WIDTH = 200;
     private final double SEARCH_FIELD_WIDE_WIDTH = 400;
     private Runnable searchAction;
+
+    private ExecutionService executionService = new ExecutionService();
+    private RunView runView;
 
     public MainController(Stage primaryStage) {
         this.primaryStage = primaryStage;
@@ -326,6 +334,8 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             node.setManaged(shouldBeVisible);
         });
     }
+
+
 
     public void performLogin(String id, char[] password) {
         this.lastLoggedInId = id;

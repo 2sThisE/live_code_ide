@@ -89,6 +89,9 @@ public class ConfigManager {
             if (value instanceof Number && (type == Double.class || type == double.class)) {
                 return type.cast(((Number) value).doubleValue());
             }
+            if (type == Map.class && value instanceof Map) {
+                return type.cast(value);
+            }
             // 그 외 타입은 직접 캐스팅
             return type.cast(value);
         } catch (ClassCastException e) {

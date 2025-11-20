@@ -17,6 +17,7 @@ import com.ethis2s.controller.MainController;
 import com.ethis2s.controller.ProjectController;
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
+import com.ethis2s.service.ExecutionService;
 import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.MacosNativeUtil;
 
@@ -83,6 +84,7 @@ public class MainScreen {
 
     private ProblemsView problemsView; // Make ProblemsView accessible
     private DebugView debugView;
+    private RunView runView;
     private OutputView outputView;
     private Tab problemsTab;
     private Label problemsTabLabel;
@@ -100,7 +102,7 @@ public class MainScreen {
     private Button windowCloseButton;
     private MenuBar menuBar;
     private StackPane topPane;
-
+    private ExecutionService executionService;
 
 
     public HBox getStatusBar() {return statusBar;}
@@ -303,7 +305,15 @@ public class MainScreen {
         debugTab.setContent(debugView.getView());
         debugTab.setClosable(false);
 
-        bottomTabPane.getTabs().addAll(outputTab, debugTab, problemsTab);
+        // 'Run' 탭 생성
+        this.runView = new RunView();
+        Tab runView = new Tab("Run");
+        this.runView.setOnInputSubmitted(inputLine -> {
+            executionService.sendInputToProcess(inputLine);
+        });
+        
+
+        bottomTabPane.getTabs().addAll(outputTab, debugTab, problemsTab, runView);
         // --- 하단 탭 패널 생성 끝 ---
 
         SplitPane centerSplit = new SplitPane(this.editorArea, bottomTabPane);
