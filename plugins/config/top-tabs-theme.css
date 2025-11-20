@@ -59,6 +59,12 @@
     -fx-pref-height: 25px;
 }
 
+
+.ot-paused{
+    -fx-border-color: #ff4b4b
+}
+
+
 .tab-error-count {
     -fx-font-size: 12px;
     -fx-font-weight: bold;
