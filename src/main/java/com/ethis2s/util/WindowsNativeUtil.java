@@ -208,6 +208,62 @@ public final class WindowsNativeUtil {
         }
     }
 
+    public static void applyCustomAlertWindowStyle(Stage stage, Node draggableArea, List<Node> nonDraggableNodes) {
+        try {
+            WinDef.HWND hwnd = getHwnd(stage);
+            if (hwnd == null) return;
+
+            subclassProc = (hWnd, uMsg, wParam, lParam, uIdSubclass, dwRefData) -> {
+                LRESULT_ByReference lResult = new LRESULT_ByReference();
+                if (Dwmapi.INSTANCE.DwmDefWindowProc(hWnd, uMsg, wParam, lParam, lResult)) {
+                    return lResult.getValue();
+                }
+
+                switch (uMsg) {
+                    case WM_NCCALCSIZE:
+                        if (wParam.intValue() == 1) {
+                            return new WinDef.LRESULT(0); // 기본 프레임 제거
+                        }
+                        break;
+
+                    case WM_NCHITTEST: {
+                        final int x = (int)(short)(lParam.longValue() & 0xFFFF);
+                        final int y = (int)(short)((lParam.longValue() >> 16) & 0xFFFF);
+
+                        // 크기 조절 로직 완전 제거
+                        if (checkHit(draggableArea, x, y)) {
+                            if (isCursorOnNodes(nonDraggableNodes, x, y)) {
+                                return new WinDef.LRESULT(HTCLIENT);
+                            }
+                            return new WinDef.LRESULT(HTCAPTION);
+                        }
+                        return new WinDef.LRESULT(HTCLIENT);
+                    }
+                }
+                return Comctl32.INSTANCE.DefSubclassProc(hWnd, uMsg, wParam, lParam);
+            };
+            Comctl32.INSTANCE.SetWindowSubclass(hwnd, subclassProc, new BaseTSD.LONG_PTR(1), new BaseTSD.DWORD_PTR(0));
+
+            BaseTSD.LONG_PTR originalStyle = User32.INSTANCE.GetWindowLongPtr(hwnd, User32.GWL_STYLE);
+            // 크기 조절(WS_THICKFRAME)과 최대화 버튼(WS_MAXIMIZEBOX) 스타일 제거
+            long newStyle = originalStyle.longValue() | User32.WS_CAPTION | User32.WS_SYSMENU;
+            User32.INSTANCE.SetWindowLongPtr(hwnd, User32.GWL_STYLE, new BaseTSD.LONG_PTR(newStyle));
+
+            Dwmapi.MARGINS margins = new Dwmapi.MARGINS();
+            margins.cxLeftWidth = 1;
+            margins.cxRightWidth = 1;
+            margins.cyTopHeight = 1;
+            margins.cyBottomHeight = 1;
+            Dwmapi.INSTANCE.DwmExtendFrameIntoClientArea(hwnd, margins);
+
+            User32.INSTANCE.SetWindowPos(hwnd, null, 0, 0, 0, 0,
+                User32.SWP_FRAMECHANGED | User32.SWP_NOMOVE | User32.SWP_NOSIZE | User32.SWP_NOZORDER);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private static boolean checkHit(Node node, int screenX, int screenY) {
         if (node == null || !node.isVisible()) return false;
         Bounds bounds = node.localToScreen(node.getBoundsInLocal());

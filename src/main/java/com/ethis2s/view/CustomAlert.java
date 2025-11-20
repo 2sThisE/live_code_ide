@@ -1,15 +1,26 @@
 package com.ethis2s.view;
+import com.ethis2s.util.MacosNativeUtil;
+import com.ethis2s.util.WindowsNativeUtil;
+
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import com.google.gson.Gson;
 import org.json.JSONObject;
@@ -21,73 +32,119 @@ public class CustomAlert {
     private final String header;
     private String context;
     private final Runnable onOk;
-    private Runnable onCancel; // 취소 버튼을 위한 Runnable 추가
+    private Runnable onCancel;
 
-    /**
-     * 생성자 (기존 - 확인 버튼 1개)
-     *
-     * @param owner     부모 Stage
-     * @param title     Alert 제목
-     * @param header    헤더 메시지
-     * @param context   설명 
-     * @param onOk      OK 버튼 클릭 시 실행할 Runnable
-     */
+    private double xOffset = 0;
+    private double yOffset = 0;
+
     public CustomAlert(Stage owner, String title, String header, String context, Runnable onOk) {
         this.owner = owner;
         this.title = title;
         this.header = header;
         this.context = context;
         this.onOk = onOk;
-        this.onCancel = null; // 이 생성자에서는 취소 버튼 없음
+        this.onCancel = null;
     }
 
-    /**
-     * 새로운 생성자 (확인/취소 버튼 2개)
-     *
-     * @param owner     부모 Stage
-     * @param title     Alert 제목
-     * @param header    헤더 메시지
-     * @param context   설명
-     * @param onConfirm 확인 버튼 클릭 시 실행할 Runnable
-     * @param onCancel  취소 버튼 클릭 시 실행할 Runnable
-     */
     public CustomAlert(Stage owner, String title, String header, String context, Runnable onConfirm, Runnable onCancel) {
         this.owner = owner;
         this.title = title;
         this.header = header;
         this.context = context;
-        this.onOk = onConfirm; // 확인 동작은 onOk에 할당
+        this.onOk = onConfirm;
         this.onCancel = onCancel;
     }
 
     public void setTitle(String title){this.title=title;}
     public void setContext(String context){this.context=context;}
-    /**
-     * Alert 표시
-     */
+
     private void initScreen(boolean opt){
         Platform.runLater(() -> {
             Stage stage = new Stage();
             stage.initOwner(owner);
             stage.initModality(Modality.APPLICATION_MODAL);
-            stage.setTitle(title);
+            
+            final String OS = System.getProperty("os.name").toLowerCase();
+            if (OS.contains("mac")) stage.initStyle(StageStyle.UNIFIED);
+            else if (OS.contains("win")) stage.initStyle(StageStyle.TRANSPARENT);
+            else stage.initStyle(StageStyle.UNDECORATED);
 
-            VBox root = new VBox(15);
-            root.setPadding(new Insets(20));
-            root.setStyle("-fx-background-color: #1e1e1e; -fx-background-radius: 10;");
+            stage.setResizable(false);
 
-            // 헤더
+            List<Node> nonDraggableNodes = new ArrayList<>();
+
+            // --- Custom Title Bar ---
+            Label titleLabel = new Label("  " + title);
+            titleLabel.setStyle("-fx-text-fill: #cccccc; -fx-font-size: 14px;");
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+            
+            HBox titleBar = new HBox(titleLabel, spacer);
+            titleBar.setAlignment(Pos.CENTER_LEFT);
+            titleBar.setPadding(new Insets(8));
+            titleBar.setStyle("-fx-background-color: #2a2a2a;");
+
+            // --- Draggable & Double-click prevention Logic ---
+            titleBar.setOnMousePressed(event -> {
+                if (event.getClickCount() == 2) {
+                    event.consume();
+                    return;
+                }
+                xOffset = event.getSceneX();
+                yOffset = event.getSceneY();
+            });
+            titleBar.setOnMouseDragged(event -> {
+                stage.setX(event.getScreenX() - xOffset);
+                stage.setY(event.getScreenY() - yOffset);
+            });
+            titleBar.setOnMouseClicked(event -> {
+                if (event.getClickCount() == 2) {
+                    event.consume();
+                }
+            });
+
+            Runnable closeAction = () -> {
+                if (onCancel != null) {
+                    onCancel.run();
+                }
+                stage.close();
+            };
+
+            if (OS.contains("win")) {
+                Button closeButton = new Button("✕");
+                closeButton.setStyle(
+                    "-fx-background-color: transparent; -fx-text-fill: #e0e0e0; -fx-font-size: 14px; -fx-padding: 0 10;"
+                );
+                closeButton.setOnMouseEntered(e -> closeButton.setStyle("-fx-background-color: #c04040; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 0 10;"));
+                closeButton.setOnMouseExited(e -> closeButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #e0e0e0; -fx-font-size: 14px; -fx-padding: 0 10;"));
+                closeButton.setOnAction(e -> closeAction.run());
+                titleBar.getChildren().add(closeButton);
+                nonDraggableNodes.add(closeButton);
+            }
+            
+            stage.setOnCloseRequest(e -> {
+                e.consume();
+                closeAction.run();
+            });
+
+
+            // --- Content Area ---
+            VBox contentPane = new VBox(15);
+            contentPane.setPadding(new Insets(20));
+            contentPane.setStyle("-fx-background-color: #1e1e1e;");
+
             Label headerLabel = new Label(header);
             headerLabel.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 16px; -fx-font-weight: bold;");
+            headerLabel.setWrapText(true);
 
+            Label contextLabel = new Label(context);
+            contextLabel.setStyle("-fx-text-fill: #d4d4d4; -fx-font-size: 14px;");
+            contextLabel.setWrapText(true);
 
-            Label contentLabel = new Label(context);
-            contentLabel.setStyle("-fx-text-fill: #d4d4d4; -fx-font-size: 14px;");
-
-            HBox buttonBox = new HBox(10); // 버튼 간 간격 추가
+            // --- Buttons ---
+            HBox buttonBox = new HBox(10);
             buttonBox.setAlignment(Pos.CENTER_RIGHT);
 
-            // 확인 버튼
             Button okButton = new Button("확인");
             okButton.setStyle(
                     "-fx-background-color: #0078D4; " +
@@ -99,10 +156,8 @@ public class CustomAlert {
                 if (onOk != null) onOk.run();
                 stage.close();
             });
-            
-            buttonBox.getChildren().add(okButton);
+            nonDraggableNodes.add(okButton);
 
-            // 취소 버튼 (onCancel이 있을 경우에만 추가)
             if (onCancel != null) {
                 Button cancelButton = new Button("취소");
                 cancelButton.setStyle(
@@ -111,19 +166,30 @@ public class CustomAlert {
                         "-fx-font-size: 14px; " +
                         "-fx-background-radius: 5;"
                 );
-                cancelButton.setOnAction(e -> {
-                    onCancel.run();
-                    stage.close();
-                });
-                // 확인 버튼 앞에 취소 버튼 추가
-                buttonBox.getChildren().add(0, cancelButton);
+                cancelButton.setOnAction(e -> closeAction.run());
+                buttonBox.getChildren().add(cancelButton);
+                nonDraggableNodes.add(cancelButton);
             }
+            buttonBox.getChildren().add(okButton);
 
+            contentPane.getChildren().addAll(headerLabel, contextLabel, buttonBox);
 
-            root.getChildren().addAll(headerLabel, contentLabel, buttonBox);
+            // --- Root Layout ---
+            VBox root = new VBox(titleBar, contentPane);
+            root.setStyle("-fx-border-color: #444444; -fx-border-width: 1; -fx-background-radius: 10; -fx-border-radius: 10;");
 
             Scene scene = new Scene(root);
+            scene.setFill(Color.TRANSPARENT);
             stage.setScene(scene);
+
+            stage.setOnShown(e -> {
+                if (OS.contains("mac")) {
+                    MacosNativeUtil.applyUnifiedTitleBarStyle(stage);
+                } else if (OS.contains("win")) {
+                    WindowsNativeUtil.applyCustomAlertWindowStyle(stage, titleBar, nonDraggableNodes);
+                }
+            });
+
             if(opt) stage.show();
             else stage.showAndWait();
         });
