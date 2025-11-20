@@ -271,6 +271,13 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                 }
                 updateSearchButtonVisibility();
             });
+            if (mainScreen.getPauseOTButton() != null) {
+                mainScreen.getPauseOTButton().setOnAction(e -> {
+                    if (editorTabView != null) {
+                        editorTabView.toggleActiveTabOTPause();
+                    }
+                });
+            }
 
             mainScreen.getSearchBox().hoverProperty().addListener((obs, wasHovered, isNowHovered) -> {
                 updateSearchButtonVisibility();
@@ -735,17 +742,27 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                 case ProtocolConstants.ERROR_CODE_SYNC_ERROR: {
                     editorTabView.getActiveCodeArea()
                         .flatMap(activeArea -> editorTabView.getStateManager().findTabIdForCodeArea(activeArea))
-                        .ifPresent(tabId -> {
-                            String filePath = tabId.substring("file-".length());
-                            System.err.println("Synchronization error detected for " + filePath + ". Closing tab and re-requesting content to self-heal.");
-                            editorTabView.closeTab(tabId);
-                            mainScreen.getCurrentProjectForFileTree().ifPresent(projectInfo -> {
-                                projectController.fileContentRequest(projectInfo, filePath);
-                            });
-                        });
+                        .ifPresent(this::reSyncFile); // [핵심 수정] 새로운 메소드 호출
                     break;
                 }
             }
+        });
+    }
+
+    /**
+     * [추가] 지정된 탭 ID에 해당하는 파일을 강제로 다시 동기화하는 메소드.
+     * 탭을 닫고 서버에 파일 내용을 다시 요청하여 탭을 새로 엽니다.
+     * @param tabId 다시 동기화할 탭의 ID (e.g., "file-/path/to/file.java")
+     */
+    public void reSyncFile(String tabId) {
+        if (tabId == null || !tabId.startsWith("file-")) return;
+
+        String filePath = tabId.substring("file-".length());
+        System.err.println("Force re-sync for " + filePath + ". Closing tab and re-requesting content.");
+        
+        editorTabView.closeTab(tabId);
+        mainScreen.getCurrentProjectForFileTree().ifPresent(projectInfo -> {
+            projectController.fileContentRequest(projectInfo, filePath);
         });
     }
 

@@ -91,6 +91,7 @@ public class MainScreen {
     private TabPane bottomTabPane; // TabPane을 필드로 선언해서 접근 가능하게 할게요!
     private SplitPane editorArea;
     private Button runButton; // [추가] 실행 버튼 필드
+    private ToggleButton pauseOTButton;
     private TextField searchField;
     private HBox searchBox;
     private Button prevButton;
@@ -113,6 +114,16 @@ public class MainScreen {
         if (runButton != null) {
             runButton.setVisible(visible);
         }
+    }
+
+    // [추가] 외부에서 OT 일시정지 버튼의 가시성을 제어하는 메소드
+    public void setPauseOTButtonVisible(boolean visible) {
+        if (pauseOTButton != null) pauseOTButton.setVisible(visible);
+    }
+ 
+    // [추가] 외부에서 OT 일시정지 버튼 객체를 가져오는 메소드
+    public ToggleButton getPauseOTButton() {
+         return pauseOTButton;
     }
 
     public void updateProblemsTab(int errorCount) {
@@ -331,20 +342,25 @@ public class MainScreen {
         runButton.getStyleClass().add("run-button");
         runButton.setMouseTransparent(false); // 버튼 자신은 클릭 이벤트를 받아야 함
         runButton.setVisible(false); // 기본적으로 숨김
+        runButton.setOnAction(e->System.out.println("click"));
+        runButton.setMouseTransparent(false);
+        this.pauseOTButton = new ToggleButton("⏸"); // Pause 아이콘 사용
+        pauseOTButton.getStyleClass().add("pause-ot-button");
+        pauseOTButton.setMouseTransparent(false);
+        pauseOTButton.setVisible(false);
+        pauseOTButton.setOnAction(e->System.out.println("click"));
+        pauseOTButton.setMouseTransparent(false);
+
+        HBox buttonBox = new HBox(5, pauseOTButton, runButton); // 5px 간격
+        buttonBox.setAlignment(Pos.TOP_RIGHT); // 내부 아이템들을 오른쪽으로 정렬
+        buttonBox.setPadding(new javafx.geometry.Insets(5));
+        buttonBox.setPickOnBounds(false);
         
-
-        // 2. 버튼을 담을 '유리판' BorderPane 생성
-        BorderPane buttonPane = new BorderPane();
-        buttonPane.setTop(runButton); // 오른쪽 정렬을 위해 Top에 배치
-        BorderPane.setAlignment(runButton, Pos.TOP_RIGHT);
-        BorderPane.setMargin(runButton, new javafx.geometry.Insets(5)); // 약간의 여백
-        buttonPane.setMouseTransparent(true); // 유리판 자체는 클릭 이벤트를 통과시킴
-        buttonPane.getStyleClass().add("root-pane");
-
         // 3. 기존 editorArea와 유리판을 StackPane에 담기
         StackPane editorStack = new StackPane();
         editorStack.getStyleClass().add("root-pane");
-        editorStack.getChildren().addAll(this.editorArea, buttonPane);
+        editorStack.getChildren().addAll(this.editorArea, buttonBox);
+        StackPane.setAlignment(buttonBox, Pos.TOP_RIGHT);
         // --- 핵심 수정 끝 ---
 
         SplitPane centerSplit = new SplitPane(editorStack, bottomTabPane);
@@ -389,7 +405,32 @@ public class MainScreen {
             e.printStackTrace();
             System.err.println("컴포넌트별 CSS 파일을 로드할 수 없습니다.");
         }
+        //디버그 
+            buttonBox.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, e -> {
+                System.out.println(">>> buttonBox Clicked! (Source: " + e.getTarget().getClass().getSimpleName() + ")");
+                // e.consume(); // 이벤트 소비 테스트용
+            });
         
+         runButton.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, e -> {
+             System.out.println(">>>>>> runButton Clicked!");
+         });
+     
+         pauseOTButton.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, e -> {
+             System.out.println(">>>>>> pauseOTButton Clicked!");
+         });
+            editorStack.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, e -> {
+             System.out.println(">> editorStack Clicked! (Source: " + e.getTarget().getClass().getSimpleName() + ")");
+         });
+     
+         this.editorArea.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, e -> {
+             System.out.println(">>>> editorArea Clicked! (Source: " + e.getTarget().getClass().getSimpleName() + ")");
+         });
+        centerSplit.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, e -> {
+             System.out.println("> centerSplit Clicked! (Source: " + e.getTarget().getClass().getSimpleName() + ")");
+         });
+        //디버그 끝
+
+
         mainLayout.setCenter(contentPane);
         return mainLayout;
     }

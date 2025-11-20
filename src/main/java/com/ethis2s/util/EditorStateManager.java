@@ -124,6 +124,18 @@ public class EditorStateManager {
         return Optional.ofNullable(this.otManagers.get(tabId));
     }
 
+
+    public boolean isOTPaused(String tabId) {
+        // [핵심 수정] OTManager가 존재하지 않는 것을 '일시정지' 상태로 간주합니다.
+        return !otManagers.containsKey(tabId);
+    }
+
+    public void disposeOT(String tabId) {
+        getOTManager(tabId).ifPresent(OTManager::dispose);
+        otManagers.remove(tabId);
+        System.out.println("[StateManager] Disposed and removed OTManager for " + tabId);
+    }
+
     // --- Getters and Helpers ---
 
     public Optional<CodeArea> getCodeArea(String tabId) {

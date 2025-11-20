@@ -210,6 +210,7 @@ public class EditorTabView {
             this.rootContainer.getItems().add(primaryTabPane);
             focusManager.setActiveTabPane(primaryTabPane);
         }
+        updatePauseOTButtonState();
     }
 
     // --- Search API (Delegation) ---
@@ -331,6 +332,7 @@ public class EditorTabView {
         }
         tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
             updateRunButtonVisibility();
+            updatePauseOTButtonState();
         });
         return tabPane;
     }
@@ -407,6 +409,52 @@ public class EditorTabView {
         }
         mainController.getMainScreen().setRunButtonVisible(isVisible);
     }
+
+
+    public void updatePauseOTButtonState() {
+        if (mainController == null || mainController.getMainScreen() == null) {
+            return;
+        }
+
+        TabPane activePane = focusManager.getActiveTabPane();
+        boolean isButtonVisible = false;
+        boolean isPaused = false;
+
+        if (activePane != null) {
+            Tab selectedTab = activePane.getSelectionModel().getSelectedItem();
+            if (selectedTab != null && selectedTab.getId() != null && selectedTab.getId().startsWith("file-")) {
+                isButtonVisible = true;
+                isPaused = stateManager.isOTPaused(selectedTab.getId());
+            }
+        }
+
+        mainController.getMainScreen().setPauseOTButtonVisible(isButtonVisible);
+        if (mainController.getMainScreen().getPauseOTButton() != null) {
+            mainController.getMainScreen().getPauseOTButton().setSelected(isPaused);
+        }
+    }
+
+    // [추가] 활성 탭의 OT 일시정지 상태를 토글하는 메소드
+    public void toggleActiveTabOTPause() {
+        TabPane activePane = focusManager.getActiveTabPane();
+        if (activePane != null) {
+            Tab selectedTab = activePane.getSelectionModel().getSelectedItem();
+            if (selectedTab != null && selectedTab.getId() != null) {
+                String tabId = selectedTab.getId();
+                if (stateManager.isOTPaused(tabId)) {
+                    // OTManager가 없으므로(일시정지 상태), 강제 동기화를 요청.
+                    mainController.reSyncFile(tabId);
+                } else {
+                    // OTManager가 있으므로(활성 상태), dispose를 요청.
+                    stateManager.disposeOT(tabId);
+                }
+                // 상태 변경 후 버튼 UI 즉시 업데이트
+                updatePauseOTButtonState();
+            }
+        }
+    }
+
+
 
     private void updateSearchPrompt(Tab tab) {
         if (tab != null && tab.getGraphic() instanceof HBox hbox && hbox.getChildren().get(0) instanceof Label label) {

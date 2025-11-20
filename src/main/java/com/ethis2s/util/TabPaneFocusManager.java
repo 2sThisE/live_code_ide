@@ -67,5 +67,9 @@ public class TabPaneFocusManager {
         return activeTabPane;
     }
 
-    public void setActiveTabPane(TabPane tabPane) {this.activeTabPane = tabPane;}
+    public void setActiveTabPane(TabPane tabPane) {
+        this.activeTabPane = tabPane;
+        editorTabView.updateRunButtonVisibility();
+        editorTabView.updatePauseOTButtonState(); // [추가] 활성 TabPane이 변경될 때 버튼 상태 업데이트
+    }
 }
