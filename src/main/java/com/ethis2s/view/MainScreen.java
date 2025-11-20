@@ -327,13 +327,14 @@ public class MainScreen {
 
         // 'Run' 탭 생성
         this.runView = new RunView();
-        Tab runView = new Tab("Run");
+        Tab runTab = new Tab("Run");
+        runTab.setClosable(false);
         this.runView.setOnInputSubmitted(inputLine -> {
             executionService.sendInputToProcess(inputLine);
         });
         
 
-        bottomTabPane.getTabs().addAll(outputTab, debugTab, problemsTab, runView);
+        bottomTabPane.getTabs().addAll(outputTab, debugTab, problemsTab, runTab);
         // --- 하단 탭 패널 생성 끝 ---
 
         // --- [핵심 수정] 실행 버튼을 위한 StackPane 레이어 ---
@@ -405,32 +406,6 @@ public class MainScreen {
             e.printStackTrace();
             System.err.println("컴포넌트별 CSS 파일을 로드할 수 없습니다.");
         }
-        //디버그 
-            buttonBox.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, e -> {
-                System.out.println(">>> buttonBox Clicked! (Source: " + e.getTarget().getClass().getSimpleName() + ")");
-                // e.consume(); // 이벤트 소비 테스트용
-            });
-        
-         runButton.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, e -> {
-             System.out.println(">>>>>> runButton Clicked!");
-         });
-     
-         pauseOTButton.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, e -> {
-             System.out.println(">>>>>> pauseOTButton Clicked!");
-         });
-            editorStack.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, e -> {
-             System.out.println(">> editorStack Clicked! (Source: " + e.getTarget().getClass().getSimpleName() + ")");
-         });
-     
-         this.editorArea.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, e -> {
-             System.out.println(">>>> editorArea Clicked! (Source: " + e.getTarget().getClass().getSimpleName() + ")");
-         });
-        centerSplit.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, e -> {
-             System.out.println("> centerSplit Clicked! (Source: " + e.getTarget().getClass().getSimpleName() + ")");
-         });
-        //디버그 끝
-
-
         mainLayout.setCenter(contentPane);
         return mainLayout;
     }

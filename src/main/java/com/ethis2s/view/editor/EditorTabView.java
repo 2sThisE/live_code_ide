@@ -467,6 +467,18 @@ public class EditorTabView {
     public void setActiveCodeArea(CodeArea codeArea) {
         this.activeCodeArea = codeArea;
         findTabById(stateManager.findTabIdForCodeArea(codeArea).orElse("")).ifPresent(this::updateSearchPrompt);
+
+
+        stateManager.findTabIdForCodeArea(codeArea)
+            .flatMap(this::findTabById)
+            .ifPresent(activeTab -> {
+                TabPane parentPane = activeTab.getTabPane();
+                if (parentPane != null && focusManager.getActiveTabPane() != parentPane) {
+                    // 포커스 매니저에게 현재 활성 TabPane이 무엇인지 명시적으로 알려줍니다.
+                    focusManager.setActiveTabPane(parentPane);
+                }
+                updateSearchPrompt(activeTab);
+            });
     
         // [BUG FIX] CodeArea가 직접 포커스를 받았을 때도 자동 재검색을 트리거한다.
         String query = mainController.getSearchQuery();

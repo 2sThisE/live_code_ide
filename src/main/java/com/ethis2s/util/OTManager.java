@@ -87,18 +87,15 @@ public class OTManager {
             // This is a confirmation for an operation we sent.
             if (pendingOp.getUniqId().equals(uniqId) && pendingOp.getExpectedVersion() == newVersion) {
                 // PREDICTION SUCCESS
-                System.out.println("[OT_DEBUG] PREDICTION SUCCESS for op: " + pendingOp.getUniqId());
                 unconfirmedOps.poll(); // Remove the confirmed operation
                 this.localVersion = newVersion;
                 sendNextPendingOperation(); // Send the next operation if any
             } else {
-                // PREDICTION FAILURE: Confirmation mismatch (version or uniqId)
-                System.err.println("[OT_DEBUG] PREDICTION FAILURE! Expected op: " + pendingOp + ", but received confirmation for: " + serverOp);
+                // PREDICTION FAILURE: Confirmation mismatch (version or uniqId
                 abortUnconfirmedOperations(serverOp, requesterId);
             }
         } else {
             // This is an operation from another user.
-            System.out.println("[OT_DEBUG] Received op from other user. Rebasing local operations against: " + serverOp);
             isRebasing = true;
             
             // Rebase our pending operations against the server's operation.
@@ -291,7 +288,6 @@ public class OTManager {
     public void sendOperation(Operation op) {
         if (isRebasing) {
             pendingInputQueue.add(op);
-            System.out.println("[OT_DEBUG] Rebasing in progress. Queuing operation temporarily: " + op);
             return;
         }
 
@@ -306,7 +302,6 @@ public class OTManager {
             op.setSentToServer(false);
 
             unconfirmedOps.add(op);
-            System.out.println("[OT_DEBUG] Operation added to queue: " + op + " | Expected Version: " + op.getExpectedVersion());
 
             if (unconfirmedOps.stream().noneMatch(Operation::isSentToServer)) {
                 sendNextPendingOperation();
@@ -315,7 +310,6 @@ public class OTManager {
     }
 
     private void abortUnconfirmedOperations(Operation serverOp, String requesterId) {
-        System.err.println("Prediction failed! Aborting and rebasing unconfirmed operations.");
         isRebasing = true;
         
         Queue<Operation> rebasedOps = new LinkedList<>();
@@ -356,7 +350,6 @@ public class OTManager {
     private void processPendingInputs() {
         while (!pendingInputQueue.isEmpty()) {
             Operation pendingOp = pendingInputQueue.poll();
-            System.out.println("[OT_DEBUG] Processing temporarily queued operation: " + pendingOp);
             sendOperation(pendingOp);
         }
     }
@@ -372,7 +365,6 @@ public class OTManager {
             .ifPresent(opToSend -> {
                 opToSend.setSentToServer(true);
                 opToSend.setVersion(this.localVersion); 
-                System.out.println("[OT_DEBUG] Sending operation to server: " + opToSend);
                 projectController.fileEditOperationRequest(
                     this.filePath,
                     opToSend.getType().toString(),
