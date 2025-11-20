@@ -173,6 +173,10 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         return projectController;
     }
 
+    public MainScreen getMainScreen() {
+        return mainScreen;
+    }
+
     public void initMainScreen() {
         this.statusBarLabel = new Label("로그인되지 않았습니다.");
         primaryStage.setMinWidth(600);
@@ -395,6 +399,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             mainScreen.clearProjectView();
             statusBarLabel.setText("로그인되지 않았습니다.");
             editorTabView.closeAllClosableTabs();
+            mainScreen.setRunButtonVisible(false); // [핵심 수정] 로그아웃 시 버튼 숨기기
             showLoginView();
         });
     }
@@ -542,6 +547,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             editorTabView.closeTab("login-tab");
             statusBarLabel.setText("로그인됨: " + userInfo.getNickname() + "#" + userInfo.getTag());
             projectController.projectListRequest();
+            editorTabView.updateRunButtonVisibility(); // [핵심 수정] 로그인 성공 시 버튼 가시성 첫 확인
         });
     }
 

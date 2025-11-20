@@ -90,6 +90,7 @@ public class MainScreen {
     private Label problemsTabLabel;
     private TabPane bottomTabPane; // TabPane을 필드로 선언해서 접근 가능하게 할게요!
     private SplitPane editorArea;
+    private Button runButton; // [추가] 실행 버튼 필드
     private TextField searchField;
     private HBox searchBox;
     private Button prevButton;
@@ -106,6 +107,13 @@ public class MainScreen {
 
 
     public HBox getStatusBar() {return statusBar;}
+
+    // [추가] 외부에서 실행 버튼의 가시성을 제어하는 메소드
+    public void setRunButtonVisible(boolean visible) {
+        if (runButton != null) {
+            runButton.setVisible(visible);
+        }
+    }
 
     public void updateProblemsTab(int errorCount) {
         // 이제 Tab 객체가 있는지 직접 확인합니다.
@@ -155,6 +163,7 @@ public class MainScreen {
         this.nonDraggableNodes = new ArrayList<>();
         BorderPane mainLayout = new BorderPane(); // This will be the absolute root.
         this.editorArea = editorArea;
+        this.editorArea.setStyle("-fx-background-color: transparent;"); // [핵심 수정] SplitPane에 직접 배경색 지정
         
         this.menuBar = new MenuBar();
         nonDraggableNodes.add(menuBar);
@@ -316,8 +325,29 @@ public class MainScreen {
         bottomTabPane.getTabs().addAll(outputTab, debugTab, problemsTab, runView);
         // --- 하단 탭 패널 생성 끝 ---
 
-        SplitPane centerSplit = new SplitPane(this.editorArea, bottomTabPane);
+        // --- [핵심 수정] 실행 버튼을 위한 StackPane 레이어 ---
+        // 1. 실행 버튼 생성 및 설정
+        this.runButton = new Button("▶");
+        runButton.getStyleClass().add("run-button");
+        runButton.setMouseTransparent(false); // 버튼 자신은 클릭 이벤트를 받아야 함
+        runButton.setVisible(false); // 기본적으로 숨김
         
+
+        // 2. 버튼을 담을 '유리판' BorderPane 생성
+        BorderPane buttonPane = new BorderPane();
+        buttonPane.setTop(runButton); // 오른쪽 정렬을 위해 Top에 배치
+        BorderPane.setAlignment(runButton, Pos.TOP_RIGHT);
+        BorderPane.setMargin(runButton, new javafx.geometry.Insets(5)); // 약간의 여백
+        buttonPane.setMouseTransparent(true); // 유리판 자체는 클릭 이벤트를 통과시킴
+        buttonPane.getStyleClass().add("root-pane");
+
+        // 3. 기존 editorArea와 유리판을 StackPane에 담기
+        StackPane editorStack = new StackPane();
+        editorStack.getStyleClass().add("root-pane");
+        editorStack.getChildren().addAll(this.editorArea, buttonPane);
+        // --- 핵심 수정 끝 ---
+
+        SplitPane centerSplit = new SplitPane(editorStack, bottomTabPane);
         centerSplit.setOrientation(Orientation.VERTICAL);
         centerSplit.setDividerPositions(0.75);
 

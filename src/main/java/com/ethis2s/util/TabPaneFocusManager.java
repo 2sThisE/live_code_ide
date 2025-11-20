@@ -67,7 +67,5 @@ public class TabPaneFocusManager {
         return activeTabPane;
     }
 
-    public void setActiveTabPane(TabPane tabPane) {
-        this.activeTabPane = tabPane;
-    }
+    public void setActiveTabPane(TabPane tabPane) {this.activeTabPane = tabPane;}
 }

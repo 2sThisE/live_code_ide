@@ -94,6 +94,7 @@ public class EditorTabView {
             ProjectController projectController= mainController.getProjectController();
             projectController.closeFileRequest(projectInfoOpt.orElseThrow(),filePath);
             Platform.runLater(this::checkAndCleanupAllPanes);
+            
         });
 
         if (newTab == null) return;
@@ -328,6 +329,9 @@ public class EditorTabView {
         } catch (Exception e) {
             e.printStackTrace();
         }
+        tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            updateRunButtonVisibility();
+        });
         return tabPane;
     }
 
@@ -376,6 +380,32 @@ public class EditorTabView {
                 }
             }
         }
+    }
+
+    public void updateRunButtonVisibility() {
+        if (mainController == null || mainController.getMainScreen() == null) {
+            return;
+        }
+
+        TabPane activePane = focusManager.getActiveTabPane();
+        boolean isVisible = true; // 기본적으로 버튼을 보이게 설정
+        if (activePane != null) {
+            Tab selectedTab = activePane.getSelectionModel().getSelectedItem();
+            if (selectedTab != null && selectedTab.getId() != null) {
+                String tabId = selectedTab.getId();
+                // 로그인 탭 또는 회원가입 탭일 경우에만 숨김
+                if ("login-tab".equals(tabId) || "register-tab".equals(tabId)) {
+                    isVisible = false;
+                }
+            } else {
+                // 선택된 탭이 없으면(모든 탭이 닫혔을 때) 버튼을 숨김
+                isVisible = false;
+            }
+        } else {
+            // 활성화된 Pane이 없어도 버튼을 숨김
+            isVisible = false;
+        }
+        mainController.getMainScreen().setRunButtonVisible(isVisible);
     }
 
     private void updateSearchPrompt(Tab tab) {
@@ -494,6 +524,7 @@ public class EditorTabView {
             targetPane.getSelectionModel().select(newTab);
             targetPane.requestFocus();
         }
+        
         return newTab;
     }
     
