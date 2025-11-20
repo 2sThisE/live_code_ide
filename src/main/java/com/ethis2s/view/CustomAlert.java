@@ -1,4 +1,7 @@
 package com.ethis2s.view;
+import java.util.ArrayList;
+import java.util.List;
+
 import com.ethis2s.util.MacosNativeUtil;
 import com.ethis2s.util.WindowsNativeUtil;
 
@@ -9,7 +12,6 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -18,12 +20,6 @@ import javafx.scene.paint.Color;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import com.google.gson.Gson;
-import org.json.JSONObject;
 
 public class CustomAlert {
 
@@ -76,10 +72,13 @@ public class CustomAlert {
             // --- Custom Title Bar ---
             Label titleLabel = new Label("  " + title);
             titleLabel.setStyle("-fx-text-fill: #cccccc; -fx-font-size: 14px;");
-            Region spacer = new Region();
-            HBox.setHgrow(spacer, Priority.ALWAYS);
-            
-            HBox titleBar = new HBox(titleLabel, spacer);
+            Region leftSpacer = new Region();
+            Region rightSpacer = new Region();
+            HBox titleBar;
+            HBox.setHgrow(leftSpacer, Priority.ALWAYS);
+            HBox.setHgrow(rightSpacer, Priority.ALWAYS);
+            if(OS.contains("mac")) titleBar = new HBox(leftSpacer, titleLabel,rightSpacer);
+            else titleBar = new HBox(titleLabel, rightSpacer);
             titleBar.setAlignment(Pos.CENTER_LEFT);
             titleBar.setPadding(new Insets(8));
             titleBar.setStyle("-fx-background-color: #2a2a2a;");
