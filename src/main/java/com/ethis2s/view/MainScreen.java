@@ -209,13 +209,17 @@ public class MainScreen {
         searchBox.getStyleClass().add("centered-search-field"); // Use existing style
         searchBox.setAlignment(Pos.CENTER_LEFT);
         searchBox.setSpacing(5);
-        searchBox.setMaxWidth(500);
-        searchBox.setPrefWidth(400);
-
+        searchBox.setMinWidth(150); 
+        // b. 가장 이상적인 너비를 설정합니다. HBox는 이 크기를 가지려고 노력할 것입니다.
+        // searchBox.setPrefWidth(400); 
+        // c. 최대 너비를 설정하여 무한정 커지는 것을 방지합니다.
+        searchBox.setMaxWidth(700);
+        
         // 2. Create the actual transparent TextField
         this.searchField = new TextField();
         searchField.setPromptText("검색...");
         searchField.getStyleClass().add("transparent-textfield"); // New style for transparency
+        searchField.setMinWidth(Region.USE_PREF_SIZE); // 또는 searchField.setMinWidth(0);
         HBox.setHgrow(searchField, Priority.ALWAYS); // Make the text field take up available space
 
         // 3. Create the buttons
@@ -240,16 +244,21 @@ public class MainScreen {
         // --- Create Title Bar based on OS ---
         
         if (isMac) {
-            Region spacer = new Region();
-            HBox.setHgrow(spacer, Priority.ALWAYS);
+            Region leftSpacer = new Region();
+            Region rightSpacer = new Region();
+            HBox.setHgrow(leftSpacer, Priority.ALWAYS); // "항상 가능한 모든 공간을 차지해라"
+            HBox.setHgrow(rightSpacer, Priority.ALWAYS); // "항상 가능한 모든 공간을 차지해라"
 
-            HBox backgroundBar = new HBox(spacer);
-            backgroundBar.setAlignment(Pos.CENTER);
+            HBox titleBarContent = new HBox(leftSpacer, searchBox, rightSpacer);
+            titleBarContent.setAlignment(Pos.CENTER); // 내부 아이템들을 중앙 정렬
+            Region backgroundBar = new Region();
             
-            this.topPane = new StackPane(backgroundBar, searchBox);
+            this.topPane = new StackPane(backgroundBar, titleBarContent);
 
         } else {
             // Windows/Other Style Title Bar (Original Implementation)
+            searchBox.setMinWidth(200);
+            searchBox.setMaxWidth(700);
             this.minimizeButton = new Button("—");
             minimizeButton.getStyleClass().add("window-button");
             minimizeButton.setOnAction(e -> stage.setIconified(true));
@@ -264,14 +273,24 @@ public class MainScreen {
             windowCloseButton.getStyleClass().add("close-button");
             windowCloseButton.setOnAction(e -> Platform.exit());
             nonDraggableNodes.add(windowCloseButton);
+            HBox windowButtons = new HBox(minimizeButton, maximizeButton, windowCloseButton);
+            windowButtons.setAlignment(Pos.CENTER);
+            BorderPane titleBarLayout = new BorderPane();
+            titleBarLayout.getStyleClass().add("custom-title-bar-background"); // 배경 스타일용
 
-            Region spacer = new Region();
-            HBox.setHgrow(spacer, Priority.ALWAYS);
-            
-            HBox backgroundBar = new HBox(menuBar, spacer, minimizeButton, maximizeButton, windowCloseButton);
-            backgroundBar.setAlignment(Pos.CENTER);
+            // 3. 각 컴포넌트를 제자리에 배치합니다.
+            titleBarLayout.setLeft(menuBar);
+            titleBarLayout.setCenter(searchBox);
+            titleBarLayout.setRight(windowButtons);
 
-            this.topPane = new StackPane(backgroundBar, searchBox);
+            // 4. BorderPane이 자식들을 어떻게 정렬할지 설정합니다.
+            BorderPane.setAlignment(menuBar, Pos.CENTER_LEFT);
+            BorderPane.setAlignment(searchBox, Pos.CENTER); // Center 영역의 아이템을 중앙 정렬
+            BorderPane.setAlignment(windowButtons, Pos.CENTER_RIGHT);
+
+            // 5. 최종 topPane은 이 BorderPane을 담는 StackPane이 됩니다.
+            this.topPane = new StackPane(titleBarLayout);
+
         }
 
         topPane.getStyleClass().add("custom-title-bar");

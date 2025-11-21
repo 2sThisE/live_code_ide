@@ -30,7 +30,7 @@ import java.util.function.Consumer;
 
 public class FileExecutionSelectionView {
 
-    private AnchorPane view;
+    private VBox view;
     private TextField searchField;
     private TextField argumentsField; // 실행 인자를 위한 텍스트 필드
     private Button executeButton; // 실행 버튼
@@ -44,12 +44,10 @@ public class FileExecutionSelectionView {
     }
 
     private void initialize() {
-        view = new AnchorPane();
+        view = new VBox(10);
         view.getStyleClass().add("file-execution-selection-view");
         view.setVisible(false); // 기본적으로 숨김
         view.setMaxWidth(600);
-        view.setMaxHeight(400);
-        view.setPrefSize(600, 400);
         view.setPadding(new Insets(15));
 
 
@@ -182,27 +180,13 @@ public class FileExecutionSelectionView {
         fileInfoColumn.prefWidthProperty().bind(
             tableView.widthProperty()
             .subtract(checkBoxColumn.widthProperty()) // 체크박스 컬럼 너비 빼기
-            .subtract(2) // 스크롤바 등을 위한 약간의 여백
+            .subtract(15) // 스크롤바 등을 위한 약간의 여백
         );
-
-
-
-        AnchorPane.setTopAnchor(searchField, 0.0);
-        AnchorPane.setLeftAnchor(searchField, 0.0);
-        AnchorPane.setRightAnchor(searchField, 0.0);
-
-        AnchorPane.setTopAnchor(tableView, 40.0);
-        AnchorPane.setLeftAnchor(tableView, 0.0);
-        AnchorPane.setRightAnchor(tableView, 0.0);
-
-        AnchorPane.setBottomAnchor(executionControls, 0.0);
-        AnchorPane.setLeftAnchor(executionControls, 0.0);
-        AnchorPane.setRightAnchor(executionControls, 0.0);
 
         view.getChildren().addAll(searchField, tableView, executionControls);
     }
 
-    public AnchorPane getView() {
+    public VBox getView() {
         return view;
     }
 
