@@ -243,9 +243,19 @@ public class MainScreen {
         // --- Create Title Bar based on OS ---
         
         if (isMac) {
+            // 2. [핵심] searchBox를 감싸고 '안전 영역'을 만들어 줄 BorderPane 컨테이너를 생성합니다.
+            BorderPane searchBoxContainer = new BorderPane();
             Region backgroundBar = new Region();
-            this.topPane = new StackPane(backgroundBar, searchBox);
-            StackPane.setAlignment(searchBox, Pos.CENTER);
+            // 3. [가장 중요] 컨테이너의 왼쪽에 '신호등 버튼'이 위치할 공간만큼 패딩을 줍니다.
+            //    이 값(70px)은 실험을 통해 가장 보기 좋은 값으로 조절할 수 있습니다.
+            searchBoxContainer.setPadding(new Insets(0, 0, 0, 70));
+            
+            // 4. searchBox를 이 컨테이너의 'Center' 영역에 배치합니다.
+            searchBoxContainer.setCenter(searchBox);
+            BorderPane.setAlignment(searchBox, Pos.CENTER);
+            
+            // 5. 최종 topPane은 StackPane이 되어, 배경 위에 searchBox 컨테이너를 올립니다.
+            this.topPane = new StackPane(backgroundBar, searchBoxContainer);
 
         } else {
             // Windows/Other Style Title Bar (Original Implementation)
