@@ -1,40 +1,5 @@
 package com.ethis2s.view.editor;
 
-import com.ethis2s.controller.MainController;
-import com.ethis2s.controller.ProjectController;
-import com.ethis2s.service.TabDragDropManager;
-import com.ethis2s.service.AntlrLanguageService.SyntaxError;
-import com.ethis2s.util.ConfigManager;
-import com.ethis2s.util.EditorSearchHandler;
-import com.ethis2s.util.EditorStateManager;
-import com.ethis2s.util.TabPaneFocusManager;
-import com.ethis2s.view.FileExecutionSelectionView;
-import com.ethis2s.view.FileExecutionSelectionView.FileExecutionInfo;
-import com.ethis2s.view.ProblemsView.Problem;
-
-import impl.org.controlsfx.collections.MappingChange;
-import impl.org.controlsfx.collections.MappingChange.Map;
-
-import com.ethis2s.model.UserProjectsInfo;
-
-import javafx.application.Platform;
-import javafx.beans.property.IntegerProperty;
-import javafx.beans.property.StringProperty;
-import javafx.beans.property.SimpleStringProperty;
-
-import javafx.geometry.Pos;
-import javafx.scene.Node;
-import javafx.scene.Parent;
-import javafx.scene.control.*;
-import javafx.scene.control.TabPane.TabDragPolicy;
-import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
-import javafx.scene.input.MouseEvent;
-import javafx.scene.layout.*;
-import org.fxmisc.richtext.CodeArea;
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -43,6 +8,46 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import org.fxmisc.richtext.CodeArea;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import com.ethis2s.controller.MainController;
+import com.ethis2s.controller.ProjectController;
+import com.ethis2s.model.UserProjectsInfo;
+import com.ethis2s.service.AntlrLanguageService.SyntaxError;
+import com.ethis2s.service.TabDragDropManager;
+import com.ethis2s.util.ConfigManager;
+import com.ethis2s.util.EditorSearchHandler;
+import com.ethis2s.util.EditorStateManager;
+import com.ethis2s.util.TabPaneFocusManager;
+import com.ethis2s.view.FileExecutionSelectionView;
+import com.ethis2s.view.FileExecutionSelectionView.FileExecutionInfo;
+import com.ethis2s.view.ProblemsView.Problem;
+
+import javafx.application.Platform;
+import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
+import javafx.geometry.Pos;
+import javafx.scene.Node;
+import javafx.scene.Parent;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Label;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.control.SplitPane;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
+import javafx.scene.control.TabPane.TabDragPolicy;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 
 /**
  * 실시간 동시 편집 클라이언트 구현 가이드 (Javadoc 생략)
@@ -54,7 +59,7 @@ import java.util.stream.Collectors;
 public class EditorTabView {
 
     private final MainController mainController;
-    private final SplitPane rootContainer;
+    private final SplitPane initialSplitPane;
     
     private final EditorStateManager stateManager;
     private final EditorFactory editorFactory;
@@ -68,19 +73,18 @@ public class EditorTabView {
     private CodeArea activeCodeArea;
     private final StringProperty activeTabTitle = new SimpleStringProperty("검색...");
 
-    public EditorTabView(MainController mainController, SplitPane rootContainer) {
+    public EditorTabView(MainController mainController, SplitPane initialSplitPane) {
         this.mainController = mainController;
-        this.rootContainer = rootContainer;
-        this.rootContainer.setStyle("-fx-background-color: transparent;"); // 배경 투명하게 설정
+        this.initialSplitPane = initialSplitPane;
         
         this.stateManager = new EditorStateManager();
         this.editorFactory = new EditorFactory(mainController, stateManager, this, mainController.getProjectController());
-        this.dragDropManager = new TabDragDropManager(this, rootContainer);
+        this.dragDropManager = new TabDragDropManager(this, initialSplitPane);
         this.searchHandler = new EditorSearchHandler(stateManager, mainController);
         this.focusManager = new TabPaneFocusManager(mainController, this, stateManager, managedTabPanes);
         
         TabPane primaryTabPane = createNewTabPane();
-        this.rootContainer.getItems().add(primaryTabPane);
+        initialSplitPane.getItems().add(primaryTabPane);
         focusManager.setActiveTabPane(primaryTabPane);
 
         // --- FileExecutionSelectionView 초기화 ---
@@ -97,24 +101,11 @@ public class EditorTabView {
     }
 
     public Node getLayout() {
-        StackPane stackPane = new StackPane();
-        VBox executionView = fileExecutionSelectionView.getView();
-        stackPane.getChildren().addAll(rootContainer, executionView);
-        StackPane.setMargin(executionView, new javafx.geometry.Insets(35, 0, 0, 0)); // 상단 여백 35px
-        // executionView가 보이지 않을 때 이벤트를 가로채지 않도록 설정
-        executionView.setPickOnBounds(false);
+        return initialSplitPane;
+    }
 
-
-        stackPane.addEventFilter(MouseEvent.MOUSE_CLICKED, event -> {
-            if (fileExecutionSelectionView.isVisible()) {
-                // executionView의 화면상 좌표를 얻음
-                javafx.geometry.Bounds boundsInScreen = executionView.localToScreen(executionView.getBoundsInLocal());
-                if (boundsInScreen != null && !boundsInScreen.contains(event.getScreenX(), event.getScreenY())) {
-                    fileExecutionSelectionView.setVisible(false);
-                }
-            }
-        });
-        return stackPane;
+    public FileExecutionSelectionView getFileExecutionSelectionView() {
+        return fileExecutionSelectionView;
     }
 
 
@@ -347,7 +338,7 @@ public class EditorTabView {
         checkAndCleanupAllPanes();
         if (managedTabPanes.isEmpty()) {
             TabPane primaryTabPane = createNewTabPane();
-            this.rootContainer.getItems().add(primaryTabPane);
+            this.initialSplitPane.getItems().add(primaryTabPane);
             focusManager.setActiveTabPane(primaryTabPane);
         }
         updatePauseOTButtonState();

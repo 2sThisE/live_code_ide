@@ -64,6 +64,9 @@ public class TabDragDropManager {
             clipboardContent.putString(tab.getId());
             db.setContent(clipboardContent);
 
+            // Hide the file execution view to prevent visual conflicts
+            editorTabView.getFileExecutionSelectionView().setVisible(false);
+
             // [변경점] 여기서 바로 feedbackPane을 띄우지 않습니다.
             // showFeedbackPane(sourcePaneForDrag); 
             // feedbackPane은 DragOver 이벤트에서 조건부로 띄웁니다.

@@ -60,8 +60,11 @@ import javafx.scene.paint.Color;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 import socketprotocol.ParsedPacket;
+
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+
+import javafx.scene.layout.AnchorPane;
 
 public class MainController implements ClientSocketManager.ClientSocketCallback {
 
@@ -184,18 +187,46 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         
         // Create the container for the editor tabs
         SplitPane editorArea = new SplitPane();
+        editorArea.setStyle("-fx-background-color: transparent;");
         this.editorTabView = new EditorTabView(this, editorArea);
 
-        // [핵심 수정] EditorTabView로부터 새로운 StackPane 레이아웃을 가져옵니다.
+        // [핵심 수정] EditorTabView로부터 editor SplitPane을 가져옵니다.
         Node editorLayout = editorTabView.getLayout();
 
-        BorderPane rootPane = mainScreen.createMainScreen(primaryStage, editorLayout, statusBarLabel, this);
-        rootPane.setStyle("-fx-background-color: transparent;");
+        // MainScreen은 이제 editorLayout만 받아서 내부 컨텐츠를 구성합니다.
+        BorderPane mainContentPane = mainScreen.createMainScreen(primaryStage, editorLayout, statusBarLabel, this);
+        mainContentPane.setStyle("-fx-background-color: transparent;");
 
+        // --- 최상위 레이아웃 조립 (AnchorPane 사용) ---
+        AnchorPane rootLayout = new AnchorPane();
+        
+        // FileExecutionSelectionView 가져오기
+        Node executionView = editorTabView.getFileExecutionSelectionView().getView();
+        executionView.setPickOnBounds(false); // 이벤트가 통과하도록 설정
+
+        // 1. 메인 컨텐츠를 AnchorPane에 추가하고 모든 면에 앵커를 설정하여 꽉 채웁니다.
+        rootLayout.getChildren().add(mainContentPane);
+        AnchorPane.setTopAnchor(mainContentPane, 0.0);
+        AnchorPane.setBottomAnchor(mainContentPane, 0.0);
+        AnchorPane.setLeftAnchor(mainContentPane, 0.0);
+        AnchorPane.setRightAnchor(mainContentPane, 0.0);
+
+        // 2. 오버레이할 뷰를 AnchorPane에 추가합니다.
+        rootLayout.getChildren().add(executionView);
+        AnchorPane.setTopAnchor(executionView, 35.0); // 상단 타이틀바 높이만큼 여백
+        // AnchorPane.setLeftAnchor(executionView, 0.0); // 제거하여 뷰가 늘어나지 않도록 함
+        // AnchorPane.setRightAnchor(executionView, 0.0); // 제거하여 뷰가 늘어나지 않도록 함
+        // 뷰의 maxWidth와 maxHeight를 존중하여 중앙에 배치되도록 합니다.
+        // AnchorPane.setLeftAnchor(executionView, (rootLayout.getWidth() - executionView.prefWidth(-1)) / 2);
+        // AnchorPane.setRightAnchor(executionView, (rootLayout.getWidth() - executionView.prefWidth(-1)) / 2);
+        // 위 주석 처리된 코드는 AnchorPane의 크기가 결정된 후에 실행되어야 하므로, 직접 설정하는 대신
+        // AnchorPane의 기본 동작에 맡기거나, 리스너를 통해 동적으로 설정해야 합니다.
+        // 현재 FileExecutionSelectionView에 maxWidth가 설정되어 있으므로, 앵커를 제거하면 중앙 정렬됩니다.
+        
         this.problemsView = mainScreen.getProblemsView();
         this.debugView = mainScreen.getDebugView();
         
-        this.mainScene = new Scene(rootPane, 1280, 720);
+        this.mainScene = new Scene(rootLayout, 1280, 720); // Scene의 루트를 AnchorPane으로 설정
         mainScene.setFill(Color.TRANSPARENT);
         try {
             String cssPath = ConfigManager.getInstance().getThemePath("design","mainTheme");
@@ -352,7 +383,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                 mainScreen.getStatusBar().getStyleClass().remove("maximized");
                 mainScreen.getWindowCloseButton().getStyleClass().remove("maximized");
             }
-            Platform.runLater(()->rootPane.applyCss());
+            Platform.runLater(()->mainContentPane.applyCss());
         });
         primaryStage.setTitle(App.NATIVE_WINDOW_TITLE);
         primaryStage.show();

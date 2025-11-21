@@ -13,6 +13,7 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.control.cell.CheckBoxTableCell;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -22,7 +23,7 @@ import java.util.function.Consumer;
 
 public class FileExecutionSelectionView {
 
-    private VBox view;
+    private AnchorPane view;
     private TextField searchField;
     private TextField argumentsField; // 실행 인자를 위한 텍스트 필드
     private Button executeButton; // 실행 버튼
@@ -35,12 +36,13 @@ public class FileExecutionSelectionView {
     }
 
     private void initialize() {
-        view = new VBox(10);
-        view.setPadding(new Insets(15));
+        view = new AnchorPane();
         view.getStyleClass().add("file-execution-selection-view");
         view.setVisible(false); // 기본적으로 숨김
         view.setMaxWidth(600);
         view.setMaxHeight(400);
+        view.setPrefSize(600, 400);
+        view.setPadding(new Insets(15));
 
 
         searchField = new TextField();
@@ -101,10 +103,23 @@ public class FileExecutionSelectionView {
         });
 
 
+        AnchorPane.setTopAnchor(searchField, 0.0);
+        AnchorPane.setLeftAnchor(searchField, 0.0);
+        AnchorPane.setRightAnchor(searchField, 0.0);
+
+        AnchorPane.setTopAnchor(tableView, 40.0);
+        AnchorPane.setLeftAnchor(tableView, 0.0);
+        AnchorPane.setRightAnchor(tableView, 0.0);
+        AnchorPane.setBottomAnchor(tableView, 40.0);
+
+        AnchorPane.setBottomAnchor(executionControls, 0.0);
+        AnchorPane.setLeftAnchor(executionControls, 0.0);
+        AnchorPane.setRightAnchor(executionControls, 0.0);
+
         view.getChildren().addAll(searchField, tableView, executionControls);
     }
 
-    public VBox getView() {
+    public AnchorPane getView() {
         return view;
     }
 
