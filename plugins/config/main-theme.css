@@ -414,3 +414,10 @@
     -fx-background-color: #666666; /* Selected state */
     -fx-text-fill: white;
 }
+
+/* --- File Execution Selection View --- */
+.file-execution-selection-view {
+    -fx-background-color: #252526;
+    -fx-background-radius: 8px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 10, 0, 0, 5);
+}

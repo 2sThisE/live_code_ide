@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.function.Consumer;
 
 import org.json.JSONObject;
 
@@ -21,6 +22,7 @@ public class ProjectController {
     private final MainScreen mainScreen;
     private final MainController mainController;
     private UserInfo userInfo;
+    private Consumer<JSONObject> fileListCallback;
 
     private final BlockingQueue<RequestRecord> requestQueue = new LinkedBlockingQueue<>();
     private final Thread requestWorkerThread;
@@ -114,6 +116,11 @@ public class ProjectController {
         payload.put("project_id", userProjectsInfo.getProjectID());
         payload.put("owner", userProjectsInfo.getOwner());
         sendRequest(payload, ProtocolConstants.UF_FILETREE_LIST_REQUEST);
+    }
+
+    public void fileListRequest(UserProjectsInfo userProjectsInfo, Consumer<JSONObject> callback) {
+        this.fileListCallback = callback;
+        fileListRequest(userProjectsInfo);
     }
 
     public void fileContentRequest(UserProjectsInfo userProjectsInfo, String path) {
@@ -264,7 +271,12 @@ public class ProjectController {
 
     public void handleFileListResponse(JSONObject fileList) {
         Platform.runLater(() -> {
-            mainScreen.updateFileTree(fileList);
+            if (fileListCallback != null) {
+                fileListCallback.accept(fileList);
+                fileListCallback = null; // 콜백은 한 번만 사용
+            } else {
+                mainScreen.updateFileTree(fileList);
+            }
         });
     }
     

@@ -89,7 +89,6 @@ public class MainScreen {
     private Tab problemsTab;
     private Label problemsTabLabel;
     private TabPane bottomTabPane; // TabPane을 필드로 선언해서 접근 가능하게 할게요!
-    private SplitPane editorArea;
     private Button runButton; // [추가] 실행 버튼 필드
     private ToggleButton pauseOTButton;
     private TextField searchField;
@@ -170,11 +169,12 @@ public class MainScreen {
     public MenuBar getMenuBar() { return menuBar; }
     
 
-    public BorderPane createMainScreen(Stage stage, SplitPane editorArea, Label statusLabel, MainController mainController) {
+    public BorderPane createMainScreen(Stage stage, Node editorLayout, Label statusLabel, MainController mainController) {
         this.nonDraggableNodes = new ArrayList<>();
         BorderPane mainLayout = new BorderPane(); // This will be the absolute root.
-        this.editorArea = editorArea;
-        this.editorArea.setStyle("-fx-background-color: transparent;"); // [핵심 수정] SplitPane에 직접 배경색 지정
+        
+        // this.editorArea는 이제 EditorTabView 내부에서 관리되므로 직접 참조할 필요가 없습니다.
+        // this.editorArea.setStyle("-fx-background-color: transparent;"); 
         
         this.menuBar = new MenuBar();
         nonDraggableNodes.add(menuBar);
@@ -343,24 +343,21 @@ public class MainScreen {
         runButton.getStyleClass().add("run-button");
         runButton.setMouseTransparent(false); // 버튼 자신은 클릭 이벤트를 받아야 함
         runButton.setVisible(false); // 기본적으로 숨김
-        runButton.setOnAction(e->System.out.println("click"));
-        runButton.setMouseTransparent(false);
+        
         this.pauseOTButton = new ToggleButton("⏸"); // Pause 아이콘 사용
         pauseOTButton.getStyleClass().add("pause-ot-button");
         pauseOTButton.setMouseTransparent(false);
         pauseOTButton.setVisible(false);
-        pauseOTButton.setOnAction(e->System.out.println("click"));
-        pauseOTButton.setMouseTransparent(false);
 
         HBox buttonBox = new HBox(5, pauseOTButton, runButton); // 5px 간격
         buttonBox.setAlignment(Pos.TOP_RIGHT); // 내부 아이템들을 오른쪽으로 정렬
         buttonBox.setPadding(new javafx.geometry.Insets(5));
         buttonBox.setPickOnBounds(false);
         
-        // 3. 기존 editorArea와 유리판을 StackPane에 담기
+        // 3. 기존 editorLayout과 버튼을 StackPane에 담기
         StackPane editorStack = new StackPane();
         editorStack.getStyleClass().add("root-pane");
-        editorStack.getChildren().addAll(this.editorArea, buttonBox);
+        editorStack.getChildren().addAll(editorLayout, buttonBox); // [오류 수정] this.editorArea -> editorLayout
         StackPane.setAlignment(buttonBox, Pos.TOP_RIGHT);
         // --- 핵심 수정 끝 ---
 
@@ -408,6 +405,10 @@ public class MainScreen {
         }
         mainLayout.setCenter(contentPane);
         return mainLayout;
+    }
+
+    public Button getRunButton() {
+        return runButton;
     }
 
     public void reloadComponentCss() {

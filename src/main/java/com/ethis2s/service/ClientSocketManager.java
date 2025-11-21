@@ -378,7 +378,6 @@ public class ClientSocketManager {
                 case ProtocolConstants.UF_CURSOR_MOVE_BROADCAST:
                     {
                         String jsonString = new String(finalPacket.getPayload(), StandardCharsets.UTF_8);
-                        System.out.println("UF_CURSOR_MOVE_BROADCAST_payload: "+jsonString);
                         JSONObject cursorJson = new JSONObject(jsonString);
                         String cursorPath = cursorJson.getString("path");
                         String nicknameAndTag = cursorJson.getString("user"); // 'user' is actually nickname#tag
@@ -386,6 +385,11 @@ public class ClientSocketManager {
                         callback.onCursorMoveBroadcast(cursorPath, nicknameAndTag, cursorPosition);
                     }
                     break;
+                case ProtocolConstants.UF_GET_PROJECT_FILE_RESPONSE:
+                    {
+                        JSONArray filecontent=new JSONArray(new String(finalPacket.getPayload(),StandardCharsets.UTF_8));
+                        callback.onGetProjectFileContent(filecontent);
+                    }
                 default:
                     callback.onPacketReceived(finalPacket);
             }
@@ -422,5 +426,6 @@ public class ClientSocketManager {
         void onClientErrorResponse(JSONObject error);
         void onCursorMoveBroadcast(String filePath, String nicknameAndTag, int position);
         void onCatchUpResponse(String filePath, JSONArray operations);
+        void onGetProjectFileContent(JSONArray filecontent);
     }
 }

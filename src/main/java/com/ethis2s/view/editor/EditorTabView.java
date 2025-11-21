@@ -8,7 +8,13 @@ import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.EditorSearchHandler;
 import com.ethis2s.util.EditorStateManager;
 import com.ethis2s.util.TabPaneFocusManager;
+import com.ethis2s.view.FileExecutionSelectionView;
+import com.ethis2s.view.FileExecutionSelectionView.FileExecutionInfo;
 import com.ethis2s.view.ProblemsView.Problem;
+
+import impl.org.controlsfx.collections.MappingChange;
+import impl.org.controlsfx.collections.MappingChange.Map;
+
 import com.ethis2s.model.UserProjectsInfo;
 
 import javafx.application.Platform;
@@ -21,8 +27,14 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.control.TabPane.TabDragPolicy;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import org.fxmisc.richtext.CodeArea;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -30,6 +42,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * 실시간 동시 편집 클라이언트 구현 가이드 (Javadoc 생략)
@@ -48,6 +61,7 @@ public class EditorTabView {
     private final TabDragDropManager dragDropManager;
     private final EditorSearchHandler searchHandler;
     private final TabPaneFocusManager focusManager;
+    private final FileExecutionSelectionView fileExecutionSelectionView;
 
 
     private final Set<TabPane> managedTabPanes = new HashSet<>();
@@ -57,6 +71,7 @@ public class EditorTabView {
     public EditorTabView(MainController mainController, SplitPane rootContainer) {
         this.mainController = mainController;
         this.rootContainer = rootContainer;
+        this.rootContainer.setStyle("-fx-background-color: transparent;"); // 배경 투명하게 설정
         
         this.stateManager = new EditorStateManager();
         this.editorFactory = new EditorFactory(mainController, stateManager, this, mainController.getProjectController());
@@ -67,6 +82,131 @@ public class EditorTabView {
         TabPane primaryTabPane = createNewTabPane();
         this.rootContainer.getItems().add(primaryTabPane);
         focusManager.setActiveTabPane(primaryTabPane);
+
+        // --- FileExecutionSelectionView 초기화 ---
+        this.fileExecutionSelectionView = new FileExecutionSelectionView();
+        Node executionViewNode = fileExecutionSelectionView.getView();
+
+        // 단축키(ESC)로 닫기
+        executionViewNode.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == KeyCode.ESCAPE) {
+                fileExecutionSelectionView.setVisible(false);
+                event.consume(); // 다른 핸들러에게 이벤트가 전달되지 않도록 함
+            }
+        });
+    }
+
+    public Node getLayout() {
+        StackPane stackPane = new StackPane();
+        VBox executionView = fileExecutionSelectionView.getView();
+        stackPane.getChildren().addAll(rootContainer, executionView);
+        StackPane.setMargin(executionView, new javafx.geometry.Insets(35, 0, 0, 0)); // 상단 여백 35px
+        // executionView가 보이지 않을 때 이벤트를 가로채지 않도록 설정
+        executionView.setPickOnBounds(false);
+
+
+        stackPane.addEventFilter(MouseEvent.MOUSE_CLICKED, event -> {
+            if (fileExecutionSelectionView.isVisible()) {
+                // executionView의 화면상 좌표를 얻음
+                javafx.geometry.Bounds boundsInScreen = executionView.localToScreen(executionView.getBoundsInLocal());
+                if (boundsInScreen != null && !boundsInScreen.contains(event.getScreenX(), event.getScreenY())) {
+                    fileExecutionSelectionView.setVisible(false);
+                }
+            }
+        });
+        return stackPane;
+    }
+
+
+    private List<String> parseFileListRecursive(JSONObject node, String parentPath) {
+        List<String> paths = new ArrayList<>();
+        String name = node.getString("name");
+        String currentPath = parentPath + "/" + name;
+
+        if (node.has("children")) { // It's a folder
+            JSONArray children = node.getJSONArray("children");
+            for (int i = 0; i < children.length(); i++) {
+                paths.addAll(parseFileListRecursive(children.getJSONObject(i), currentPath));
+            }
+        } else { // It's a file
+            paths.add(currentPath);
+        }
+        return paths;
+    }
+
+    public void toggleFileExecutionView() {
+        if (fileExecutionSelectionView.isVisible()) {
+            fileExecutionSelectionView.setVisible(false);
+            return;
+        }
+
+        // 1. 현재 활성 탭에서 프로젝트 정보 가져오기
+        Optional<UserProjectsInfo> currentProjectOpt = Optional.ofNullable(focusManager.getActiveTabPane())
+            .map(tabPane -> tabPane.getSelectionModel().getSelectedItem())
+            .map(Tab::getUserData)
+            .filter(UserProjectsInfo.class::isInstance)
+            .map(UserProjectsInfo.class::cast);
+    
+        if (currentProjectOpt.isEmpty()) {
+            System.out.println("활성화된 프로젝트 탭이 없어 파일 목록을 가져올 수 없습니다.");
+            // 여기에 사용자에게 알림을 주는 로직을 추가할 수 있습니다.
+            return;
+        }
+    
+        UserProjectsInfo currentProject = currentProjectOpt.get();
+        ProjectController projectController = mainController.getProjectController();
+
+        // 2. ProjectController를 통해 파일 목록 비동기 요청
+        projectController.fileListRequest(currentProject, fileListJson -> {
+            // 3. 콜백에서 파일 목록 파싱 및 뷰 업데이트
+            List<String> allFilePaths = new ArrayList<>();
+            if (fileListJson.has("children")) {
+                JSONArray children = fileListJson.getJSONArray("children");
+                for (int i = 0; i < children.length(); i++) {
+                    allFilePaths.addAll(parseFileListRecursive(children.getJSONObject(i),""));
+                }
+            }
+            java.util.Map<String, EditorStateManager.OpenFileState> openFileStates = stateManager.getAllOpenFileStates();
+            List<FileExecutionInfo> fileExecutionInfos = allFilePaths.stream()
+                .map(filePath -> {
+                    String cleanFilePath = filePath.startsWith("/") ? filePath.substring(1) : filePath;
+                    String tabId = "file-" + cleanFilePath;
+                    String fileName = Paths.get(filePath).getFileName().toString();
+                    boolean isSelected;
+                    if (openFileStates.containsKey(tabId)) {
+                        // 탭이 열려 있으면, 해당 탭의 OT 상태를 따름 (OT가 활성화 상태여야 체크됨)
+                        isSelected = !openFileStates.get(tabId).isOtPaused();
+                    } else {
+                        // 탭이 열려 있지 않으면, 무조건 체크된 상태로 간주
+                        isSelected = true;
+                    }
+                    return new FileExecutionInfo(isSelected, fileName, filePath, tabId);
+                })
+                .collect(Collectors.toList());
+
+            // UI 업데이트는 JavaFX Application Thread에서 수행
+            Platform.runLater(() -> {
+                fileExecutionSelectionView.updateFileList(fileExecutionInfos);
+                fileExecutionSelectionView.setVisible(true);
+            });
+        });
+    }
+    
+    private List<String> parseFileList(JSONObject dir, String parentPath) {
+        List<String> paths = new ArrayList<>();
+        String currentPath = parentPath.isEmpty() ? dir.getString("name") : parentPath + "/" + dir.getString("name");
+    
+        JSONArray files = dir.getJSONArray("files");
+        for (int i = 0; i < files.length(); i++) {
+            paths.add(currentPath + "/" + files.getString(i));
+        }
+    
+        JSONArray subDirs = dir.getJSONArray("subdirectories");
+        for (int i = 0; i < subDirs.length(); i++) {
+            paths.addAll(parseFileList(subDirs.getJSONObject(i), currentPath));
+        }
+    
+        return paths;
     }
     
     // --- Public API ---

@@ -195,6 +195,36 @@ public class EditorStateManager {
             .map(Map.Entry::getKey)
             .findFirst();
     }
+
+    public static class OpenFileState {
+        private final String fileName;
+        private final String filePath;
+        private final boolean otPaused;
+
+        public OpenFileState(String fileName, String filePath, boolean otPaused) {
+            this.fileName = fileName;
+            this.filePath = filePath;
+            this.otPaused = otPaused;
+        }
+
+        public String getFileName() { return fileName; }
+        public String getFilePath() { return filePath; }
+        public boolean isOtPaused() { return otPaused; }
+    }
+
+    public Map<String, OpenFileState> getAllOpenFileStates() {
+        Map<String, OpenFileState> states = new HashMap<>();
+        // We should iterate over tabFileNames as it represents all registered file tabs
+        for (String tabId : tabFileNames.keySet()) {
+            if (tabId.startsWith("file-")) {
+                String filePath = tabId.substring(5);
+                String fileName = tabFileNames.get(tabId);
+                boolean otPaused = isOTPaused(tabId);
+                states.put(tabId, new OpenFileState(fileName, filePath, otPaused));
+            }
+        }
+        return states;
+    }
     
     public Collection<CodeArea> getAllCodeAreas() {
         return codeAreaMap.values();

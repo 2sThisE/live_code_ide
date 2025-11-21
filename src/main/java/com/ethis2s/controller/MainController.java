@@ -186,12 +186,15 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         SplitPane editorArea = new SplitPane();
         this.editorTabView = new EditorTabView(this, editorArea);
 
-        BorderPane rootPane = mainScreen.createMainScreen(primaryStage, editorArea, statusBarLabel, this);
-        rootPane.setStyle("-fx-background-color: transparent;"); // 마우스 이벤트를 통과시키기 위한 테스트
+        // [핵심 수정] EditorTabView로부터 새로운 StackPane 레이아웃을 가져옵니다.
+        Node editorLayout = editorTabView.getLayout();
 
-        this.problemsView = mainScreen.getProblemsView(); // MainScreen으로부터 ProblemsView 참조를 얻음
-        this.debugView = mainScreen.getDebugView(); // MainScreen으로부터 DebugView 참조를 얻음
-        // rootPane.setStyle("-fx-border-color: red; -fx-border-width: 3;"); // 1번 용의자 (최종 보스)
+        BorderPane rootPane = mainScreen.createMainScreen(primaryStage, editorLayout, statusBarLabel, this);
+        rootPane.setStyle("-fx-background-color: transparent;");
+
+        this.problemsView = mainScreen.getProblemsView();
+        this.debugView = mainScreen.getDebugView();
+        
         this.mainScene = new Scene(rootPane, 1280, 720);
         mainScene.setFill(Color.TRANSPARENT);
         try {
@@ -205,6 +208,13 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         }
         
         primaryStage.setScene(mainScene);
+        
+        // --- Run 버튼 액션 연결 ---
+        mainScreen.getRunButton().setOnAction(e -> {
+            if (editorTabView != null) {
+                editorTabView.toggleFileExecutionView();
+            }
+        });
         
         // --- 단축키 설정 ---
         mainScene.getAccelerators().put(
@@ -780,6 +790,11 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             }
         });
     }
+    @Override
+    public void onGetProjectFileContent(JSONArray filecontent) {
+        //TODO: 파일 저장 구현하기
+        
+    }
 
     /**
      * ANTLR 분석 작업이 시작되었음을 알립니다.
@@ -823,4 +838,6 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             searchAction.run();
         }
     }
+
+  
 }
