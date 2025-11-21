@@ -25,6 +25,8 @@ import io.github.palexdev.materialfx.controls.MFXProgressSpinner;
 import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
+import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 
@@ -209,10 +211,7 @@ public class MainScreen {
         searchBox.getStyleClass().add("centered-search-field"); // Use existing style
         searchBox.setAlignment(Pos.CENTER_LEFT);
         searchBox.setSpacing(5);
-        searchBox.setMinWidth(150); 
-        // b. 가장 이상적인 너비를 설정합니다. HBox는 이 크기를 가지려고 노력할 것입니다.
-        // searchBox.setPrefWidth(400); 
-        // c. 최대 너비를 설정하여 무한정 커지는 것을 방지합니다.
+        searchBox.setMinWidth(200);
         searchBox.setMaxWidth(700);
         
         // 2. Create the actual transparent TextField
@@ -244,21 +243,13 @@ public class MainScreen {
         // --- Create Title Bar based on OS ---
         
         if (isMac) {
-            Region leftSpacer = new Region();
-            Region rightSpacer = new Region();
-            HBox.setHgrow(leftSpacer, Priority.ALWAYS); // "항상 가능한 모든 공간을 차지해라"
-            HBox.setHgrow(rightSpacer, Priority.ALWAYS); // "항상 가능한 모든 공간을 차지해라"
-
-            HBox titleBarContent = new HBox(leftSpacer, searchBox, rightSpacer);
-            titleBarContent.setAlignment(Pos.CENTER); // 내부 아이템들을 중앙 정렬
             Region backgroundBar = new Region();
-            
-            this.topPane = new StackPane(backgroundBar, titleBarContent);
+            this.topPane = new StackPane(backgroundBar, searchBox);
+            StackPane.setAlignment(searchBox, Pos.CENTER);
 
         } else {
             // Windows/Other Style Title Bar (Original Implementation)
-            searchBox.setMinWidth(200);
-            searchBox.setMaxWidth(700);
+            
             this.minimizeButton = new Button("—");
             minimizeButton.getStyleClass().add("window-button");
             minimizeButton.setOnAction(e -> stage.setIconified(true));
@@ -275,22 +266,37 @@ public class MainScreen {
             nonDraggableNodes.add(windowCloseButton);
             HBox windowButtons = new HBox(minimizeButton, maximizeButton, windowCloseButton);
             windowButtons.setAlignment(Pos.CENTER);
-            BorderPane titleBarLayout = new BorderPane();
-            titleBarLayout.getStyleClass().add("custom-title-bar-background"); // 배경 스타일용
 
-            // 3. 각 컴포넌트를 제자리에 배치합니다.
-            titleBarLayout.setLeft(menuBar);
-            titleBarLayout.setCenter(searchBox);
-            titleBarLayout.setRight(windowButtons);
+            // 2. [핵심] 배경 레이어 역할을 할 'BorderPane'을 만듭니다. (중앙은 비어있음)
+            BorderPane backgroundLayer = new BorderPane();
+            HBox menuBox=new HBox(menuBar);
+            menuBox.setAlignment(Pos.CENTER);
+            backgroundLayer.setLeft(menuBox);
+            backgroundLayer.setRight(windowButtons);
+            // 이 Pane은 투명해야 합니다. 클릭 이벤트가 뒤로 통과하도록.
+            backgroundLayer.setPickOnBounds(false); 
 
-            // 4. BorderPane이 자식들을 어떻게 정렬할지 설정합니다.
-            BorderPane.setAlignment(menuBar, Pos.CENTER_LEFT);
-            BorderPane.setAlignment(searchBox, Pos.CENTER); // Center 영역의 아이템을 중앙 정렬
-            BorderPane.setAlignment(windowButtons, Pos.CENTER_RIGHT);
+            // 3. [핵심] searchBox를 위한 '전용 컨테이너'를 만듭니다.
+            BorderPane searchBoxContainer = new BorderPane();
+            searchBoxContainer.setCenter(searchBox); // searchBox를 중앙에 배치
+            BorderPane.setAlignment(searchBox, Pos.CENTER);
 
-            // 5. 최종 topPane은 이 BorderPane을 담는 StackPane이 됩니다.
-            this.topPane = new StackPane(titleBarLayout);
+            // 4. [가장 중요] searchBoxContainer의 좌우에 '보이지 않는 벽(Padding)'을 설정합니다.
+            //    이 패딩의 크기는 backgroundLayer의 메뉴바와 버튼의 너비와 같아야 합니다.
+            //    이를 위해 각 컴포넌트의 너비를 실시간으로 감지(bind)해야 합니다.
+            searchBoxContainer.paddingProperty().bind(Bindings.createObjectBinding(() -> {
+                double leftPadding = menuBar.getWidth();
+                double rightPadding = windowButtons.getWidth();
+                return new Insets(0, rightPadding, 0, leftPadding);
+            }, menuBar.widthProperty(), windowButtons.widthProperty()));
+            
+            // 이 컨테이너도 투명해야 합니다.
+            searchBoxContainer.setPickOnBounds(false);
 
+            // 5. 최종 topPane은 StackPane이 되어 두 레이어를 겹칩니다.
+            this.topPane = new StackPane();
+            this.topPane.getChildren().addAll(backgroundLayer, searchBoxContainer);
+    
         }
 
         topPane.getStyleClass().add("custom-title-bar");
