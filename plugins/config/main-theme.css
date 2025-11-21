@@ -460,15 +460,12 @@
 
 /* 호버 효과 */
 .file-execution-table .table-row-cell:hover {
-    -fx-background-color: rgba(255, 255, 255, 0.05);
+    -fx-background-color: #303030;
 }
 
 /* 선택 효과 */
 .file-execution-table .table-row-cell:selected {
-    -fx-background-color: #094771;
-}
-.file-execution-table:focused .table-row-cell:selected {
-    -fx-background-color: #007ACC;
+    -fx-background-color: #444444;
 }
 
 /* --- 셀 내부 컴포넌트 스타일 --- */
@@ -484,4 +481,5 @@
 .file-path-label {
     -fx-font-size: 12px;
     -fx-text-fill: #888888; /* 경로는 어둡게 */
+    -fx-alignment: CENTER_RIGHT;
 }

@@ -1,8 +1,11 @@
 package com.ethis2s.view;
 
+import io.github.palexdev.materialfx.controls.MFXProgressSpinner;
+import io.github.palexdev.materialfx.controls.MFXSpinner;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.ReadOnlyDoubleProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -13,6 +16,7 @@ import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.Spinner;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
@@ -23,10 +27,19 @@ import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
+
+import org.json.JSONObject;
+
+import com.ethis2s.controller.ProjectController;
+import com.ethis2s.model.UserProjectsInfo;
 
 public class FileExecutionSelectionView {
 
@@ -38,24 +51,32 @@ public class FileExecutionSelectionView {
     private ObservableList<FileExecutionInfo> fileList = FXCollections.observableArrayList();
     private FilteredList<FileExecutionInfo> filteredData;
     private final DoubleProperty measuredCellHeight = new SimpleDoubleProperty(52.0); // 초기 추정값
-
-    public FileExecutionSelectionView() {
+    private final Map<String, MFXProgressSpinner> spinners = new HashMap<>();
+    private UserProjectsInfo userProjectsInfo;
+    private final ProjectController projectController;
+    public FileExecutionSelectionView(ProjectController projectController) {
+        this.projectController=projectController;
         initialize();
     }
 
+    public void bindWidthTo(ReadOnlyDoubleProperty parentSearchBoxWidthProperty) {
+        final double EXTRA_PADDING = 20.0;
+        view.prefWidthProperty().bind(parentSearchBoxWidthProperty.add(EXTRA_PADDING));
+    }
+
     private void initialize() {
-        view = new VBox(10);
+        // [수정] 루트 컨테이너를 VBox로 변경하여 자식 컨트롤들을 수직으로 자동 정렬합니다.
+        // 이렇게 하면 아이템 개수에 따라 TableView의 높이가 동적으로 변하는 요구사항을 쉽게 구현할 수 있습니다.
+        view = new VBox(10); // 컨트롤 사이의 간격을 10px로 설정
         view.getStyleClass().add("file-execution-selection-view");
-        view.setVisible(false); // 기본적으로 숨김
-        view.setMaxWidth(600);
+        view.setVisible(false);
         view.setPadding(new Insets(15));
 
-
+        // --- UI 컨트롤 생성 (이전과 동일) ---
         searchField = new TextField();
         searchField.setPromptText("실행할 파일 검색...");
-        searchField.getStyleClass().add("file-search-field"); 
+        searchField.getStyleClass().add("file-search-field");
 
-        // --- 실행 인자 필드와 실행 버튼 ---
         argumentsField = new TextField();
         argumentsField.setPromptText("실행 인자 (선택 사항)");
         HBox.setHgrow(argumentsField, Priority.ALWAYS);
@@ -64,13 +85,11 @@ public class FileExecutionSelectionView {
         executeButton.getStyleClass().add("execute-button");
 
         HBox executionControls = new HBox(10, argumentsField, executeButton);
-        // --- ---
 
         tableView = new TableView<>();
-        tableView.getStyleClass().add("file-execution-table"); 
-        VBox.setVgrow(tableView, Priority.ALWAYS);
+        tableView.getStyleClass().add("file-execution-table");
 
-        // 1. 체크박스 컬럼
+        // --- TableView 컬럼 및 동적 높이 설정 ---
         TableColumn<FileExecutionInfo, Boolean> checkBoxColumn = new TableColumn<>();
         checkBoxColumn.setCellValueFactory(cellData -> cellData.getValue().selectedProperty());
         checkBoxColumn.setCellFactory(CheckBoxTableCell.forTableColumn(checkBoxColumn));
@@ -78,110 +97,109 @@ public class FileExecutionSelectionView {
         checkBoxColumn.setPrefWidth(40);
         checkBoxColumn.setResizable(false);
 
-        filteredData = new FilteredList<>(fileList, p -> true);
         TableColumn<FileExecutionInfo, Void> fileInfoColumn = new TableColumn<>("File");
-    
-        
-        
-        fileInfoColumn.setCellFactory(column -> { // 'column' 파라미터는 TableColumn 자체를 의미
-        // 이 람다 블록은 새로운 TableCell 객체를 반환해야 합니다.
-        return new TableCell<FileExecutionInfo, Void>() {
+        fileInfoColumn.setCellFactory(column -> new TableCell<>() {
             @Override
             protected void updateItem(Void item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty) {
+                if (empty || getTableRow() == null || getTableRow().getItem() == null) {
                     setGraphic(null);
-                    setText(null); // 텍스트도 비워주는 것이 안전
                 } else {
                     FileExecutionInfo fileInfo = getTableRow().getItem();
-                    if (fileInfo != null) {
-                        // 아이콘, 파일 이름, 경로 Label 생성 (이전과 동일)
-                        Label icon = new Label("\uD83D\uDCC4");
-                        icon.getStyleClass().add("file-icon");
-                        
-                        Label fileName = new Label(fileInfo.getFileName());
-                        fileName.getStyleClass().add("file-name-label");
-                        
-                        Label filePath = new Label(fileInfo.getFilePath());
-                        filePath.getStyleClass().add("file-path-label");
-                        
-                        VBox fileDetails = new VBox(fileName, filePath);
-                        HBox cellGraphic = new HBox(10, icon, fileDetails);
-                        cellGraphic.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-                        
-                        setGraphic(cellGraphic);
-                        setText(null); // 그래픽을 사용하므로 텍스트는 비움
-                    } else {
-                        setGraphic(null);
-                        setText(null);
-                    }
+                    Label icon = new Label("\uD83D\uDCC4");
+                    icon.getStyleClass().add("file-icon");
+                    Label fileName = new Label(fileInfo.getFileName());
+                    fileName.getStyleClass().add("file-name-label");
+                    Label filePath = new Label(fileInfo.getFilePath());
+                    filePath.getStyleClass().add("file-path-label");
+                    
+                    HBox fileDetails = new HBox();
+                    Region spacer = new Region();
+                    HBox.setHgrow(spacer, Priority.ALWAYS);
+                    fileDetails.getChildren().addAll(fileName, spacer, filePath);
+                    fileDetails.setAlignment(javafx.geometry.Pos.BASELINE_LEFT);
+
+                    // [추가] MFXSpinner 생성 및 설정
+                    MFXProgressSpinner spinner = spinners.get(fileInfo.getFilePath());
+                    Node spinnerNode = (spinner != null) ? spinner : new Region();
+                    HBox cellGraphic = new HBox(10, icon, fileDetails, spinnerNode);
+                    cellGraphic.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                    
+                    HBox.setHgrow(fileDetails, Priority.ALWAYS);
+                    setGraphic(cellGraphic);
                 }
             }
-        };
-    });
-    tableView.getColumns().addAll(checkBoxColumn, fileInfoColumn); // [수정] 새로운 컬럼 사용
-    tableView.setEditable(true);
-    // 2. [가장 중요한 부분] TableView가 'filteredData'를 보도록 설정합니다.
-    tableView.setItems(filteredData);
-
-    // 3. 검색 필드의 텍스트가 변경될 때마다 'filteredData'의 필터를 업데이트합니다.
-    searchField.textProperty().addListener((observable, oldValue, newValue) -> {
-        filteredData.setPredicate(fileInfo -> {
-            // 필터링 로직 (이 부분은 완벽합니다)
-            if (newValue == null || newValue.isEmpty()) {
-                return true;
-            }
-            String lowerCaseFilter = newValue.toLowerCase();
-            if (fileInfo.getFileName().toLowerCase().contains(lowerCaseFilter)) {
-                return true;
-            } else if (fileInfo.getFilePath().toLowerCase().contains(lowerCaseFilter)) {
-                return true;
-            }
-            return false;
         });
-    });
-    
-    // 1. [측정] TableView에 'rowFactory'를 설정하여, 행(Row)이 생성될 때마다 높이를 측정합니다.
-    tableView.setRowFactory(tv -> {
+
+        tableView.getColumns().addAll(checkBoxColumn, fileInfoColumn);
+        tableView.setEditable(true);
+
+        tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
+        filteredData = new FilteredList<>(fileList, p -> true);
+        tableView.setItems(filteredData);
+
+        searchField.textProperty().addListener((observable, oldValue, newValue) -> {
+            filteredData.setPredicate(fileInfo -> {
+                if (newValue == null || newValue.isEmpty()) return true;
+                String lowerCaseFilter = newValue.toLowerCase();
+                return fileInfo.getFileName().toLowerCase().contains(lowerCaseFilter) ||
+                       fileInfo.getFilePath().toLowerCase().contains(lowerCaseFilter);
+            });
+        });
+
+        // --- TableView 높이 동적 조절 및 CSS 대응 로직 ---
+        final SimpleBooleanProperty heightMeasured = new SimpleBooleanProperty(false);
+        tableView.setRowFactory(tv -> {
             TableRow<FileExecutionInfo> row = new TableRow<>();
-            
-            // 행의 높이가 변경될 때마다(초기 렌더링 포함), 그 높이를 우리의 속성에 업데이트합니다.
-            row.heightProperty().addListener((obs, oldVal, newVal) -> {
-                if (newVal.doubleValue() > 0 && measuredCellHeight.get() != newVal.doubleValue()) {
-                    // 0보다 큰 유효한 높이가 측정되면, measuredCellHeight 값을 업데이트합니다.
-                    // 이 업데이트는 아래의 높이 계산 바인딩을 자동으로 다시 트리거합니다.
-                    measuredCellHeight.set(newVal.doubleValue());
+            row.heightProperty().addListener((obs, oldHeight, newHeight) -> {
+                if (newHeight.doubleValue() > 20 && !row.isEmpty() && !heightMeasured.get()) {
+                    heightMeasured.set(true);
+                    measuredCellHeight.set(newHeight.doubleValue());
+                    tableView.setFixedCellSize(newHeight.doubleValue());
                 }
             });
-            
             return row;
         });
-        
-        // 2. [바인딩] TableView의 prefHeightProperty를 filteredData의 크기와 '측정된 셀 높이'에 바인딩합니다.
+
         final int MAX_VISIBLE_ROWS = 5;
+        final double HEADER_HEIGHT = 0; 
+        final double PADDING = 2; 
 
-        tableView.prefHeightProperty().bind(Bindings.createDoubleBinding(() -> {
-            Node header = tableView.lookup(".column-header-background");
-            double headerHeight = (header == null) ? 0 : header.getBoundsInParent().getHeight();
-            
-            int numberOfRows = filteredData.size();
-            int visibleRows = Math.max(1, Math.min(numberOfRows, MAX_VISIBLE_ROWS));
-             if(numberOfRows == 0){
-                visibleRows = 1;
-            }
-
-            // [수정] 하드코딩된 상수 대신, 동적으로 측정된 measuredCellHeight 값을 사용합니다.
-            return headerHeight + (visibleRows * measuredCellHeight.get()) + 2;
-
-        }, filteredData, measuredCellHeight)); // [중요] measuredCellHeight가 바뀔 때도 다시 계산하도록 의존성 추가
-        tableView.maxHeightProperty().bind(tableView.prefHeightProperty());
-
-
-        fileInfoColumn.prefWidthProperty().bind(
-            tableView.widthProperty()
-            .subtract(checkBoxColumn.widthProperty()) // 체크박스 컬럼 너비 빼기
-            .subtract(15) // 스크롤바 등을 위한 약간의 여백
+        tableView.prefHeightProperty().bind(
+            Bindings.createDoubleBinding(() -> {
+                int itemCount = filteredData.size();
+                double cellHeight = measuredCellHeight.get();
+                int visibleRows = Math.min(itemCount, MAX_VISIBLE_ROWS);
+                if (visibleRows == 0) {
+                    return cellHeight + PADDING;
+                }
+                return (visibleRows * cellHeight) + HEADER_HEIGHT + PADDING;
+            }, filteredData, measuredCellHeight) 
         );
+        executeButton.setOnAction(e->{
+            for(MFXProgressSpinner spinner:spinners.values()){
+                Color singleColor = Color.web("#0078D4"); // 예: 세련된 파란색
+                spinner.setColor1(singleColor);
+                spinner.setColor2(singleColor);
+                spinner.setColor3(singleColor);
+                spinner.setColor4(singleColor);
+                spinner.setVisible(true);
+            }
+            JSONObject payload=new JSONObject();
+            List<FileExecutionInfo> selectedFiles = fileList.stream()
+                .filter(FileExecutionInfo::isSelected)
+                .toList();
+            String[] selectedFilePaths = selectedFiles.stream()
+                .map(FileExecutionInfo::getFilePath) // 각 FileExecutionInfo 객체에서 filePath 문자열만 추출
+                .toArray(String[]::new);             // 추출된 문자열들을 String 배열로 수집
+
+            payload.put("project_id", userProjectsInfo.getProjectID());
+            payload.put("owner",userProjectsInfo.getOwner());
+            payload.put("path", selectedFilePaths);
+            projectController.getProjecFilesRequest(payload);
+            
+        });
 
         view.getChildren().addAll(searchField, tableView, executionControls);
     }
@@ -189,9 +207,23 @@ public class FileExecutionSelectionView {
     public VBox getView() {
         return view;
     }
+    
 
-    public void updateFileList(List<FileExecutionInfo> files) {
+    public UserProjectsInfo getUserProjectsInfo() {
+        return userProjectsInfo;
+    }
+
+    public void updateFileList(List<FileExecutionInfo> files, UserProjectsInfo userProjectsInfo) {
+        this.userProjectsInfo=userProjectsInfo;
         Platform.runLater(() -> {
+            // [추가] 파일 목록이 업데이트될 때마다 스피너 맵을 초기화하여 메모리 누수를 방지합니다.
+            spinners.clear();
+            for (FileExecutionInfo fileInfo : files) {
+                MFXProgressSpinner spinner = new MFXProgressSpinner();
+                spinner.setVisible(false);
+                spinner.setRadius(6);
+                spinners.put(fileInfo.getFilePath(), spinner);
+            }
             fileList.setAll(files);
         });
     }
@@ -207,17 +239,35 @@ public class FileExecutionSelectionView {
         return view.isVisible();
     }
 
-    public void setOnExecute(Consumer<List<FileExecutionInfo>> callback) {
-        executeButton.setOnAction(event -> {
-            List<FileExecutionInfo> selectedFiles = fileList.stream()
-                    .filter(FileExecutionInfo::isSelected)
-                    .toList();
-            callback.accept(selectedFiles);
-        });
-    }
-
     public String getArguments() {
         return argumentsField.getText();
+    }
+
+    // [추가] 외부에서 스피너에 접근하기 위한 getter 메서드
+    public Map<String, MFXProgressSpinner> getSpinners() {
+        return spinners;
+    }
+
+    /**
+     * 지정된 파일 경로에 해당하는 스피너를 "체크" 라벨로 변경합니다.
+     * @param filePath 라벨로 변경할 파일의 경로
+     */
+    public void changeSpinnerToLabel(String filePath) {
+        Platform.runLater(() -> {
+            MFXProgressSpinner spinner = spinners.get(filePath);
+            if (spinner != null && spinner.getParent() instanceof HBox) {
+                HBox parentContainer = (HBox) spinner.getParent();
+                
+                Label checkLabel = new Label("\u2714");
+                checkLabel.setStyle("-fx-text-fill: #00c853;");
+                int spinnerIndex = parentContainer.getChildren().indexOf(spinner);
+                if (spinnerIndex != -1) {
+                    parentContainer.getChildren().set(spinnerIndex, checkLabel);
+                    // 한 번 변경된 스피너는 더 이상 제어할 필요가 없으므로 맵에서 제거합니다.
+                    spinners.remove(filePath);
+                }
+            }
+        });
     }
 
 

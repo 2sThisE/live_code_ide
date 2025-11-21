@@ -29,6 +29,7 @@ import com.ethis2s.util.VariableResolver;
 import com.ethis2s.util.WindowsNativeUtil;
 import com.ethis2s.view.CustomAlert;
 import com.ethis2s.view.DebugView;
+import com.ethis2s.view.FileExecutionSelectionView;
 import com.ethis2s.view.LoginScreen;
 import com.ethis2s.view.MainScreen;
 import com.ethis2s.view.ProblemsView;
@@ -40,6 +41,7 @@ import com.ethis2s.view.RegisterScreen;
 import com.ethis2s.view.RunView;
 import com.ethis2s.view.SettingsView;
 import com.ethis2s.view.SharedOptionScreen;
+import com.ethis2s.view.FileExecutionSelectionView.FileExecutionInfo;
 
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -851,7 +853,18 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     }
     @Override
     public void onGetProjectFileContent(JSONArray filecontent) {
-        //TODO: 파일 저장 구현하기
+        Platform.runLater(()->{
+
+            //TODO: 파일 저장 구현하기
+            FileExecutionSelectionView fileExecutionSelectionView=editorTabView.getFileExecutionSelectionView();
+            String requestProjectId= (fileExecutionSelectionView.getUserProjectsInfo()).getProjectID();
+            for (int i = 0; i < filecontent.length(); i++) {
+                JSONObject fileObject=filecontent.getJSONObject(i);
+                if((fileObject.getString("project_id")).equals(requestProjectId)) fileExecutionSelectionView.changeSpinnerToLabel(fileObject.getString("path"));
+            }
+            
+            fileExecutionSelectionView.setVisible(true);
+        });
         
     }
 

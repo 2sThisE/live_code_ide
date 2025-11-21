@@ -26,6 +26,8 @@ import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
+import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.ReadOnlyDoubleProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
@@ -211,8 +213,8 @@ public class MainScreen {
         searchBox.getStyleClass().add("centered-search-field"); // Use existing style
         searchBox.setAlignment(Pos.CENTER_LEFT);
         searchBox.setSpacing(5);
-        searchBox.setMinWidth(200);
-        searchBox.setMaxWidth(700);
+        searchBox.setMinWidth(100);
+        searchBox.setMaxWidth(500);
         
         // 2. Create the actual transparent TextField
         this.searchField = new TextField();
@@ -248,7 +250,7 @@ public class MainScreen {
             Region backgroundBar = new Region();
             // 3. [가장 중요] 컨테이너의 왼쪽에 '신호등 버튼'이 위치할 공간만큼 패딩을 줍니다.
             //    이 값(70px)은 실험을 통해 가장 보기 좋은 값으로 조절할 수 있습니다.
-            searchBoxContainer.setPadding(new Insets(0, 0, 0, 70));
+            searchBoxContainer.setPadding(new Insets(0, 70, 0, 70));
             
             // 4. searchBox를 이 컨테이너의 'Center' 영역에 배치합니다.
             searchBoxContainer.setCenter(searchBox);
@@ -258,6 +260,7 @@ public class MainScreen {
             this.topPane = new StackPane(backgroundBar, searchBoxContainer);
 
         } else {
+            
             // Windows/Other Style Title Bar (Original Implementation)
             
             this.minimizeButton = new Button("—");
@@ -276,38 +279,32 @@ public class MainScreen {
             nonDraggableNodes.add(windowCloseButton);
             HBox windowButtons = new HBox(minimizeButton, maximizeButton, windowCloseButton);
             windowButtons.setAlignment(Pos.CENTER);
+            Region fakeMenuBar = new Region();
+            fakeMenuBar.prefWidthProperty().bind(menuBar.widthProperty());
+            
+            Region fakeWindowButtons = new Region();
+            fakeWindowButtons.prefWidthProperty().bind(windowButtons.widthProperty());
 
-            // 2. [핵심] 배경 레이어 역할을 할 'BorderPane'을 만듭니다. (중앙은 비어있음)
-            BorderPane backgroundLayer = new BorderPane();
-            HBox menuBox=new HBox(menuBar);
-            menuBox.setAlignment(Pos.CENTER);
-            backgroundLayer.setLeft(menuBox);
-            backgroundLayer.setRight(windowButtons);
-            // 이 Pane은 투명해야 합니다. 클릭 이벤트가 뒤로 통과하도록.
-            backgroundLayer.setPickOnBounds(false); 
+            // 3. BorderPane의 Left와 Right에 실제 UI와 가짜 쌍둥이를 함께 넣습니다.
+            HBox leftGroup = new HBox(menuBar, fakeWindowButtons);
+            leftGroup.setPickOnBounds(false); // 투명한 부분이 클릭을 막지 않도록
 
-            // 3. [핵심] searchBox를 위한 '전용 컨테이너'를 만듭니다.
-            BorderPane searchBoxContainer = new BorderPane();
-            searchBoxContainer.setCenter(searchBox); // searchBox를 중앙에 배치
+            HBox rightGroup = new HBox(fakeMenuBar, windowButtons);
+            rightGroup.setPickOnBounds(false);
+            
+            // 4. 최종 타이틀 바 레이아웃을 BorderPane으로 잡습니다.
+            BorderPane titleBarLayout = new BorderPane();
+            titleBarLayout.setLeft(leftGroup);
+            titleBarLayout.setCenter(searchBox);
+            titleBarLayout.setRight(rightGroup);
+            
+            // 5. searchBox를 Center 영역의 중앙에 정렬합니다.
             BorderPane.setAlignment(searchBox, Pos.CENTER);
 
-            // 4. [가장 중요] searchBoxContainer의 좌우에 '보이지 않는 벽(Padding)'을 설정합니다.
-            //    이 패딩의 크기는 backgroundLayer의 메뉴바와 버튼의 너비와 같아야 합니다.
-            //    이를 위해 각 컴포넌트의 너비를 실시간으로 감지(bind)해야 합니다.
-            searchBoxContainer.paddingProperty().bind(Bindings.createObjectBinding(() -> {
-                double leftPadding = menuBar.getWidth();
-                double rightPadding = windowButtons.getWidth();
-                return new Insets(0, rightPadding, 0, leftPadding);
-            }, menuBar.widthProperty(), windowButtons.widthProperty()));
-            
-            // 이 컨테이너도 투명해야 합니다.
-            searchBoxContainer.setPickOnBounds(false);
-
-            // 5. 최종 topPane은 StackPane이 되어 두 레이어를 겹칩니다.
-            this.topPane = new StackPane();
-            this.topPane.getChildren().addAll(backgroundLayer, searchBoxContainer);
-    
+            // 6. 최종 topPane은 이 BorderPane을 담는 StackPane이 됩니다.
+            this.topPane = new StackPane(titleBarLayout);
         }
+        
 
         topPane.getStyleClass().add("custom-title-bar");
         // =================================================================
@@ -1095,5 +1092,9 @@ public class MainScreen {
     }
     public Optional<UserProjectsInfo> getCurrentProjectForFileTree() {
         return Optional.ofNullable(currentProjectForFileTree);
+    }
+    public ReadOnlyDoubleProperty searchBoxWidthProperty() {
+        // HBox는 Region의 하위 클래스이므로, widthProperty()를 가지고 있습니다.
+        return searchBox.widthProperty();
     }
 }

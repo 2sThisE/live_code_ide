@@ -64,8 +64,8 @@ public final class ProtocolConstants {
     public static final int UF_LINE_LOCK_BROADCAST = 0x02A; // 라인 락 브로드캐스트
     public static final int UF_LINE_UNLOCK_BROADCAST = 0x02B; // 라인 락 해제 브로드캐스트
     public static final int UF_HISTORY = 0x02C; // 과거 클라이언트가 놓친 정보 업데이트
-    public static final int UF_GET_PROJECT_FILE_RESPONSE = 0x02D; // 클라이언트의 프로젝트 전체 파일 요청
-    public static final int UF_GET_PROJECT_FILE_REQUEST = 0x02E; // 과거 클라이언트가 놓친 정보 업데이트
+    public static final int UF_GET_PROJECT_FILE_REQUEST = 0x02D; // 클라이언트의 프로젝트 전체 파일 요청
+    public static final int UF_GET_PROJECT_FILE_RESPONSE = 0x02E; // 과거 클라이언트가 놓친 정보 업데이트
 
 
 

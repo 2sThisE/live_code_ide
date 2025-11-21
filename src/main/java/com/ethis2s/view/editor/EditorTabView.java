@@ -88,7 +88,7 @@ public class EditorTabView {
         focusManager.setActiveTabPane(primaryTabPane);
 
         // --- FileExecutionSelectionView 초기화 ---
-        this.fileExecutionSelectionView = new FileExecutionSelectionView();
+        this.fileExecutionSelectionView = new FileExecutionSelectionView(mainController.getProjectController());
         Node executionViewNode = fileExecutionSelectionView.getView();
 
         // 단축키(ESC)로 닫기
@@ -127,26 +127,26 @@ public class EditorTabView {
 
     public void toggleFileExecutionView() {
         if (fileExecutionSelectionView.isVisible()) {
+            
             fileExecutionSelectionView.setVisible(false);
             return;
         }
-
         // 1. 현재 활성 탭에서 프로젝트 정보 가져오기
         Optional<UserProjectsInfo> currentProjectOpt = Optional.ofNullable(focusManager.getActiveTabPane())
-            .map(tabPane -> tabPane.getSelectionModel().getSelectedItem())
-            .map(Tab::getUserData)
-            .filter(UserProjectsInfo.class::isInstance)
-            .map(UserProjectsInfo.class::cast);
-    
+        .map(tabPane -> tabPane.getSelectionModel().getSelectedItem())
+        .map(Tab::getUserData)
+        .filter(UserProjectsInfo.class::isInstance)
+        .map(UserProjectsInfo.class::cast);
+        
         if (currentProjectOpt.isEmpty()) {
             System.out.println("활성화된 프로젝트 탭이 없어 파일 목록을 가져올 수 없습니다.");
             // 여기에 사용자에게 알림을 주는 로직을 추가할 수 있습니다.
             return;
         }
-    
+        
         UserProjectsInfo currentProject = currentProjectOpt.get();
         ProjectController projectController = mainController.getProjectController();
-
+        
         // 2. ProjectController를 통해 파일 목록 비동기 요청
         projectController.fileListRequest(currentProject, fileListJson -> {
             // 3. 콜백에서 파일 목록 파싱 및 뷰 업데이트
@@ -159,28 +159,29 @@ public class EditorTabView {
             }
             java.util.Map<String, EditorStateManager.OpenFileState> openFileStates = stateManager.getAllOpenFileStates();
             List<FileExecutionInfo> fileExecutionInfos = allFilePaths.stream()
-                .map(filePath -> {
-                    String cleanFilePath = filePath.startsWith("/") ? filePath.substring(1) : filePath;
-                    String tabId = "file-" + cleanFilePath;
-                    String fileName = Paths.get(filePath).getFileName().toString();
-                    boolean isSelected;
-                    if (openFileStates.containsKey(tabId)) {
-                        // 탭이 열려 있으면, 해당 탭의 OT 상태를 따름 (OT가 활성화 상태여야 체크됨)
-                        isSelected = !openFileStates.get(tabId).isOtPaused();
-                    } else {
-                        // 탭이 열려 있지 않으면, 무조건 체크된 상태로 간주
-                        isSelected = true;
-                    }
-                    return new FileExecutionInfo(isSelected, fileName, filePath, tabId);
-                })
-                .collect(Collectors.toList());
-
+            .map(filePath -> {
+                String cleanFilePath = filePath.startsWith("/") ? filePath.substring(1) : filePath;
+                String tabId = "file-" + cleanFilePath;
+                String fileName = Paths.get(filePath).getFileName().toString();
+                boolean isSelected;
+                if (openFileStates.containsKey(tabId)) {
+                    // 탭이 열려 있으면, 해당 탭의 OT 상태를 따름 (OT가 활성화 상태여야 체크됨)
+                    isSelected = !openFileStates.get(tabId).isOtPaused();
+                } else {
+                    // 탭이 열려 있지 않으면, 무조건 체크된 상태로 간주
+                    isSelected = true;
+                }
+                return new FileExecutionInfo(isSelected, fileName, filePath, tabId);
+            })
+            .collect(Collectors.toList());
+            
             // UI 업데이트는 JavaFX Application Thread에서 수행
             Platform.runLater(() -> {
-                fileExecutionSelectionView.updateFileList(fileExecutionInfos);
+                fileExecutionSelectionView.updateFileList(fileExecutionInfos,currentProject);
                 fileExecutionSelectionView.setVisible(true);
             });
         });
+        fileExecutionSelectionView.bindWidthTo((mainController.getMainScreen()).searchBoxWidthProperty());
     }
     
     private List<String> parseFileList(JSONObject dir, String parentPath) {

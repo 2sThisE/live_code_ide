@@ -261,6 +261,12 @@ public class ProjectController {
         requestQueue.add(new RequestRecord(payload, userField));
     }
 
+    public void getProjecFilesRequest(JSONObject payload){
+        if(userInfo==null) return;
+        payload.put("requester", userInfo.getId());
+        sendRequest(payload, ProtocolConstants.UF_GET_PROJECT_FILE_REQUEST);
+    }
+
     // --- Response Handlers ---
 
     public void handleProjectListResponse(List<UserProjectsInfo> projectList) {
