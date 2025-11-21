@@ -1,14 +1,21 @@
 package com.ethis2s.controller;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import org.jcodings.exception.ErrorCodes;
 import org.json.JSONArray;
@@ -851,21 +858,90 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             }
         });
     }
+
     @Override
     public void onGetProjectFileContent(JSONArray filecontent) {
-        Platform.runLater(()->{
-
-            //TODO: 파일 저장 구현하기
-            FileExecutionSelectionView fileExecutionSelectionView=editorTabView.getFileExecutionSelectionView();
-            String requestProjectId= (fileExecutionSelectionView.getUserProjectsInfo()).getProjectID();
-            for (int i = 0; i < filecontent.length(); i++) {
-                JSONObject fileObject=filecontent.getJSONObject(i);
-                if((fileObject.getString("project_id")).equals(requestProjectId)) fileExecutionSelectionView.changeSpinnerToLabel(fileObject.getString("path"));
-            }
+        new Thread(() -> {
+            Path runDirectory = null;
+            try {
+                runDirectory = Paths.get(".run").toAbsolutePath();
+                if (Files.exists(runDirectory)) {
+                    Files.walk(runDirectory)
+                        .sorted(Comparator.reverseOrder())
+                        .map(Path::toFile)
+                        .forEach(java.io.File::delete);
+                }
+                Files.createDirectories(runDirectory);
             
-            fileExecutionSelectionView.setVisible(true);
-        });
-        
+                FileExecutionSelectionView fileExecutionSelectionView = editorTabView.getFileExecutionSelectionView();
+                String requestProjectId = (fileExecutionSelectionView.getUserProjectsInfo()).getProjectID();
+            
+                // 서버로부터 받은 파일 쓰기
+                for (int i = 0; i < filecontent.length(); i++) {
+                    JSONObject fileObject = filecontent.getJSONObject(i);
+                    if (fileObject.getString("project_id").equals(requestProjectId)) {
+                        final String originalPathStr = fileObject.getString("path"); // [수정] 원본 경로 보존
+                        String content = fileObject.getString("content");
+                    
+                        String fsPathStr = originalPathStr; // 파일 시스템에서 사용할 경로
+                        if (fsPathStr.startsWith("/") || fsPathStr.startsWith("\\")) {
+                            fsPathStr = fsPathStr.substring(1);
+                        }
+                    
+                        Path filePath = runDirectory.resolve(fsPathStr);
+                        System.out.println("Writing server file to: " + filePath.toString());
+                        Files.createDirectories(filePath.getParent());
+                        Files.writeString(filePath, content, StandardCharsets.UTF_8);
+                    
+                        // [핵심 수정] UI 업데이트 시에는 '원본' 경로를 사용합니다.
+                        Platform.runLater(() -> fileExecutionSelectionView.markFileAsCompleted(originalPathStr));
+                    }
+                }
+            
+                // 체크 안된 로컬 탭 파일 덮어쓰기
+                List<FileExecutionInfo> uncheckedFiles = fileExecutionSelectionView.getFileList().stream()
+                    .filter(f -> !f.isSelected())
+                    .collect(Collectors.toList());
+            
+                for (FileExecutionInfo fileInfo : uncheckedFiles) {
+                    String tabId = fileInfo.getTabId();
+                    if (editorTabView.isTabOpen(tabId)) {
+                        String content = editorTabView.getCodeAreaForTab(tabId).getText();
+                        final String originalPathStr = fileInfo.getFilePath(); // [수정] 원본 경로 보존
+                    
+                        String fsPathStr = originalPathStr; // 파일 시스템에서 사용할 경로
+                        if (fsPathStr.startsWith("/") || fsPathStr.startsWith("\\")) {
+                            fsPathStr = fsPathStr.substring(1);
+                        }
+                    
+                        Path filePath = runDirectory.resolve(fsPathStr);
+                        Files.createDirectories(filePath.getParent());
+                        Files.writeString(filePath, content, StandardCharsets.UTF_8);
+                    
+                        // [핵심 수정] UI 업데이트 시에는 '원본' 경로를 사용합니다.
+                        Platform.runLater(() -> fileExecutionSelectionView.markFileAsCompleted(originalPathStr));
+                    }
+                }
+                System.out.println("All files processed successfully.");
+            
+            } catch (IOException e) {
+                final String finalRunDirectory = (runDirectory != null) ? runDirectory.toString() : "unknown location";
+                Platform.runLater(() -> {
+                    new CustomAlert(
+                        primaryStage,
+                        "파일 저장 실패",
+                        "실행 파일을 준비하는 중 오류가 발생했습니다.",
+                        "경로: " + finalRunDirectory + "\n오류: " + e.getMessage(),
+                        () -> {}
+                    ).showAndWait();
+                });
+                e.printStackTrace();
+            } finally {
+                Platform.runLater(() -> {
+                    editorTabView.getFileExecutionSelectionView().setVisible(true);
+                });
+            }
+        }).start();
     }
 
     /**

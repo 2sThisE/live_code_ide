@@ -30,6 +30,8 @@ import javafx.application.Platform;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -688,6 +690,19 @@ public class EditorTabView {
                 .findFirst()
                 .ifPresent(tab -> pane.getTabs().remove(tab));
         }
+    }
+
+    public ObservableList<Tab> getTabs() {
+        TabPane activePane = focusManager.getActiveTabPane();
+        return activePane != null ? activePane.getTabs() : FXCollections.observableArrayList();
+    }
+
+    public boolean isTabOpen(String tabId) {
+        return findTabById(tabId).isPresent();
+    }
+
+    public CodeArea getCodeAreaForTab(String tabId) {
+        return stateManager.getCodeArea(tabId).orElse(null);
     }
 
     private Tab createTab(String tabId, String title, Node content, Runnable customOnClose) {
