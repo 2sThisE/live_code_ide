@@ -421,3 +421,67 @@
     -fx-background-radius: 8px;
     -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 10, 0, 0, 5);
 }
+
+
+
+
+/* --- 전체 뷰 스타일 --- */
+.file-execution-selection-view {
+    -fx-background-color: #252526; /* VS Code 다크 테마 배경색 */
+    -fx-background-radius: 8px;
+    -fx-border-color: #444444;
+    -fx-border-radius: 8px;
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.5), 20, 0.1, 0, 5);
+    -fx-padding: 10px;
+}
+
+
+/* --- 테이블 뷰(리스트) 스타일 --- */
+.file-execution-table {
+    -fx-background-color: transparent;
+}
+
+/* 테이블 헤더 숨기기 */
+.file-execution-table .column-header-background {
+    -fx-background-color: transparent;
+    -fx-max-height: 0;
+    -fx-pref-height: 0;
+    -fx-min-height: 0;
+}
+
+/* 테이블 셀(각 항목) 스타일 */
+.file-execution-table .table-cell {
+    -fx-background-color: transparent;
+    -fx-border-color: #333333; /* 각 항목의 하단 경계선 */
+    -fx-border-width: 0 0 1px 0;
+    -fx-padding: 5px;
+}
+
+/* 호버 효과 */
+.file-execution-table .table-row-cell:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* 선택 효과 */
+.file-execution-table .table-row-cell:selected {
+    -fx-background-color: #094771;
+}
+.file-execution-table:focused .table-row-cell:selected {
+    -fx-background-color: #007ACC;
+}
+
+/* --- 셀 내부 컴포넌트 스타일 --- */
+.file-icon {
+    -fx-font-size: 16px;
+    -fx-text-fill: #CCCCCC;
+}
+.file-name-label {
+    -fx-font-size: 14px;
+    -fx-text-fill: #D4D4D4; /* 파일 이름은 밝게 */
+    -fx-font-weight: bold;
+}
+.file-path-label {
+    -fx-font-size: 12px;
+    -fx-text-fill: #888888; /* 경로는 어둡게 */
+}

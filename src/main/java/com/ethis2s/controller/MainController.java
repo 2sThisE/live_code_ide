@@ -43,6 +43,8 @@ import com.ethis2s.view.SharedOptionScreen;
 
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
+import javafx.geometry.Bounds;
+import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Node;
 import javafx.scene.Scene;
@@ -55,7 +57,9 @@ import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ButtonType;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCombination;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
@@ -211,17 +215,41 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
         AnchorPane.setLeftAnchor(mainContentPane, 0.0);
         AnchorPane.setRightAnchor(mainContentPane, 0.0);
 
+
+        HBox executionViewContainer = new HBox(executionView);
+        executionViewContainer.setAlignment(Pos.TOP_CENTER); // HBox 내부의 아이템(executionView)을 위쪽 중앙에 배치
+        executionViewContainer.setPickOnBounds(false); // HBox도 이벤트를 통과시켜야 함
+
+        // 3. 이제 이 '컨테이너(HBox)'를 AnchorPane에 추가하고, 좌우로 꽉 채웁니다.
+        rootLayout.getChildren().add(executionViewContainer);
+        AnchorPane.setTopAnchor(executionViewContainer, 0.0);
+        AnchorPane.setLeftAnchor(executionViewContainer, 0.0);
+        AnchorPane.setRightAnchor(executionViewContainer, 0.0);
+
         // 2. 오버레이할 뷰를 AnchorPane에 추가합니다.
-        rootLayout.getChildren().add(executionView);
-        AnchorPane.setTopAnchor(executionView, 35.0); // 상단 타이틀바 높이만큼 여백
-        // AnchorPane.setLeftAnchor(executionView, 0.0); // 제거하여 뷰가 늘어나지 않도록 함
-        // AnchorPane.setRightAnchor(executionView, 0.0); // 제거하여 뷰가 늘어나지 않도록 함
-        // 뷰의 maxWidth와 maxHeight를 존중하여 중앙에 배치되도록 합니다.
-        // AnchorPane.setLeftAnchor(executionView, (rootLayout.getWidth() - executionView.prefWidth(-1)) / 2);
-        // AnchorPane.setRightAnchor(executionView, (rootLayout.getWidth() - executionView.prefWidth(-1)) / 2);
-        // 위 주석 처리된 코드는 AnchorPane의 크기가 결정된 후에 실행되어야 하므로, 직접 설정하는 대신
-        // AnchorPane의 기본 동작에 맡기거나, 리스너를 통해 동적으로 설정해야 합니다.
-        // 현재 FileExecutionSelectionView에 maxWidth가 설정되어 있으므로, 앵커를 제거하면 중앙 정렬됩니다.
+        executionViewContainer.setPadding(new javafx.geometry.Insets(0, 0, 0, 0));
+        rootLayout.addEventFilter(MouseEvent.MOUSE_CLICKED, event -> {
+            // 1. executionView가 현재 '보이는' 상태일 때만 로직을 실행합니다.
+            if (editorTabView.getFileExecutionSelectionView().isVisible()) {
+                
+                // 2. executionView의 '화면 전체 기준'의 영역(Bounds)을 가져옵니다.
+                Bounds boundsInScreen = executionView.localToScreen(executionView.getBoundsInLocal());
+                
+                // 3. 만약 영역 계산이 성공했고,
+                //    '그리고' 클릭된 마우스의 화면 좌표(event.getScreenX/Y)가
+                //    그 영역 안에 '포함되지 않는다면(!contains)'...
+                if (boundsInScreen != null && !boundsInScreen.contains(event.getScreenX(), event.getScreenY())) {
+                    
+                    // 4. executionView를 보이지 않게 처리합니다.
+                    editorTabView.getFileExecutionSelectionView().setVisible(false);
+                    
+                    // 5. [선택 사항] 이벤트를 소비(consume)하여, 클릭 이벤트가
+                    //    뒤에 있는 다른 UI(예: 에디터)에 전달되지 않게 할 수 있습니다.
+                    //    이렇게 하면 외부를 클릭했을 때 뷰가 닫히기만 하고, 다른 동작은 일어나지 않습니다.
+                    event.consume();
+                }
+            }
+        });
         
         this.problemsView = mainScreen.getProblemsView();
         this.debugView = mainScreen.getDebugView();
