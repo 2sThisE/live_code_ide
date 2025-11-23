@@ -322,7 +322,6 @@ public class SettingsView {
     }
 
 
-    // --- [핵심] saveSettings가 이제 boolean을 반환하고, 포커스 로직을 포함 ---
     private boolean saveSettings() {
         clearAllErrorStyles();
         
@@ -339,62 +338,69 @@ public class SettingsView {
                 
                 Object newValue = null;
 
+                // 1. TextArea인 경우 (JSON 객체/맵 처리)
                 if (control instanceof TextArea) {
                     try {
                         String jsonText = ((TextArea) control).getText();
+                        // JSON 문자열을 Map으로 파싱
                         Type type = new TypeToken<Map<String, Object>>() {}.getType();
                         newValue = new Gson().fromJson(jsonText, type);
+                        
                         if (newValue == null && !jsonText.trim().isEmpty()) {
                             throw new JsonSyntaxException("Input is not a valid JSON object.");
                         }
                     } catch (JsonSyntaxException e) {
+                        // 파싱 실패 시 에러 표시 및 저장 실패 처리
                         setErrorStyle(control, true);
                         allSavedSuccessfully = false;
                         
-                        // [추가] 첫 번째 에러가 발생한 feature 키를 기록합니다.
                         if (firstErrorFeatureKeyRef.get() == null) {
                             firstErrorFeatureKeyRef.set(featureKey);
                         }
-                        continue; // 이 설정은 저장하지 않고 다음으로 넘어감
+                        continue; // 다음 설정으로 넘어감
                     }
-                } else if (control instanceof TextArea) {
-                    // 컨트롤이 TextArea일 경우 (이것이 '실행 구성' 부분):
-                    try {
-                        String jsonText = ((TextArea) control).getText();
-                        // TextArea의 텍스트(JSON 문자열)를 다시 Map 객체로 변환합니다.
-                        Type type = new TypeToken<Map<String, Object>>() {}.getType();
-                        newValue = new Gson().fromJson(jsonText, type);
-                    } catch (Exception e) {
-                        System.err.println("Invalid JSON format for '" + settingKey + "'. Skipping save for this key.");
-                        e.printStackTrace();
-                        continue; // JSON 형식이 틀렸으면 이 설정은 저장하지 않고 건너뜁니다.
+                } 
+                // 2. TextField인 경우 (문자열, 숫자 처리)
+                else if (control instanceof TextField) {
+                    String textValue = ((TextField) control).getText();
+                    
+                    // 숫자인지 확인하여 적절한 타입으로 변환 (간단한 추론)
+                    // ConfigManager가 get할 때 타입 변환을 하므로, 여기선 일단 String이나 숫자로 저장
+                    if (textValue.matches("-?\\d+")) {
+                        newValue = Integer.parseInt(textValue);
+                    } else if (textValue.matches("-?\\d+(\\.\\d+)?")) {
+                        newValue = Double.parseDouble(textValue);
+                    } else {
+                        newValue = textValue; // 기본 문자열
                     }
                 }
 
-                // 4. 변환된 최종 값을 ConfigManager에 설정합니다.
+                // 3. 변환된 값을 ConfigManager에 설정 (메모리 업데이트)
                 if (newValue != null) {
+                    // [중요] 여기서 ConfigManager.set은 메모리만 업데이트한다고 가정
+                    // (saveConfig를 호출하지 않는 버전 사용 권장, 일괄 저장을 위해)
                     configManager.set(featureKey, settingKey, newValue);
                 }
             }
         }
         
         if (allSavedSuccessfully) {
-            configManager.saveConfig();
-            System.out.println("Settings saved successfully.");
-            return true; // 성공 반환
+            // ★★★ [핵심] 모든 설정이 메모리에 정상 반영된 후, 파일에 한 번만 저장합니다. ★★★
+            configManager.saveConfig(); 
+            System.out.println("All settings saved successfully to file.");
+            return true;
         } else {
-            System.err.println("Settings could not be saved due to errors.");
+            System.err.println("Settings could not be saved due to validation errors.");
             
-            // [핵심] 에러가 발생한 첫 번째 feature 탭으로 자동 전환합니다.
+            // 에러 탭으로 이동
             if (firstErrorFeatureKeyRef.get() != null) {
-                // leftMenu의 아이템 목록에서 해당 featureKey를 가진 FeatureItem을 찾습니다.
-                String errkey=firstErrorFeatureKeyRef.get();
+                String errKey = firstErrorFeatureKeyRef.get();
                 leftMenu.getItems().stream()
-                    .filter(item -> errkey.equals(item.getKey()))
+                    .filter(item -> errKey.equals(item.getKey()))
                     .findFirst()
                     .ifPresent(item -> leftMenu.getSelectionModel().select(item));
             }
-            return false; // 실패 반환
+            return false;
         }
     }
 }

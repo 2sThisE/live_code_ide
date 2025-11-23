@@ -1,5 +1,6 @@
 package com.ethis2s.service;
 
+import javafx.application.Platform;
 import javafx.geometry.Bounds;
 import javafx.geometry.Point2D;
 import javafx.scene.Node;
@@ -42,9 +43,17 @@ public class RemoteCursorManager {
         this.overlayPane = overlayPane;
         this.stateManager = stateManager;
         
-        // Add listeners to redraw cursors when the view scrolls or changes
-        codeArea.estimatedScrollXProperty().addListener((obs, old, n) -> updateAllCursorPositions());
-        codeArea.estimatedScrollYProperty().addListener((obs, old, n) -> updateAllCursorPositions());
+        codeArea.estimatedScrollXProperty().addListener((obs, old, n) -> 
+            Platform.runLater(this::updateAllCursorPositions));
+            
+        codeArea.estimatedScrollYProperty().addListener((obs, old, n) -> 
+            Platform.runLater(this::updateAllCursorPositions));
+
+        // [추가 권장] 창 크기가 바뀌거나(Resize) 레이아웃이 변할 때도 위치를 다시 잡아야 함
+        codeArea.widthProperty().addListener((obs, old, n) -> 
+            Platform.runLater(this::updateAllCursorPositions));
+        codeArea.heightProperty().addListener((obs, old, n) -> 
+            Platform.runLater(this::updateAllCursorPositions));
         // TODO: Add more listeners if needed (e.g., for zoom)
     }
 
@@ -61,75 +70,90 @@ public class RemoteCursorManager {
     private void createCursorForUser(String userId, String nickname) {
         Color userColor = generateColorFromUserId(userId);
 
+        // 1. 이름 라벨 (Header)
         Label nameLabel = new Label(nickname);
         nameLabel.getStyleClass().add("remote-cursor-label");
         nameLabel.setStyle("-fx-background-color: " + toCss(userColor) + ";");
         
-        Line cursorLine = new Line(0, 0, 0, 15); // Height of the cursor line
+        // ★ 핵심 1: 라벨을 자신의 높이만큼 위로 들어 올립니다.
+        // (높이가 변해도 자동으로 반영되도록 바인딩)
+        nameLabel.translateYProperty().bind(nameLabel.heightProperty().negate());
+
+        // 2. 커서 라인 (Caret)
+        Line cursorLine = new Line(0, 0, 0, 15); // 높이 15 (폰트 크기에 맞춰 조절 가능)
         cursorLine.getStyleClass().add("remote-cursor-line");
         cursorLine.setStroke(userColor);
+        cursorLine.setStrokeWidth(2); // 두께를 살짝 줘서 잘 보이게 함
 
-        VBox cursorNode = new VBox(nameLabel, cursorLine);
-        cursorNode.setSpacing(-1); // Make label and line overlap slightly
-        cursorNode.setVisible(false); // Initially invisible
+        // 3. VBox 대신 Group 사용
+        // Group은 자식들의 좌표(0,0)를 기준으로 겹쳐서 그립니다.
+        // cursorLine은 (0,0)에서 시작하고, nameLabel은 위로(-height) 올라갑니다.
+        javafx.scene.Group cursorNode = new javafx.scene.Group(cursorLine, nameLabel);
+        
+        cursorNode.setVisible(false);
+        
+        // (중요) 마우스 이벤트를 무시하게 해서 클릭 방해 금지
+        cursorNode.setMouseTransparent(true); 
 
         overlayPane.getChildren().add(cursorNode);
         activeCursors.put(userId, new UserCursorInfo(nickname, userColor, cursorNode));
     }
 
     private void updateCursorPosition(UserCursorInfo cursorInfo) {
-        // 1. 전체 범위 방어
+        // 1. 문서 전체 범위 체크
         if (cursorInfo.position < 0 || cursorInfo.position > codeArea.getLength()) {
             cursorInfo.node.setVisible(false);
             return;
         }
 
-        // ★★★ [대가리 디버깅 해결의 핵심] ★★★
-        // 좌표 계산은 믿을 수 없으므로, '줄 번호(Paragraph Index)'로 1차 검문을 실시합니다.
-        
-        // 1) 커서가 위치한 줄 번호 구하기
+        // 2. [엄격해진 1차 관문] 줄 번호 기반 검사
+        // 아까는 (first - 1)이었지만, 이제는 여유 없이 정확히 (first)부터 검사합니다.
+        // RichTextFX의 firstVisiblePar...는 "조금이라도 보이는 줄"을 반환하므로,
+        // 여기에 포함되지 않으면 아예 안 보이는 게 맞습니다.
         int cursorLine = codeArea.offsetToPosition(cursorInfo.position, org.fxmisc.richtext.model.TwoDimensional.Bias.Forward).getMajor();
-        
-        // 2) 현재 화면에 보이는 첫 번째 줄과 마지막 줄 번호 구하기
-        // (RichTextFX의 first/lastVisibleParToAllParIndex 사용)
-        // 만약 뷰가 초기화 안 됐으면 -1을 리턴할 수 있으므로 방어
         int firstVisibleLine = -1;
         int lastVisibleLine = -1;
         try {
             firstVisibleLine = codeArea.firstVisibleParToAllParIndex();
             lastVisibleLine = codeArea.lastVisibleParToAllParIndex();
         } catch (Exception e) {
-            // 뷰가 아직 준비 안 됨 -> 숨김
             cursorInfo.node.setVisible(false);
             return;
         }
 
-        // 3) 검문: 커서가 보이는 줄 범위 안에 있는가?
-        // (여유 있게 위아래로 1줄 정도는 봐줍니다)
-        if (cursorLine < firstVisibleLine - 1 || cursorLine > lastVisibleLine + 1) {
-            // 범위 밖이면 좌표 계산이고 뭐고 다 필요 없음. 무조건 숨김!
+        // ★ [수정] 여유분(-1, +1) 삭제! 보이는 줄이 아니면 칼같이 숨김
+        if (cursorLine < firstVisibleLine || cursorLine > lastVisibleLine) {
             cursorInfo.node.setVisible(false);
             return; 
         }
 
-        // ---------------------------------------------------------------
-        // 2차 검문: 좌표 기반 (화면 경계선 처리용)
-        // 위에서 대충 걸러냈으니, 이제 정밀하게 좌표를 계산해도 렉이 안 걸림
-        // ---------------------------------------------------------------
+        // 3. [엄격해진 2차 관문] 좌표 기반 검사
         Optional<Bounds> boundsOpt = codeArea.getCharacterBoundsOnScreen(cursorInfo.position, cursorInfo.position);
 
         if (boundsOpt.isPresent()) {
             Bounds charScreenBounds = boundsOpt.get();
-            
-            // 오버레이 패널 기준 로컬 좌표로 변환 (가벼운 연산)
-            Point2D localPoint = overlayPane.screenToLocal(charScreenBounds.getMinX(), charScreenBounds.getMinY());
+            javafx.geometry.Point2D localPoint = overlayPane.screenToLocal(charScreenBounds.getMinX(), charScreenBounds.getMinY());
 
-            // null 체크 및 Y좌표 범위 정밀 체크
+            // ★ [수정] Y좌표 검사도 엄격하게 변경
+            // 기존: -50 (여유 많음) -> 변경: -5 (거의 여유 없음)
+            // -5 정도는 주는 이유: 커서 선 두께나 미세한 오차로 깜빡이는 걸 방지하기 위함입니다.
+            // 하지만 -20, -50 처럼 크게 주면 아까처럼 윗줄에 걸쳐서 렉이 걸립니다.
             if (localPoint != null && 
-                localPoint.getY() >= -20 && // 글자 높이 고려 
-                localPoint.getY() < overlayPane.getHeight() + 20) {
+                localPoint.getY() >= -5 && 
+                localPoint.getY() < overlayPane.getHeight() + 5) {
                 
-                cursorInfo.node.relocate(localPoint.getX(), localPoint.getY());
+                cursorInfo.node.setLayoutX(localPoint.getX());
+                cursorInfo.node.setLayoutY(localPoint.getY());
+
+                // 높이 조정 (기존 로직 유지)
+                double lineHeight = charScreenBounds.getHeight();
+                if (cursorInfo.node instanceof javafx.scene.Group) {
+                    javafx.scene.Group group = (javafx.scene.Group) cursorInfo.node;
+                    if (!group.getChildren().isEmpty() && group.getChildren().get(0) instanceof javafx.scene.shape.Line) {
+                        ((javafx.scene.shape.Line) group.getChildren().get(0)).setEndY(lineHeight);
+                    }
+                }
+
                 cursorInfo.node.setVisible(true);
                 
             } else {

@@ -81,15 +81,17 @@ public class EditorFactory {
         RemoteCursorManager cursorManager = new RemoteCursorManager(codeArea, cursorOverlay, stateManager);
         stateManager.registerCursorManager(tabId, cursorManager);
 
-        // Move caret to the beginning before inserting content
-        
-        manager.controlledReplaceText(0, 0, content, ChangeInitiator.SYSTEM);
-        Platform.runLater(manager::requestImmediateAnalysis);
-        manager.resetInitiatorToUser(); // Explicitly reset initiator after initial load
-        
-        // Notify the manager that the initial content is loaded and trigger the first analysis
-        
+        manager.prepareForLargeUpdate();
 
+        try {
+            // 2. 텍스트 삽입 (안전하게 입력됨)
+            manager.controlledReplaceText(0, 0, content, ChangeInitiator.SYSTEM);
+            codeArea.getUndoManager().forgetHistory();
+        } finally {
+            manager.finishLargeUpdate();
+        }manager.resetInitiatorToUser();
+        
+        // Platform.runLater(manager::requestImmediateAnalysis);
 
         VirtualizedScrollPane<CodeArea> scrollPane = new VirtualizedScrollPane<>(codeArea);
         

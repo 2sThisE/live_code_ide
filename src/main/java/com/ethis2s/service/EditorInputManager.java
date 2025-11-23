@@ -301,8 +301,12 @@ public class EditorInputManager {
     
     private void handleAutoPairing(KeyEvent e) {
         String typedChar = e.getCharacter();
-        
-        if (isClosingChar(typedChar)) {
+        IndexRange selection = codeArea.getSelection();
+        boolean hasSelection = selection.getLength() > 0;
+
+        // 1. [닫는 괄호 입력 시] 건너뛰기(Skip) 로직
+        // 단, 선택 영역이 없을 때만 건너뛰어야 합니다. 선택 영역이 있으면 덮어써야죠.
+        if (!hasSelection && isClosingChar(typedChar)) {
             int caretPosition = codeArea.getCaretPosition();
             if (caretPosition < codeArea.getLength()) {
                 String charAfter = codeArea.getText(caretPosition, caretPosition + 1);
@@ -315,21 +319,38 @@ public class EditorInputManager {
         }
 
         String closingChar = getClosingChar(typedChar);
+        
+        // 2. [여는 괄호 입력 시]
         if (closingChar != null) {
             if (enhancer.isPopupShowing()) {
                 enhancer.hideSuggestions();
             }
-            int caretPosition = codeArea.getCaretPosition();
-            String insertedText = typedChar + closingChar;
 
-            // Fire a USER change to insert the pair and notify the server.
-            controlledReplaceText(caretPosition, caretPosition, insertedText, ChangeInitiator.USER);
+            // [핵심 수정] 선택 영역이 있을 때 -> 감싸기 (Surround With)
+            if (hasSelection) {
+                int start = selection.getStart();
+                int end = selection.getEnd();
+                String selectedText = codeArea.getSelectedText();
+                
+                // "(선택텍스트)" 형태로 변환
+                String wrappedText = typedChar + selectedText + closingChar;
+                
+                controlledReplaceText(start, end, wrappedText, ChangeInitiator.USER);
+                
+                // 커서를 선택 텍스트 유지한 채로 둘지, 끝으로 보낼지 결정
+                // 여기서는 전체를 다시 선택해줌 (연속 감싸기 가능)
+                Platform.runLater(() -> codeArea.selectRange(start, start + wrappedText.length()));
+                
+            } else {
+                // [기존 로직] 선택 영역 없을 때 -> 자동 완성 ()
+                int caretPosition = codeArea.getCaretPosition();
+                String insertedText = typedChar + closingChar;
+
+                controlledReplaceText(caretPosition, caretPosition, insertedText, ChangeInitiator.USER);
+                Platform.runLater(() -> codeArea.moveTo(caretPosition + 1));
+            }
             
-            // The caret will be moved by the CodeArea's reaction to the text change.
-            // We just need to place it in the middle of the pair.
-            Platform.runLater(() -> codeArea.moveTo(caretPosition + 1));
-            
-            e.consume(); // Consume the event as we handled it manually
+            e.consume(); // 이벤트 소비
         }
     }
 
@@ -485,6 +506,7 @@ public class EditorInputManager {
         } else if (e.getCode() == KeyCode.ENTER) {
             handleAutoIndent(e);
         } else if (e.getCode() == KeyCode.BACK_SPACE) {
+            if (codeArea.getSelection().getLength() > 0) return;
             handlePairBackspace(e);
             if (!e.isConsumed()) {
                 handleTabBackspace(e);
@@ -611,6 +633,7 @@ public class EditorInputManager {
     }
 
     private void handleTabBackspace(KeyEvent e) {
+        if (codeArea.getSelection().getLength() > 0) return;
         int caretPosition = codeArea.getCaretPosition();
         if (caretPosition > 0 && codeArea.getText(caretPosition - 1, caretPosition).equals("\t")) {
             controlledReplaceText(caretPosition - 1, caretPosition, "", ChangeInitiator.USER);

@@ -9,6 +9,7 @@ import com.ethis2s.service.AntlrLanguageService.AnalysisResult;
 import com.ethis2s.service.AntlrLanguageService.BracketPair;
 import com.ethis2s.service.AntlrLanguageService.SyntaxError;
 import com.ethis2s.service.ChangeInitiator;
+import com.ethis2s.service.CollaborativeUndoHelper;
 import com.ethis2s.util.Tm4eSyntaxHighlighter.StyleToken;
 import com.ethis2s.view.editor.EditorTabView;
 
@@ -177,6 +178,7 @@ public class HybridManager {
                 renderBracketHighlightOnly();
             }
         });
+        CollaborativeUndoHelper.install(codeArea, this.inputManager, this);
     }
 
     // --- OTManager Delegation ---
@@ -251,12 +253,14 @@ public class HybridManager {
         this.filePath = filePath;
     }
 
-    public void prepareForLargeUpdate(int expectedSize) {
-        if (expectedSize < LARGE_UPDATE_THRESHOLD) {
-            return;
-        }
+    public void prepareForLargeUpdate() {
         this.isLargeUpdate = true;
         analysisDebouncer.stop();
+    }
+
+    public void finishLargeUpdate() {
+        this.isLargeUpdate = false; 
+        requestImmediateAnalysis(); // 로드 끝났으니 분석 시작!
     }
 
     public void requestImmediateAnalysis() {

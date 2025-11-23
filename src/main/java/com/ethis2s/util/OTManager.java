@@ -222,49 +222,51 @@ public class OTManager {
 
     private void animateCursorTo(String requesterId, Operation op) {
         Platform.runLater(() -> {
-            // 1. [데이터 안전장치] 목표 위치를 보정합니다. (필수)
-            int currentDocLength = hybridManager.getCodeArea().getLength();
-            
-            // 기존 코드: Math.min(op.getCursorPosition(), currentDocLength);
-            // 수정 코드: Math.max(0, ...) 추가하여 음수 방지
-            int rawPos = op.getCursorPosition();
-            // 커서 정보가 없거나(-1) 이상하면 0 또는 현재 길이로 보정
-            if (rawPos < 0) rawPos = 0; 
-            int safeTargetPosition = Math.max(0, Math.min(rawPos, currentDocLength));
+            Platform.runLater(() -> {
+                // 1. [데이터 안전장치] 목표 위치를 보정합니다. (필수)
+                int currentDocLength = hybridManager.getCodeArea().getLength();
+                
+                // 기존 코드: Math.min(op.getCursorPosition(), currentDocLength);
+                // 수정 코드: Math.max(0, ...) 추가하여 음수 방지
+                int rawPos = op.getCursorPosition();
+                // 커서 정보가 없거나(-1) 이상하면 0 또는 현재 길이로 보정
+                if (rawPos < 0) rawPos = 0; 
+                int safeTargetPosition = Math.max(0, Math.min(rawPos, currentDocLength));
 
-            // 2. IntegerProperty를 가져오거나 생성합니다.
-            IntegerProperty visualCursor = userVisualCursors.computeIfAbsent(requesterId, id -> {
-                SimpleIntegerProperty property = new SimpleIntegerProperty(safeTargetPosition);
-                String tabId = "file-" + filePath;
-                property.addListener((obs, oldVal, newVal) -> {
-                    hybridManager.getStateManager().getCursorManager(tabId).ifPresent(cursorManager -> {
-                        cursorManager.updateCursor(requesterId, requesterId, newVal.intValue());
+                // 2. IntegerProperty를 가져오거나 생성합니다.
+                IntegerProperty visualCursor = userVisualCursors.computeIfAbsent(requesterId, id -> {
+                    SimpleIntegerProperty property = new SimpleIntegerProperty(safeTargetPosition);
+                    String tabId = "file-" + filePath;
+                    property.addListener((obs, oldVal, newVal) -> {
+                        hybridManager.getStateManager().getCursorManager(tabId).ifPresent(cursorManager -> {
+                            cursorManager.updateCursor(requesterId, requesterId, newVal.intValue());
+                        });
                     });
+                    return property;
                 });
-                return property;
+
+                // 3. [핵심] 연산 종류에 따라 애니메이션 시간을 동적으로 결정합니다.
+                Duration animationDuration;
+                if (op.getType() == Operation.Type.DELETE) {
+                    // 삭제는 짧고 빠르게 반응하여 안정성을 높입니다.
+                    animationDuration = Duration.millis(30);
+                } else { // INSERT 또는 순수 커서 이동
+                    // 삽입은 부드러움을 위해 조금 더 길게 설정합니다.
+                    animationDuration = Duration.millis(120); 
+                }
+
+                // 4. Timeline을 가져오거나 생성합니다.
+                Timeline timeline = userTimelines.computeIfAbsent(requesterId, id -> new Timeline());
+                
+                // 5. 결정된 시간과 안전한 목표로 애니메이션 KeyFrame을 생성합니다.
+                KeyValue newKeyValue = new KeyValue(visualCursor, safeTargetPosition, Interpolator.EASE_OUT);
+                KeyFrame newKeyFrame = new KeyFrame(animationDuration, newKeyValue);
+
+                // 6. 애니메이션을 실행합니다. (취소 후 재시작 방식)
+                timeline.stop();
+                timeline.getKeyFrames().setAll(newKeyFrame);
+                timeline.playFromStart();
             });
-
-            // 3. [핵심] 연산 종류에 따라 애니메이션 시간을 동적으로 결정합니다.
-            Duration animationDuration;
-            if (op.getType() == Operation.Type.DELETE) {
-                // 삭제는 짧고 빠르게 반응하여 안정성을 높입니다.
-                animationDuration = Duration.millis(30);
-            } else { // INSERT 또는 순수 커서 이동
-                // 삽입은 부드러움을 위해 조금 더 길게 설정합니다.
-                animationDuration = Duration.millis(120); 
-            }
-
-            // 4. Timeline을 가져오거나 생성합니다.
-            Timeline timeline = userTimelines.computeIfAbsent(requesterId, id -> new Timeline());
-            
-            // 5. 결정된 시간과 안전한 목표로 애니메이션 KeyFrame을 생성합니다.
-            KeyValue newKeyValue = new KeyValue(visualCursor, safeTargetPosition, Interpolator.EASE_OUT);
-            KeyFrame newKeyFrame = new KeyFrame(animationDuration, newKeyValue);
-
-            // 6. 애니메이션을 실행합니다. (취소 후 재시작 방식)
-            timeline.stop();
-            timeline.getKeyFrames().setAll(newKeyFrame);
-            timeline.playFromStart();
         });
     }
 
@@ -314,7 +316,7 @@ public class OTManager {
             pendingInputQueue.add(op);
             return;
         }
-
+        updateRemoteCursorsLocally(op);
         projectController.getCurrentUserNicknameAndTag().ifPresent(userId -> {
             long lastVersion = unconfirmedOps.isEmpty() 
                 ? this.localVersion 
@@ -332,6 +334,34 @@ public class OTManager {
             }
         });
     }
+
+    private void updateRemoteCursorsLocally(Operation localOp) {
+        Platform.runLater(() -> {
+            for (Map.Entry<String, IntegerProperty> entry : userVisualCursors.entrySet()) {
+                // 내 커서는 조정할 필요 없음 (어차피 CodeArea가 알아서 처리함)
+                // 하지만 userVisualCursors에는 보통 상대방 것만 들어있으므로 바로 처리
+                
+                IntegerProperty visualCursor = entry.getValue();
+                int currentPos = visualCursor.get();
+                
+                // 기존에 만들어둔 transform_position 메서드를 재활용합니다!
+                // (수학적으로 Op vs Op 변환이나, Pos vs Op 변환이나 원리는 같습니다)
+                int newPos = transform_position(currentPos, localOp);
+                
+                if (currentPos != newPos) {
+                    // 애니메이션 없이 즉시 값을 바꿉니다. (내가 타이핑하는 속도에 맞춰야 하므로)
+                    visualCursor.set(newPos);
+                    
+                    // 만약 애니메이션(Timeline)이 돌고 있었다면 멈춰야 덜덜거리지 않음
+                    String userId = entry.getKey();
+                    if (userTimelines.containsKey(userId)) {
+                        userTimelines.get(userId).stop();
+                    }
+                }
+            }
+        });
+    }
+
 
     private void abortUnconfirmedOperations(Operation serverOp, String requesterId) {
         isRebasing = true;

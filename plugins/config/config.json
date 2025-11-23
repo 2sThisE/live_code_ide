@@ -71,7 +71,8 @@
         "description": "사용자가 정의한 실행 명령어들을 설정합니다. 각 명령어는 이름과 실제 명령어로 구성됩니다.",
         "value": {
           "Run Selected File": "javac -encoding UTF-8 {file} && java -cp {basedir} {name}",
-          "Run Java": "javac -encoding UTF-8 {file} && java -cp {basedir} {name}"
+          "Run Java": "javac -encoding UTF-8 {file} && java -cp {basedir} {name}",
+          "test": "java"
         }
       }
     ]
