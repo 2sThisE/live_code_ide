@@ -3,17 +3,13 @@ package com.ethis2s.util;
 import com.ethis2s.controller.ProjectController;
 import com.ethis2s.model.Operation;
 import com.ethis2s.service.ChangeInitiator;
-// RemoteCursorManager는 직접 사용하지 않으므로 주석 처리하거나 삭제 가능합니다.
-// import com.ethis2s.service.RemoteCursorManager;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import javafx.animation.AnimationTimer; // --- [추가] AnimationTimer 임포트
 import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
-import javafx.animation.PauseTransition;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.property.IntegerProperty;
@@ -24,10 +20,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map; // --- [추가] Map 임포트
+import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
-import java.util.concurrent.ConcurrentHashMap; // --- [추가] ConcurrentHashMap 임포트
+import java.util.concurrent.ConcurrentHashMap;
 
 public class OTManager {
 
@@ -251,10 +247,10 @@ public class OTManager {
             // 3. [핵심] 연산 종류에 따라 애니메이션 시간을 동적으로 결정합니다.
             Duration animationDuration;
             if (op.getType() == Operation.Type.DELETE) {
-                // 삭제는 짧고 빠르게 반응하여 안정성을 높입니다. (40-60ms 추천)
-                animationDuration = Duration.millis(50);
+                // 삭제는 짧고 빠르게 반응하여 안정성을 높입니다.
+                animationDuration = Duration.millis(30);
             } else { // INSERT 또는 순수 커서 이동
-                // 삽입은 부드러움을 위해 조금 더 길게 설정합니다. (100-150ms 추천)
+                // 삽입은 부드러움을 위해 조금 더 길게 설정합니다.
                 animationDuration = Duration.millis(120); 
             }
 

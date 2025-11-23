@@ -1,6 +1,7 @@
 package com.ethis2s.service;
 
 import javafx.geometry.Bounds;
+import javafx.geometry.Point2D;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.layout.Pane;
@@ -77,24 +78,63 @@ public class RemoteCursorManager {
     }
 
     private void updateCursorPosition(UserCursorInfo cursorInfo) {
-        if (cursorInfo.position > codeArea.getLength()) {
+        // 1. 전체 범위 방어
+        if (cursorInfo.position < 0 || cursorInfo.position > codeArea.getLength()) {
             cursorInfo.node.setVisible(false);
             return;
         }
+
+        // ★★★ [대가리 디버깅 해결의 핵심] ★★★
+        // 좌표 계산은 믿을 수 없으므로, '줄 번호(Paragraph Index)'로 1차 검문을 실시합니다.
+        
+        // 1) 커서가 위치한 줄 번호 구하기
+        int cursorLine = codeArea.offsetToPosition(cursorInfo.position, org.fxmisc.richtext.model.TwoDimensional.Bias.Forward).getMajor();
+        
+        // 2) 현재 화면에 보이는 첫 번째 줄과 마지막 줄 번호 구하기
+        // (RichTextFX의 first/lastVisibleParToAllParIndex 사용)
+        // 만약 뷰가 초기화 안 됐으면 -1을 리턴할 수 있으므로 방어
+        int firstVisibleLine = -1;
+        int lastVisibleLine = -1;
+        try {
+            firstVisibleLine = codeArea.firstVisibleParToAllParIndex();
+            lastVisibleLine = codeArea.lastVisibleParToAllParIndex();
+        } catch (Exception e) {
+            // 뷰가 아직 준비 안 됨 -> 숨김
+            cursorInfo.node.setVisible(false);
+            return;
+        }
+
+        // 3) 검문: 커서가 보이는 줄 범위 안에 있는가?
+        // (여유 있게 위아래로 1줄 정도는 봐줍니다)
+        if (cursorLine < firstVisibleLine - 1 || cursorLine > lastVisibleLine + 1) {
+            // 범위 밖이면 좌표 계산이고 뭐고 다 필요 없음. 무조건 숨김!
+            cursorInfo.node.setVisible(false);
+            return; 
+        }
+
+        // ---------------------------------------------------------------
+        // 2차 검문: 좌표 기반 (화면 경계선 처리용)
+        // 위에서 대충 걸러냈으니, 이제 정밀하게 좌표를 계산해도 렉이 안 걸림
+        // ---------------------------------------------------------------
         Optional<Bounds> boundsOpt = codeArea.getCharacterBoundsOnScreen(cursorInfo.position, cursorInfo.position);
 
         if (boundsOpt.isPresent()) {
-            Bounds bounds = boundsOpt.get();
-            Bounds overlayBounds = overlayPane.localToScreen(overlayPane.getBoundsInLocal());
-
-            // Calculate position relative to the overlay pane
-            double x = bounds.getMinX() - overlayBounds.getMinX();
-            double y = bounds.getMinY() - overlayBounds.getMinY();
+            Bounds charScreenBounds = boundsOpt.get();
             
+            // 오버레이 패널 기준 로컬 좌표로 변환 (가벼운 연산)
+            Point2D localPoint = overlayPane.screenToLocal(charScreenBounds.getMinX(), charScreenBounds.getMinY());
 
-
-            cursorInfo.node.relocate(x, y);
-            cursorInfo.node.setVisible(true);
+            // null 체크 및 Y좌표 범위 정밀 체크
+            if (localPoint != null && 
+                localPoint.getY() >= -20 && // 글자 높이 고려 
+                localPoint.getY() < overlayPane.getHeight() + 20) {
+                
+                cursorInfo.node.relocate(localPoint.getX(), localPoint.getY());
+                cursorInfo.node.setVisible(true);
+                
+            } else {
+                cursorInfo.node.setVisible(false);
+            }
         } else {
             cursorInfo.node.setVisible(false);
         }

@@ -1,12 +1,10 @@
 package com.ethis2s.controller;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Comparator;
@@ -15,21 +13,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import org.jcodings.exception.ErrorCodes;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import com.ethis2s.App;
 import com.ethis2s.model.Operation;
 import com.ethis2s.model.ProtocolConstants;
-import com.ethis2s.model.RunConfiguration;
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
-import com.ethis2s.service.ChangeInitiator;
 import com.ethis2s.service.ClientSocketManager;
 import com.ethis2s.service.ExecutionService;
 import com.ethis2s.util.ConfigManager;
@@ -107,13 +101,8 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     
     private Map<String, Consumer<JSONArray>> pendingSharedListCallbacks = new HashMap<>();
     private Map<String, Consumer<Boolean>> pendingAddShareCallbacks = new HashMap<>();
-    private boolean isSearchActive = false;
-    private final double SEARCH_FIELD_NARROW_WIDTH = 200;
-    private final double SEARCH_FIELD_WIDE_WIDTH = 400;
     private Runnable searchAction;
 
-    private ExecutionService executionService = new ExecutionService();
-    private RunView runView;
 
     public MainController(Stage primaryStage) {
         this.primaryStage = primaryStage;

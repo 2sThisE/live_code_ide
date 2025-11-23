@@ -695,12 +695,12 @@ public class MainScreen {
             backButton.setOnAction(e -> showProjectListView(projectController, mainController));
 
             Label label = new Label("  " + currentProject.getProjectName());
-            Button addFileBtn = new Button("+");
+            Button addFileBtn = new Button("\uD83D\uDCC3");
             addFileBtn.getStyleClass().add("add-project-button");
             addFileBtn.setTooltip(new Tooltip("파일 추가"));
             addFileBtn.setOnAction(e -> handleAddItem("file"));
 
-            Button addFolderBtn = new Button("+F");
+            Button addFolderBtn = new Button("\uD83D\uDCC1");
             addFolderBtn.getStyleClass().add("add-project-button");
             addFolderBtn.setTooltip(new Tooltip("폴더 추가"));
             addFolderBtn.setOnAction(e -> handleAddItem("folder"));
