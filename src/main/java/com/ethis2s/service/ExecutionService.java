@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -59,11 +60,14 @@ public class ExecutionService {
                 
                 // 3. 프로세스 시작 및 스트림 연결
                 currentProcess = processBuilder.start();
-                processInputWriter = new BufferedWriter(new OutputStreamWriter(currentProcess.getOutputStream(), StandardCharsets.UTF_8));
+                Charset consoleCharset = getConsoleCharset();
+                processInputWriter = new BufferedWriter(
+                    new OutputStreamWriter(currentProcess.getOutputStream(), consoleCharset)
+                );
 
                 // [핵심 수정] 표준 출력 읽기 스레드 -> LogType.STDOUT 태그 부착
                 outputReaderThread = new Thread(() -> readStream(
-                    new InputStreamReader(currentProcess.getInputStream(), StandardCharsets.UTF_8), 
+                    new InputStreamReader(currentProcess.getInputStream(), consoleCharset ), 
                     text -> onMessage.accept(LogType.STDOUT, text), // 성공 시 STDOUT
                     error -> onMessage.accept(LogType.STDERR, "[Stream Error] " + error) // 읽기 에러 시 STDERR
                 ));
@@ -71,7 +75,7 @@ public class ExecutionService {
                 
                 // [핵심 수정] 표준 에러 읽기 스레드 -> LogType.STDERR 태그 부착
                 errorReaderThread = new Thread(() -> readStream(
-                    new InputStreamReader(currentProcess.getErrorStream(), StandardCharsets.UTF_8), 
+                    new InputStreamReader(currentProcess.getErrorStream(), consoleCharset ), 
                     text -> onMessage.accept(LogType.STDERR, text), // 성공 시 STDERR
                     error -> onMessage.accept(LogType.STDERR, "[Stream Error] " + error) // 읽기 에러 시 STDERR
                 ));
@@ -178,5 +182,20 @@ public class ExecutionService {
         processInputWriter = null;
         outputReaderThread = null;
         errorReaderThread = null;
+    }
+
+    private Charset getConsoleCharset() {
+        try {
+            // 1. JVM이 부팅될 때 감지한 'OS 시스템 인코딩'을 가져옵니다.
+            // (file.encoding이 UTF-8로 강제되어 있어도, 이 값은 실제 OS 환경을 따라갑니다)
+            String systemEncoding = System.getProperty("sun.jnu.encoding");
+            
+            if (systemEncoding != null) {
+                return Charset.forName(systemEncoding);
+            }
+        } catch (Exception e) {
+            // 2. 만약 실패하면 자바 기본 인코딩을 따릅니다.
+        }
+        return Charset.defaultCharset();
     }
 }

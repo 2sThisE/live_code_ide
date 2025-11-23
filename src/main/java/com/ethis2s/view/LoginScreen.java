@@ -31,12 +31,18 @@ public class LoginScreen {
 
         TextField userTextField = new TextField();
         grid.add(userTextField, 1, 1);
+        userTextField.textProperty().addListener((obs, oldText, newText) -> {
+            if (!newText.matches("[a-zA-Z0-9!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\,.<>/?]*")) userTextField.setText(oldText);
+        });
 
         Label pw = new Label("비밀번호:");
         grid.add(pw, 0, 2);
 
         PasswordField pwBox = new PasswordField();
         grid.add(pwBox, 1, 2);
+        pwBox.textProperty().addListener((obs, oldText, newText) -> {
+            if (!newText.matches("[a-zA-Z0-9!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\,.<>/?]*")) pwBox.setText(oldText);
+        });
 
         Button loginBtn = new Button("로그인");
         grid.add(loginBtn, 1, 3);

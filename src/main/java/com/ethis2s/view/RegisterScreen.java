@@ -37,7 +37,7 @@ public class RegisterScreen {
         grid.add(userName, 0, 1);
         TextField userTextField = new TextField();
         userTextField.textProperty().addListener((obs, oldText, newText) -> {
-            if (!newText.matches("[a-zA-Z0-9]*")) {
+            if (!newText.matches("[a-zA-Z0-9!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\,.<>/?]*")) {
                 userTextField.setText(oldText);
             }
         });
@@ -78,6 +78,7 @@ public class RegisterScreen {
         grid.add(strengthBox, 2, 4);
 
         pwBox.textProperty().addListener((obs, oldText, newText) -> {
+            if (!newText.matches("[a-zA-Z0-9!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\,.<>/?]*")) pwBox.setText(oldText);
             strengthLabel.setVisible(true);
             passwordStrength = checkPasswordStrength(newText);
             strengthLabel.setText("복잡도: " + passwordStrength);
@@ -99,6 +100,9 @@ public class RegisterScreen {
         grid.add(pwConfirm, 0, 5);
         PasswordField pwConfirmBox = new PasswordField();
         grid.add(pwConfirmBox, 1, 5);
+        pwConfirm.textProperty().addListener((obs, oldText, newText) -> {
+            if (!newText.matches("[a-zA-Z0-9!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\,.<>/?]*")) pwConfirm.setText(oldText);
+        });
 
         // --- Buttons and Action Target ---
         Button registerBtn = new Button("회원가입");
