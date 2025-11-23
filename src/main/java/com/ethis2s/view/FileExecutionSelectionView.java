@@ -1,5 +1,12 @@
 package com.ethis2s.view;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.json.JSONObject;
+
 import com.ethis2s.controller.ProjectController;
 import com.ethis2s.model.UserProjectsInfo;
 import com.ethis2s.util.ConfigManager;
@@ -19,7 +26,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.control.Button;
-import javafx.scene.control.ComboBox;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
@@ -37,12 +43,6 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
-import org.json.JSONObject;
-
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.HashMap;
 
 public class FileExecutionSelectionView {
 
@@ -307,7 +307,7 @@ public class FileExecutionSelectionView {
             if (!suggestions.isEmpty()) {
                 suggestionsPopup.getItems().addAll(suggestions);
                 if (!suggestionsPopup.isShowing()) {
-                    if((System.getProperty("os.name").toLowerCase()).contains("mac")) suggestionsPopup.show(commandField, Side.BOTTOM, 0, MacosNativeUtil.getTitleBarHeightOffset());
+                    if((System.getProperty("os.name").toLowerCase()).contains("mac")) suggestionsPopup.show(commandField, Side.BOTTOM, 0, -MacosNativeUtil.getTitleBarHeightOffset());
                     else suggestionsPopup.show(commandField, Side.BOTTOM, 0, 0);
                 }
             } else {
