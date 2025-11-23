@@ -62,7 +62,7 @@
         "label": "실행 인자",
         "description": "프로그램 실행 시 전달할 인자들을 설정합니다.",
         "value": {
-          "{basedir}": ".run/"
+          "{basedir}": "."
         }
       },
       {
@@ -70,9 +70,8 @@
         "label": "사용자 실행 명령어 (User Commands)",
         "description": "사용자가 정의한 실행 명령어들을 설정합니다. 각 명령어는 이름과 실제 명령어로 구성됩니다.",
         "value": {
-          "Build Project": "javac -d {basedir}/out {basedir}/src/*.java",
-          "run Project": "java -cp {basedir}/out Main",
-          "Build and run Project": "java -cp {basedir}/out Main && java -cp {basedir}/out Main"
+          "Run Selected File": "javac -encoding UTF-8 {file} && java -cp {basedir} {name}",
+          "Run Java": "javac -encoding UTF-8 {file} && java -cp {basedir} {name}"
         }
       }
     ]

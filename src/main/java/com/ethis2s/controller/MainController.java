@@ -8,12 +8,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -875,13 +877,18 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
             
                 FileExecutionSelectionView fileExecutionSelectionView = editorTabView.getFileExecutionSelectionView();
                 String requestProjectId = (fileExecutionSelectionView.getUserProjectsInfo()).getProjectID();
-            
+                String selectedFile=fileExecutionSelectionView.getSelectedFile();
+                final String executeCommandTemplate = fileExecutionSelectionView.getCommandToExecute(); 
+                if (selectedFile.startsWith("/") || selectedFile.startsWith("\\")) selectedFile = selectedFile.substring(1);
+                VariableResolver resolver=new VariableResolver(ConfigManager.getInstance(),projectController.buildDynamicContext(selectedFile));
+                final String finalCommand = resolver.resolve(executeCommandTemplate);
                 // 서버로부터 받은 파일 쓰기
                 for (int i = 0; i < filecontent.length(); i++) {
                     JSONObject fileObject = filecontent.getJSONObject(i);
                     if (fileObject.getString("project_id").equals(requestProjectId)) {
                         final String originalPathStr = fileObject.getString("path"); // [수정] 원본 경로 보존
-                        String content = fileObject.getString("content");
+                        String base64Content = fileObject.getString("content");
+                        byte[] fileBytes = Base64.getDecoder().decode(base64Content);
                     
                         String fsPathStr = originalPathStr; // 파일 시스템에서 사용할 경로
                         if (fsPathStr.startsWith("/") || fsPathStr.startsWith("\\")) {
@@ -891,7 +898,7 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                         Path filePath = runDirectory.resolve(fsPathStr);
                         System.out.println("Writing server file to: " + filePath.toString());
                         Files.createDirectories(filePath.getParent());
-                        Files.writeString(filePath, content, StandardCharsets.UTF_8);
+                        Files.write(filePath, fileBytes);
                     
                         // [핵심 수정] UI 업데이트 시에는 '원본' 경로를 사용합니다.
                         Platform.runLater(() -> fileExecutionSelectionView.markFileAsCompleted(originalPathStr));
@@ -922,8 +929,14 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                         Platform.runLater(() -> fileExecutionSelectionView.markFileAsCompleted(originalPathStr));
                     }
                 }
-                System.out.println("All files processed successfully.");
-            
+                final String workingDirPath = runDirectory.toAbsolutePath().toString();
+
+                Platform.runLater(() -> {
+                    if (mainScreen.getRunView() != null) {
+                        mainScreen.switchToTab("RUN");
+                        (mainScreen.getRunView()).executeProcess(finalCommand, workingDirPath);
+                    }
+                });
             } catch (IOException e) {
                 final String finalRunDirectory = (runDirectory != null) ? runDirectory.toString() : "unknown location";
                 Platform.runLater(() -> {
@@ -940,7 +953,11 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                 Platform.runLater(() -> {
                     editorTabView.getFileExecutionSelectionView().setVisible(true);
                 });
+
+                
             }
+            
+            
         }).start();
     }
 

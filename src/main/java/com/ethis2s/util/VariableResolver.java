@@ -1,5 +1,6 @@
 package com.ethis2s.util;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -52,7 +53,11 @@ public class VariableResolver {
                 // 2. 동적 컨텍스트에 없으면, ConfigManager(정적 설정)에서 찾습니다.
                 else {
                     // "run-variables" 섹션에서 "{key}" 형태로 찾습니다.
-                    value = configManager.get("run-variables", keyWithBraces, String.class, null);
+                    Map<String, Object> factoryMap = configManager.get("runConfig", "factory", Map.class, new HashMap<>());
+                    if (factoryMap != null && factoryMap.containsKey(keyWithBraces)) {
+                        // Map의 값이 Object일 수 있으므로 String으로 변환
+                        value = String.valueOf(factoryMap.get(keyWithBraces));
+                    }
                 }
                 
                 if (value != null) {

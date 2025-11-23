@@ -2,6 +2,8 @@ package com.ethis2s.view;
 
 import com.ethis2s.controller.ProjectController;
 import com.ethis2s.model.UserProjectsInfo;
+import com.ethis2s.util.ConfigManager;
+
 import io.github.palexdev.materialfx.controls.MFXProgressSpinner;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -14,8 +16,8 @@ import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Node;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
@@ -39,7 +41,7 @@ public class FileExecutionSelectionView {
 
     private VBox view;
     private TextField searchField;
-    private TextField argumentsField;
+    private TextField commandField; 
     private Button executeButton;
     private TableView<FileExecutionInfo> tableView;
     private final ObservableList<FileExecutionInfo> fileList = FXCollections.observableArrayList();
@@ -48,6 +50,9 @@ public class FileExecutionSelectionView {
     private final Map<String, MFXProgressSpinner> spinners = new HashMap<>();
     private UserProjectsInfo userProjectsInfo;
     private final ProjectController projectController;
+    private String selectedFile;
+    private ComboBox<String> runConfigComboBox; // [추가] 실행 모드 선택 박스
+    private static final Map<String, String> projectLastCommandCache = new HashMap<>();
 
     public FileExecutionSelectionView(ProjectController projectController) {
         this.projectController = projectController;
@@ -66,17 +71,40 @@ public class FileExecutionSelectionView {
         view.setPadding(new Insets(15));
 
         searchField = new TextField();
-        searchField.setPromptText("실행할 파일 검색...");
+        searchField.setPromptText("서버로부터 불러올 파일 검색...");
         searchField.getStyleClass().add("file-search-field");
 
-        argumentsField = new TextField();
-        argumentsField.setPromptText("실행 인자 (선택 사항)");
-        HBox.setHgrow(argumentsField, Priority.ALWAYS);
+        runConfigComboBox = new ComboBox<>();
+        runConfigComboBox.setPromptText("실행 모드 선택");
+        runConfigComboBox.setPrefWidth(150);
+
+        // ConfigManager에서 "Run Java", "Build Project" 같은 목록을 가져와서 채움
+        Map<String, Object> commands = ConfigManager.getInstance()
+                .get("runConfig", "userCommands", Map.class, new HashMap<>());
+        if (commands != null) {
+            runConfigComboBox.getItems().addAll(commands.keySet());
+            // 목록이 있으면 첫 번째꺼 자동 선택
+            if (!commands.isEmpty()) runConfigComboBox.getSelectionModel().selectFirst(); 
+        }
+        runConfigComboBox.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null && commands != null) {
+                String template = (String) commands.get(newVal);
+                if (template != null) {
+                    commandField.setText(template);
+                }
+            }
+        });
+
+        // [핵심 변경 3] 명령어 입력 필드 (이제 여기가 메인입니다)
+        commandField = new TextField();
+        commandField.setPromptText("실행 명령어");
+        HBox.setHgrow(commandField, Priority.ALWAYS);
 
         executeButton = new Button("실행");
         executeButton.getStyleClass().add("execute-button");
 
-        HBox executionControls = new HBox(10, argumentsField, executeButton);
+        // [수정] 3. 레이아웃에 콤보박스도 같이 넣기
+        HBox executionControls = new HBox(10, runConfigComboBox, commandField, executeButton);
 
         tableView = new TableView<>();
         tableView.getStyleClass().add("file-execution-table");
@@ -102,6 +130,8 @@ public class FileExecutionSelectionView {
                 icon.getStyleClass().add("file-icon");
                 fileName.getStyleClass().add("file-name-label");
                 filePath.getStyleClass().add("file-path-label");
+                icon.setMinWidth(Region.USE_PREF_SIZE);
+                fileName.setMinWidth(Region.USE_PREF_SIZE);
                 fileName.setMinWidth(Region.USE_PREF_SIZE);
                 HBox.setHgrow(spacer, Priority.ALWAYS);
                 fileDetails.getChildren().addAll(fileName, spacer, filePath);
@@ -124,7 +154,8 @@ public class FileExecutionSelectionView {
                     Label checkLabel = new Label("\u2714");
                     checkLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: #2ECC71;");
                     MFXProgressSpinner spinner = spinners.get(fileInfo.getFilePath());
-
+                    spinner.setMinWidth(Region.USE_PREF_SIZE);
+                    checkLabel.setMinWidth(Region.USE_PREF_SIZE);
                     if (spinner != null) {
                         spinner.visibleProperty().bind(
                             Bindings.createBooleanBinding(
@@ -146,6 +177,12 @@ public class FileExecutionSelectionView {
         tableView.getColumns().addAll(checkBoxColumn, fileInfoColumn);
         tableView.setEditable(true);
         tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
+        tableView.getSelectionModel().selectedItemProperty().addListener((obs, oldSelection, newSelection) -> {
+            if (newSelection != null) {
+                selectedFile = newSelection.getFilePath();
+            }
+        });
 
         filteredData = new FilteredList<>(fileList, p -> true);
         tableView.setItems(filteredData);
@@ -184,6 +221,25 @@ public class FileExecutionSelectionView {
         );
 
         executeButton.setOnAction(e -> {
+            // 파일 선택 확인
+            if (selectedFile == null) {
+                System.out.println(">> 목록에서 실행할 파일(Main.java 등)을 클릭해주세요.");
+                return;
+            }
+            
+            // 명령어가 비어있으면 안 됨
+            String commandToRun = commandField.getText();
+            if (commandToRun == null || commandToRun.trim().isEmpty()) {
+                System.out.println(">> 실행할 명령어가 없습니다.");
+                return;
+            }
+
+            // ★ 현재 입력된 명령어를 메모리 캐시에 저장 (다음 번에 열 때 기억하기 위해)
+            if (userProjectsInfo != null) {
+                projectLastCommandCache.put(userProjectsInfo.getProjectID(), commandToRun);
+            }
+
+            // 3. UI 처리 (기존 코드)
             for (MFXProgressSpinner spinner : spinners.values()) {
                 Color singleColor = Color.web("#0078D4");
                 spinner.setColor1(singleColor);
@@ -195,9 +251,15 @@ public class FileExecutionSelectionView {
             fileList.forEach(fileInfo -> fileInfo.setProcessing(true));
 
             JSONObject payload = new JSONObject();
+            // 체크박스 체크된 파일들만 다운로드
             List<FileExecutionInfo> selectedFiles = fileList.stream()
                 .filter(FileExecutionInfo::isSelected)
                 .toList();
+            
+            // (주의) 체크된 게 없으면 다운로드가 안 되므로 경고하거나, 
+            // 현재 선택된 파일을 강제로 포함시키는 로직이 필요할 수 있음. 
+            // 일단은 기존 로직 유지.
+
             String[] selectedFilePaths = selectedFiles.stream()
                 .map(FileExecutionInfo::getFilePath)
                 .toArray(String[]::new);
@@ -215,6 +277,10 @@ public class FileExecutionSelectionView {
         return view;
     }
 
+    public String getSelectedFile(){
+        return selectedFile;
+    }
+
     public UserProjectsInfo getUserProjectsInfo() {
         return userProjectsInfo;
     }
@@ -229,6 +295,20 @@ public class FileExecutionSelectionView {
                 spinners.put(fileInfo.getFilePath(), spinner);
             }
             fileList.setAll(files);
+
+            // ★ 메모리 캐시에서 마지막 명령어 불러오기
+            String pID = userProjectsInfo.getProjectID();
+            if (projectLastCommandCache.containsKey(pID)) {
+                String lastCommand = projectLastCommandCache.get(pID);
+                commandField.setText(lastCommand);
+            } else {
+                // 저장된 게 없으면 콤보박스 첫 번째 거 선택해서 기본값 보여주기
+                if (!runConfigComboBox.getItems().isEmpty()) {
+                    runConfigComboBox.getSelectionModel().selectFirst();
+                } else {
+                    commandField.clear();
+                }
+            }
         });
     }
 
@@ -238,13 +318,19 @@ public class FileExecutionSelectionView {
             searchField.requestFocus();
         }
     }
+    // [추가] 현재 선택된 실행 모드 이름(예: Run Java)을 컨트롤러가 가져갈 수 있게 해줌
+    public String getSelectedRunConfigName() {
+        return runConfigComboBox.getValue();
+    }
+
+    
 
     public boolean isVisible() {
         return view.isVisible();
     }
 
-    public String getArguments() {
-        return argumentsField.getText();
+    public String getCommandToExecute() {
+        return commandField.getText();
     }
 
     public ObservableList<FileExecutionInfo> getFileList() {
@@ -259,6 +345,7 @@ public class FileExecutionSelectionView {
                 .ifPresent(fileInfo -> fileInfo.setCompleted(true));
         });
     }
+    
 
     public static class FileExecutionInfo {
         private final SimpleBooleanProperty selected;

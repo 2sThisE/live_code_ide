@@ -1,6 +1,10 @@
 package com.ethis2s.controller;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -80,6 +84,35 @@ public class ProjectController {
 
     public void clearUserInfo() {
         this.userInfo = null;
+    }
+    public Map<String, String> buildDynamicContext(String relativeEntryPath) {
+        // 1. 정보를 담을 가방(Map)을 준비합니다.
+        Map<String, String> context = new HashMap<>();
+        
+        // relativeEntryPath 예시: "src/com/example/Hello.java"
+        
+        // 2. {file} 변수 채우기
+        // 사용자가 JSON에 "{file}"이라고 쓴 자리를 이 값으로 바꿉니다.
+        context.put("file", relativeEntryPath);
+
+        // 3. 파일 이름만 뽑아내기
+        Path entryPath = Paths.get(relativeEntryPath);
+        String fileNameStr = entryPath.getFileName().toString(); // "Hello.java"
+        
+        // 4. {filename} 변수 채우기
+        context.put("filename", fileNameStr);
+        
+        // 5. {name} 변수 채우기 (확장자 제거)
+        // "Hello.java"에서 "." 앞부분만 잘라냅니다 -> "Hello"
+        int dotIdx = fileNameStr.lastIndexOf('.');
+        if (dotIdx > 0) {
+            context.put("name", fileNameStr.substring(0, dotIdx));
+        } else {
+            context.put("name", fileNameStr);
+        }
+
+        // 6. 완성된 가방 반환
+        return context;
     }
 
     // --- Request Methods ---

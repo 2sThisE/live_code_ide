@@ -1,102 +1,195 @@
 package com.ethis2s.view;
 
+import com.ethis2s.model.LogType;
+import com.ethis2s.service.ExecutionService;
 import javafx.application.Platform;
 import javafx.scene.Node;
-import javafx.scene.control.TextArea;
 import javafx.scene.input.KeyCode;
+import org.fxmisc.richtext.StyleClassedTextArea; // RichTextFX 임포트
+
 import java.util.function.Consumer;
 
-/**
- * 사용자가 실행한 프로그램의 표준 입/출력/에러를 표시하고,
- * 사용자로부터 입력을 받는 대화형 콘솔 뷰입니다.
- */
 public class RunView {
 
-    private final TextArea consoleArea;
-    
-    // [추가] 사용자가 엔터 키를 눌렀을 때, 입력된 라인을 전달할 콜백
+    // [변경] TextArea -> StyleClassedTextArea (색상 혼합 지원)
+    private final StyleClassedTextArea consoleArea;
+    private final ExecutionService executionService = new ExecutionService();
     private Consumer<String> onInputSubmitted;
 
+    private int lastOutputEndIndex = 0;
+
     public RunView() {
-        consoleArea = new TextArea();
-        consoleArea.getStyleClass().add("run-console-area"); // CSS 스타일링을 위해 다른 클래스 이름 사용
-        consoleArea.setEditable(true); // 사용자가 입력할 수 있도록 설정
-        consoleArea.setPromptText("Program output will be shown here...");
+        // [변경] RichTextFX 컴포넌트 생성 (편집 가능)
+        consoleArea = new StyleClassedTextArea();
+        consoleArea.getStyleClass().add("run-console-area");
         
-        // [추가] 엔터 키 이벤트를 감지하여 입력 처리
+        // 자동 줄바꿈 끄기 (터미널 느낌)
+        consoleArea.setWrapText(false); 
+        consoleArea.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, event -> {
+            // 1. 허용된 키는 통과 (화살표, 복사, 엔터 등)
+            if (event.getCode() == KeyCode.COPY || event.isShortcutDown()) { 
+                // Ctrl+C 등은 허용하지만, Ctrl+V(붙여넣기)나 Ctrl+X(잘라내기)는 검사 필요
+                if (event.getCode() == KeyCode.V || event.getCode() == KeyCode.X) {
+                    if (isTouchingReadOnlyZone()) {
+                        event.consume(); // 히스토리 영역 건드리면 차단
+                    }
+                }
+                return;
+            }
+            
+            // 2. 백스페이스(지우기) 처리
+            if (event.getCode() == KeyCode.BACK_SPACE) {
+                // 커서가 보호구역 경계선에 있거나, 보호구역 안쪽에 있으면 -> 삭제 금지!
+                if (consoleArea.getCaretPosition() <= lastOutputEndIndex) {
+                    event.consume(); // 이벤트를 먹어버림 (아무 일도 안 일어남)
+                }
+                // 드래그해서 지우려고 할 때 보호구역이 포함되어 있으면 -> 삭제 금지!
+                else if (consoleArea.getSelection().getStart() < lastOutputEndIndex) {
+                    consoleArea.deselect(); // 선택 풀고
+                    consoleArea.moveTo(consoleArea.getLength()); // 맨 뒤로 보냄
+                    event.consume();
+                }
+                return;
+            }
+            
+            // 3. Delete 키 처리 (커서 뒤 글자 삭제)
+            if (event.getCode() == KeyCode.DELETE) {
+                if (consoleArea.getCaretPosition() < lastOutputEndIndex) {
+                    event.consume();
+                }
+                return;
+            }
+
+            // 4. 일반 입력 (글자 타이핑)
+            // 사용자가 위쪽(과거 출력)을 클릭하고 타이핑을 시도하면?
+            if (isTypingKey(event)) {
+                if (consoleArea.getCaretPosition() < lastOutputEndIndex) {
+                    // 방법 A: 입력을 막는다. (event.consume())
+                    // 방법 B: 커서를 자동으로 맨 뒤로 옮겨주고 입력하게 한다. (터미널 스타일)
+                    consoleArea.moveTo(consoleArea.getLength()); // 커서를 맨 끝으로 강제 이동
+                }
+            }
+        });
+
         consoleArea.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER) {
-                // 핸들러가 설정되어 있을 경우에만 입력 처리
-                if (onInputSubmitted != null) {
-                    // 현재 커서 위치를 기준으로 마지막 라인을 찾아 입력으로 간주
-                    String text = consoleArea.getText();
-                    int caretPosition = consoleArea.getCaretPosition();
-                    int lastNewLine = text.substring(0, caretPosition).lastIndexOf('\n');
-                    if (lastNewLine == -1) {
-                        lastNewLine = 0; // 첫 줄인 경우
-                    } else {
-                        lastNewLine += 1; // 줄바꿈 문자 다음부터
+                // 엔터 처리 로직 (RichTextFX API에 맞게 조정)
+                int totalLength = consoleArea.getLength();
+                
+                if (totalLength >= lastOutputEndIndex) {
+                    // 텍스트 추출
+                    String userInput = consoleArea.getText(lastOutputEndIndex, totalLength);
+                    
+                    if (onInputSubmitted != null) {
+                        onInputSubmitted.accept(userInput);
                     }
                     
-                    // 실제 입력 내용은 마지막 줄바꿈 이후부터 현재 커서까지
-                    // (주의: 사용자가 중간에서 엔터를 칠 수도 있으므로 이 로직은 개선의 여지가 있음)
-                    // 가장 단순한 방법: 마지막 라인 전체를 입력으로 간주
-                    lastNewLine = text.lastIndexOf('\n');
-                    String lastLine = text.substring(lastNewLine + 1);
-
-                    onInputSubmitted.accept(lastLine);
+                    Platform.runLater(() -> {
+                        lastOutputEndIndex = consoleArea.getLength();
+                    });
                 }
-                // TextArea 자체에 줄바꿈이 입력되도록 event.consume()을 하지 않습니다.
-                // 사용자가 입력한 내용도 화면에 보여야 하기 때문입니다.
             }
         });
     }
-
-    /**
-     * 이 뷰의 JavaFX 노드를 반환합니다.
-     * @return TextArea 노드
-     */
-    public Node getView() {
-        return consoleArea;
+    private boolean isTouchingReadOnlyZone() {
+        // 선택 영역이 있는 경우
+        if (consoleArea.getSelection().getLength() > 0) {
+            return consoleArea.getSelection().getStart() < lastOutputEndIndex;
+        }
+        // 그냥 커서만 있는 경우
+        return consoleArea.getCaretPosition() < lastOutputEndIndex;
     }
 
-    /**
-     * 콘솔 내용을 모두 지웁니다.
-     */
+    // [헬퍼 메서드 2] 단순 입력 키인지 확인 (글자, 숫자, 기호 등)
+    private boolean isTypingKey(javafx.scene.input.KeyEvent event) {
+        return !event.getCode().isNavigationKey() 
+            && !event.getCode().isFunctionKey()
+            && !event.getCode().isModifierKey()
+            && !event.getCode().isMediaKey()
+            && event.getCode() != KeyCode.ENTER // 엔터는 별도 처리
+            && event.getText().length() > 0;
+    }
+
+    public void executeProcess(String command, String workingDir) {
+        clear();
+        appendStyledText(">> Executing: " + command + "\n", "system-msg");
+        
+        this.onInputSubmitted = input -> executionService.sendInputToProcess(input);
+
+        // [핵심 변경] 하나의 콜백에서 타입을 보고 분기 처리
+        executionService.execute(
+            command,
+            workingDir,
+            (type, text) -> {
+                if (type == LogType.STDOUT) {
+                    appendOutput(text); // 흰색
+                } else {
+                    // 에러일 때는 줄바꿈 보정 로직 적용
+                    appendError(text);  // 빨간색
+                }
+            }
+        );
+    }
+
+    public Node getView() { return consoleArea; }
+
     public void clear() {
-        Platform.runLater(() -> consoleArea.clear());
-    }
-
-    /**
-     * 프로그램의 표준 출력(stdout)을 콘솔에 추가합니다.
-     * @param text 추가할 텍스트
-     */
-    public void appendOutput(String text) {
         Platform.runLater(() -> {
-            consoleArea.appendText(text);
-            // 자동으로 스크롤을 맨 아래로 내립니다.
-            consoleArea.setScrollTop(Double.MAX_VALUE);
+            consoleArea.clear();
+            lastOutputEndIndex = 0;
         });
     }
 
-    /**
-     * 프로그램의 표준 에러(stderr)를 콘솔에 추가합니다.
-     * (향후 별도의 스타일을 적용할 수 있도록 메서드를 분리)
-     * @param text 추가할 에러 텍스트
-     */
+    // [표준 출력] 흰색 (기본)
+    public void appendOutput(String text) {
+        Platform.runLater(() -> {
+            // RichTextFX의 append 메서드: (텍스트, 스타일클래스)
+            consoleArea.append(text, "standard-out");
+            scrollToBottom();
+        });
+    }
+
+    // [표준 에러] 빨간색
     public void appendError(String text) {
         Platform.runLater(() -> {
-            // 간단하게는 그냥 추가하지만, 나중에는 TextFlow 등을 사용해 색상을 입힐 수 있습니다.
-            consoleArea.appendText("[ERROR] " + text);
-            consoleArea.setScrollTop(Double.MAX_VALUE);
+            // 1. 현재 콘솔에 내용이 있는지 확인
+            int currentLength = consoleArea.getLength();
+            
+            if (currentLength > 0) {
+                // 2. 마지막 글자가 줄바꿈(\n)인지 확인
+                // (전체 텍스트를 가져오면 느리므로 마지막 1글자만 가져옵니다)
+                String lastChar = consoleArea.getText(currentLength - 1, currentLength);
+                
+                if (!lastChar.equals("\n")) {
+                    // 줄바꿈이 없으면 강제로 하나 넣어줍니다. (스타일은 표준 출력용으로)
+                    consoleArea.append("\n", "standard-out");
+                }
+            }
+
+            // 3. 에러 메시지 출력 (빨간색)
+            consoleArea.append(text, "error-out");
+            
+            // 4. 스크롤 이동 및 보호구역 갱신
+            scrollToBottom();
         });
     }
     
-    /**
-     * [추가] 사용자가 엔터 키를 눌렀을 때 호출될 이벤트 핸들러를 등록합니다.
-     * @param onInputSubmitted 입력된 라인(String)을 받는 Consumer
-     */
-    public void setOnInputSubmitted(Consumer<String> onInputSubmitted) {
-        this.onInputSubmitted = onInputSubmitted;
+    // 내부 헬퍼: 텍스트 추가 및 스타일 지정
+    private void appendStyledText(String text, String styleClass) {
+        Platform.runLater(() -> {
+            consoleArea.append(text, styleClass);
+            scrollToBottom();
+        });
+    }
+
+    private void scrollToBottom() {
+        consoleArea.moveTo(consoleArea.getLength()); // 커서를 맨 뒤로
+        consoleArea.requestFollowCaret(); // 화면 이동
+        lastOutputEndIndex = consoleArea.getLength();
+    }
+
+    public void stopProcess() {
+        executionService.stopCurrentProcess();
+        appendStyledText("\n>> Stopped by user.\n", "system-msg");
     }
 }

@@ -249,7 +249,7 @@ public class EditorInputManager {
             // 3. 변환된 들여쓰기가 기존과 다를 경우에만 교체합니다.
             if (!indentText.equals(newIndent)) {
                 int paragraphStart = codeArea.getAbsolutePosition(paragraphIndex, 0);
-                controlledReplaceText(paragraphStart, paragraphStart + indentText.length(), newIndent, ChangeInitiator.SYSTEM);
+                controlledReplaceText(paragraphStart, paragraphStart + indentText.length(), newIndent, ChangeInitiator.USER);
             }
         }
     }

@@ -350,7 +350,6 @@ public class ClientSocketManager {
                 case ProtocolConstants.UF_FILE_EDIT_BROADCAST:
                     {
                         String jsonString = new String(finalPacket.getPayload(), StandardCharsets.UTF_8);
-                        System.out.println("UF_FILE_EDIT_BROADCAST_payload: "+jsonString);
                         JSONObject editJson = new JSONObject(jsonString);
                         String editPath = editJson.getString("path");
                         String editType = editJson.getString("type");

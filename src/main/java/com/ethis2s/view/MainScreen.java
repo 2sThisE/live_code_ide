@@ -107,7 +107,6 @@ public class MainScreen {
     private Button windowCloseButton;
     private MenuBar menuBar;
     private StackPane topPane;
-    private ExecutionService executionService;
 
 
     public HBox getStatusBar() {return statusBar;}
@@ -287,6 +286,7 @@ public class MainScreen {
 
             // 3. BorderPane의 Left와 Right에 실제 UI와 가짜 쌍둥이를 함께 넣습니다.
             HBox leftGroup = new HBox(menuBar, fakeWindowButtons);
+            leftGroup.setAlignment(Pos.CENTER_LEFT);
             leftGroup.setPickOnBounds(false); // 투명한 부분이 클릭을 막지 않도록
 
             HBox rightGroup = new HBox(fakeMenuBar, windowButtons);
@@ -359,11 +359,9 @@ public class MainScreen {
 
         // 'Run' 탭 생성
         this.runView = new RunView();
-        Tab runTab = new Tab("Run");
+        Tab runTab = new Tab("RUN");
+        runTab.setContent(runView.getView());
         runTab.setClosable(false);
-        this.runView.setOnInputSubmitted(inputLine -> {
-            executionService.sendInputToProcess(inputLine);
-        });
         
 
         bottomTabPane.getTabs().addAll(outputTab, debugTab, problemsTab, runTab);
@@ -1096,5 +1094,19 @@ public class MainScreen {
     public ReadOnlyDoubleProperty searchBoxWidthProperty() {
         // HBox는 Region의 하위 클래스이므로, widthProperty()를 가지고 있습니다.
         return searchBox.widthProperty();
+    }
+
+    public void switchToTab(String tabName) {
+        if (bottomTabPane != null) {
+            for (Tab tab : bottomTabPane.getTabs()) {
+                if (tabName.equals(tab.getText())) {
+                    Platform.runLater(() -> bottomTabPane.getSelectionModel().select(tab));
+                    break;
+                }
+            }                                                                         
+        }
+    }
+    public RunView getRunView(){
+        return runView;
     }
 }

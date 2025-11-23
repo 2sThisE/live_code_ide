@@ -185,14 +185,36 @@ public class OTManager {
     private void applyOperationToCodeArea(Operation op, String requesterId) {
         if (op == null) return;
         Platform.runLater(() -> {
-            if (op.getType() == Operation.Type.INSERT) {
-                hybridManager.controlledReplaceText(op.getPosition(), op.getPosition(), op.getText(), ChangeInitiator.SERVER);
-            } else { // DELETE
-                hybridManager.controlledReplaceText(op.getPosition(), op.getPosition() + op.getLength(), "", ChangeInitiator.SERVER);
+            // [안전장치 1] 현재 문서의 실제 길이를 가져옵니다.
+            int currentLength = hybridManager.getCodeArea().getLength();
+            int startPos = op.getPosition();
+
+            // [안전장치 2] 시작 위치가 문서 범위를 벗어나면 강제로 맞추거나 무시합니다.
+            if (startPos > currentLength) {
+                System.err.println("[OTManager] Warning: Operation position " + startPos + 
+                                   " exceeds document length " + currentLength + ". Clamping to end.");
+                startPos = currentLength;
+            } else if (startPos < 0) {
+                startPos = 0;
             }
 
+            if (op.getType() == Operation.Type.INSERT) {
+                // 삽입은 startPos 위치에 넣으면 됨
+                hybridManager.controlledReplaceText(startPos, startPos, op.getText(), ChangeInitiator.SERVER);
+            } else { // DELETE
+                // [안전장치 3] 삭제 끝 위치가 문서 범위를 벗어나지 않도록 Math.min 사용
+                int endPos = startPos + op.getLength();
+                int safeEndPos = Math.min(endPos, currentLength);
+                
+                // 유효한 삭제 범위일 때만 실행
+                if (safeEndPos > startPos) {
+                    hybridManager.controlledReplaceText(startPos, safeEndPos, "", ChangeInitiator.SERVER);
+                }
+            }
+
+            // 커서 애니메이션 처리
             if (requesterId != null) {
-                hybridManager.getCodeArea().layout();
+                hybridManager.getCodeArea().layout(); // 레이아웃 갱신 (필수)
                 Platform.runLater(() -> animateCursorTo(requesterId, op));
             }
         });
@@ -206,7 +228,13 @@ public class OTManager {
         Platform.runLater(() -> {
             // 1. [데이터 안전장치] 목표 위치를 보정합니다. (필수)
             int currentDocLength = hybridManager.getCodeArea().getLength();
-            int safeTargetPosition = Math.min(op.getCursorPosition(), currentDocLength);
+            
+            // 기존 코드: Math.min(op.getCursorPosition(), currentDocLength);
+            // 수정 코드: Math.max(0, ...) 추가하여 음수 방지
+            int rawPos = op.getCursorPosition();
+            // 커서 정보가 없거나(-1) 이상하면 0 또는 현재 길이로 보정
+            if (rawPos < 0) rawPos = 0; 
+            int safeTargetPosition = Math.max(0, Math.min(rawPos, currentDocLength));
 
             // 2. IntegerProperty를 가져오거나 생성합니다.
             IntegerProperty visualCursor = userVisualCursors.computeIfAbsent(requesterId, id -> {
@@ -453,18 +481,21 @@ public class OTManager {
     }
 
     private void reapplyAndResendUnconfirmedOps() {
+        // 1. 버전 재정렬을 위한 기준점 설정
+        // CatchUp 이후 업데이트된 최신 로컬 버전부터 시작합니다.
+        long currentBaseVersion = this.localVersion;
+
         for (Operation op : unconfirmedOps) {
-            op.setVersion(this.localVersion);
-            projectController.fileEditOperationRequest(
-                this.filePath,
-                op.getType().toString(),
-                op.getPosition(),
-                op.getText(),
-                op.getLength(),
-                op.getCursorPosition(),
-                op.getVersion(),
-                op.getUniqId()
-            );
+            // 2. 상태 초기화: 다시 보내야 하므로 false
+            op.setSentToServer(false);
+            
+            // 3. [핵심 수정] 기대 버전 재설정
+            // 예: 현재 버전이 15라면, 첫 번째 연산은 16이 되길 기대, 두 번째는 17...
+            // 이렇게 해줘야 handleBroadcast에서 ACK를 검사할 때 통과할 수 있습니다.
+            op.setExpectedVersion(++currentBaseVersion);
         }
+
+        // 4. 도미노 첫 조각 밀기
+        sendNextPendingOperation(); 
     }
 }

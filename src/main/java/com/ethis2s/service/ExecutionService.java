@@ -10,7 +10,10 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
+import com.ethis2s.model.LogType;
 
 /**
  * [최종본] 외부 프로세스를 실행하고, 표준 입/출력/에러를 중계하는 서비스입니다.
@@ -30,7 +33,7 @@ public class ExecutionService {
      * @param onOutput 표준 출력을 라인 단위로 받는 Consumer
      * @param onError 표준 에러를 라인 단위로 받는 Consumer
      */
-    public void execute(String commandToExecute, String workingDirectoryPath, Consumer<String> onOutput, Consumer<String> onError) {
+    public void execute(String command, String workingDirectoryPath, BiConsumer<LogType, String> onMessage) {
         // 이미 실행 중인 프로세스가 있다면 중지시킵니다.
         stopCurrentProcess();
 
@@ -40,14 +43,16 @@ public class ExecutionService {
                 // 1. 작업 디렉토리 유효성 검사
                 File workingDirectory = new File(workingDirectoryPath);
                 if (!workingDirectory.exists() || !workingDirectory.isDirectory()) {
-                    Platform.runLater(() -> onError.accept("Error: Working directory does not exist or is not a directory: " + workingDirectoryPath));
+                    Platform.runLater(() -> onMessage.accept(LogType.STDERR, "Error: Working directory does not exist: " + workingDirectoryPath));
                     return;
                 }
 
                 // 2. 시스템 쉘을 통해 실행할 명령어 목록 생성
-                List<String> commandList = buildShellCommand(commandToExecute);
+                // [수정] 변수명 일치 (commandToExecute -> command)
+                List<String> commandList = buildShellCommand(command);
                 
-                Platform.runLater(() -> onOutput.accept("Executing in " + workingDirectoryPath + ":\n$ " + commandToExecute + "\n"));
+                // [수정] onOutput -> onMessage(STDOUT)
+                Platform.runLater(() -> onMessage.accept(LogType.STDOUT, "Executing in " + workingDirectoryPath + ":\n$ " + command + "\n"));
 
                 ProcessBuilder processBuilder = new ProcessBuilder(commandList);
                 processBuilder.directory(workingDirectory);
@@ -56,12 +61,20 @@ public class ExecutionService {
                 currentProcess = processBuilder.start();
                 processInputWriter = new BufferedWriter(new OutputStreamWriter(currentProcess.getOutputStream(), StandardCharsets.UTF_8));
 
-                // 표준 출력 읽기 시작 (UTF-8로 인코딩 명시)
-                outputReaderThread = new Thread(() -> readStream(new InputStreamReader(currentProcess.getInputStream(), StandardCharsets.UTF_8), onOutput, onError));
+                // [핵심 수정] 표준 출력 읽기 스레드 -> LogType.STDOUT 태그 부착
+                outputReaderThread = new Thread(() -> readStream(
+                    new InputStreamReader(currentProcess.getInputStream(), StandardCharsets.UTF_8), 
+                    text -> onMessage.accept(LogType.STDOUT, text), // 성공 시 STDOUT
+                    error -> onMessage.accept(LogType.STDERR, "[Stream Error] " + error) // 읽기 에러 시 STDERR
+                ));
                 outputReaderThread.start();
                 
-                // 표준 에러 읽기 시작 (UTF-8로 인코딩 명시)
-                errorReaderThread = new Thread(() -> readStream(new InputStreamReader(currentProcess.getErrorStream(), StandardCharsets.UTF_8), onError, onError));
+                // [핵심 수정] 표준 에러 읽기 스레드 -> LogType.STDERR 태그 부착
+                errorReaderThread = new Thread(() -> readStream(
+                    new InputStreamReader(currentProcess.getErrorStream(), StandardCharsets.UTF_8), 
+                    text -> onMessage.accept(LogType.STDERR, text), // 성공 시 STDERR
+                    error -> onMessage.accept(LogType.STDERR, "[Stream Error] " + error) // 읽기 에러 시 STDERR
+                ));
                 errorReaderThread.start();
 
                 // 4. 프로세스 종료 대기
@@ -72,11 +85,14 @@ public class ExecutionService {
                 if (errorReaderThread != null) errorReaderThread.join();
                 
                 closeProcessResources();
-                Platform.runLater(() -> onOutput.accept("\nProcess finished with exit code " + exitCode));
+                
+                // [수정] 종료 코드 출력 -> onMessage(STDOUT)
+                Platform.runLater(() -> onMessage.accept(LogType.STDOUT, "\nProcess finished with exit code " + exitCode));
 
             } catch (Exception e) {
                 closeProcessResources();
-                Platform.runLater(() -> onError.accept("\nExecution failed: " + e.getMessage()));
+                // [수정] 예외 발생 -> onMessage(STDERR)
+                Platform.runLater(() -> onMessage.accept(LogType.STDERR, "\nExecution failed: " + e.getMessage()));
             }
         }).start();
     }
@@ -118,12 +134,17 @@ public class ExecutionService {
         Platform.runLater(() -> System.out.println("Process stopped by user."));
     }
 
-    private void readStream(InputStreamReader streamReader, Consumer<String> onLine, Consumer<String> onError) {
+    private void readStream(InputStreamReader streamReader, Consumer<String> onText, Consumer<String> onError) {
         try (BufferedReader reader = new BufferedReader(streamReader)) {
-            String line;
-            while ((line = reader.readLine()) != null && !Thread.currentThread().isInterrupted()) {
-                final String finalLine = line;
-                Platform.runLater(() -> onLine.accept(finalLine));
+            char[] buffer = new char[1024]; // 1KB 단위로 읽음
+            int readCount;
+            
+            // -1(EOF)이 아닐 때까지 계속 읽음
+            while ((readCount = reader.read(buffer)) != -1 && !Thread.currentThread().isInterrupted()) {
+                // 읽은 만큼만 문자열로 변환
+                final String textChunk = new String(buffer, 0, readCount);
+                
+                Platform.runLater(() -> onText.accept(textChunk));
             }
         } catch (IOException e) {
             if (!e.getMessage().contains("Stream closed")) {
