@@ -16,15 +16,20 @@ import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.Side;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.control.cell.CheckBoxTableCell;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -35,6 +40,7 @@ import org.json.JSONObject;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.HashMap;
 
 public class FileExecutionSelectionView {
@@ -51,7 +57,8 @@ public class FileExecutionSelectionView {
     private UserProjectsInfo userProjectsInfo;
     private final ProjectController projectController;
     private String selectedFile;
-    private ComboBox<String> runConfigComboBox; // [추가] 실행 모드 선택 박스
+    private ContextMenu suggestionsPopup;
+    
     private static final Map<String, String> projectLastCommandCache = new HashMap<>();
 
     public FileExecutionSelectionView(ProjectController projectController) {
@@ -73,27 +80,7 @@ public class FileExecutionSelectionView {
         searchField = new TextField();
         searchField.setPromptText("서버로부터 불러올 파일 검색...");
         searchField.getStyleClass().add("file-search-field");
-
-        runConfigComboBox = new ComboBox<>();
-        runConfigComboBox.setPromptText("실행 모드 선택");
-        runConfigComboBox.setPrefWidth(150);
-
-        // ConfigManager에서 "Run Java", "Build Project" 같은 목록을 가져와서 채움
-        Map<String, Object> commands = ConfigManager.getInstance()
-                .get("runConfig", "userCommands", Map.class, new HashMap<>());
-        if (commands != null) {
-            runConfigComboBox.getItems().addAll(commands.keySet());
-            // 목록이 있으면 첫 번째꺼 자동 선택
-            if (!commands.isEmpty()) runConfigComboBox.getSelectionModel().selectFirst(); 
-        }
-        runConfigComboBox.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null && commands != null) {
-                String template = (String) commands.get(newVal);
-                if (template != null) {
-                    commandField.setText(template);
-                }
-            }
-        });
+        
 
         // [핵심 변경 3] 명령어 입력 필드 (이제 여기가 메인입니다)
         commandField = new TextField();
@@ -103,8 +90,10 @@ public class FileExecutionSelectionView {
         executeButton = new Button("실행");
         executeButton.getStyleClass().add("execute-button");
 
+        setupAutoComplete();
+
         // [수정] 3. 레이아웃에 콤보박스도 같이 넣기
-        HBox executionControls = new HBox(10, runConfigComboBox, commandField, executeButton);
+        HBox executionControls = new HBox(10, commandField, executeButton);
 
         tableView = new TableView<>();
         tableView.getStyleClass().add("file-execution-table");
@@ -272,6 +261,78 @@ public class FileExecutionSelectionView {
 
         view.getChildren().addAll(searchField, tableView, executionControls);
     }
+    private void setupAutoComplete() {
+        suggestionsPopup = new ContextMenu();
+        // 팝업이 텍스트 필드의 폭에 맞춰지도록 설정 (선택 사항)
+        suggestionsPopup.setMinWidth(400); 
+        
+        // ConfigManager에서 명령어 목록 가져오기
+        Map<String, Object> commands = ConfigManager.getInstance()
+                .get("runConfig", "userCommands", Map.class, new HashMap<>());
+
+        // 1. 텍스트 입력 시 추천 목록 갱신 리스너
+        commandField.textProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal == null || newVal.trim().isEmpty()) {
+                suggestionsPopup.hide();
+                return;
+            }
+
+            // 검색어와 일치하는 명령어 찾기
+            List<MenuItem> suggestions = commands.entrySet().stream()
+                .filter(entry -> {
+                    String key = entry.getKey().toLowerCase();
+                    String val = String.valueOf(entry.getValue()).toLowerCase();
+                    String input = newVal.toLowerCase();
+                    return key.contains(input) || val.contains(input);
+                })
+                .map(entry -> {
+                    String name = entry.getKey(); 
+                    String cmd = String.valueOf(entry.getValue()); 
+                    
+                    MenuItem item = new MenuItem(name + " : " + cmd);
+                    
+                    // 항목 선택 시 동작
+                    item.setOnAction(e -> {
+                        commandField.setText(cmd); // 명령어 입력
+                        commandField.positionCaret(cmd.length()); // 커서 맨 뒤로
+                        suggestionsPopup.hide();
+                    });
+                    return item;
+                })
+                .collect(Collectors.toList());
+
+            // 팝업 갱신
+            suggestionsPopup.getItems().clear();
+            if (!suggestions.isEmpty()) {
+                suggestionsPopup.getItems().addAll(suggestions);
+                if (!suggestionsPopup.isShowing()) {
+                    suggestionsPopup.show(commandField, Side.BOTTOM, 0, 0);
+                }
+            } else {
+                suggestionsPopup.hide();
+            }
+        });
+        commandField.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == KeyCode.TAB) {
+                if (suggestionsPopup.isShowing() && !suggestionsPopup.getItems().isEmpty()) {
+                    suggestionsPopup.getItems().get(0).fire();
+                }
+                event.consume(); // ★ Tab 기본 동작 완전 차단
+            }
+        });
+
+        // 2. [핵심 수정] 키보드 이벤트 핸들링 (Tab 및 방향키)
+        commandField.setOnKeyPressed(event -> {
+            // [아래 화살표] : 메뉴로 포커스 넘기기
+            if (event.getCode() == KeyCode.DOWN) {
+                if (suggestionsPopup.isShowing() && !suggestionsPopup.getItems().isEmpty()) {
+                    // ★ 핵심: 팝업의 첫 번째 메뉴 아이템으로 포커스를 강제로 줍니다.
+                    // 이렇게 하면 이후부터는 위/아래 방향키로 메뉴 이동이 가능해집니다.
+                    suggestionsPopup.getSkin().getNode().lookup(".menu-item").requestFocus();
+                }
+            }
+        });
+    }
 
     public VBox getView() {
         return view;
@@ -296,18 +357,13 @@ public class FileExecutionSelectionView {
             }
             fileList.setAll(files);
 
-            // ★ 메모리 캐시에서 마지막 명령어 불러오기
+            // 마지막 명령어 불러오기
             String pID = userProjectsInfo.getProjectID();
             if (projectLastCommandCache.containsKey(pID)) {
-                String lastCommand = projectLastCommandCache.get(pID);
-                commandField.setText(lastCommand);
+                commandField.setText(projectLastCommandCache.get(pID));
             } else {
-                // 저장된 게 없으면 콤보박스 첫 번째 거 선택해서 기본값 보여주기
-                if (!runConfigComboBox.getItems().isEmpty()) {
-                    runConfigComboBox.getSelectionModel().selectFirst();
-                } else {
-                    commandField.clear();
-                }
+                // 저장된 게 없으면 기본 템플릿 하나(예: 첫 번째) 보여주거나 비워둠
+                commandField.clear();
             }
         });
     }
@@ -317,10 +373,6 @@ public class FileExecutionSelectionView {
         if (visible) {
             searchField.requestFocus();
         }
-    }
-    // [추가] 현재 선택된 실행 모드 이름(예: Run Java)을 컨트롤러가 가져갈 수 있게 해줌
-    public String getSelectedRunConfigName() {
-        return runConfigComboBox.getValue();
     }
 
     

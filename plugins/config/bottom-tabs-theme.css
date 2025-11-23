@@ -146,3 +146,16 @@
     -fx-fill: #264f78;
     -fx-stroke: #264f78;
 }
+
+.execution-popup-root {
+    -fx-background-color: #252526; /* VS Code 스타일 어두운 배경 */
+    -fx-border-color: #454545;
+    -fx-border-width: 1px;
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    /* 그림자 효과 */
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.5), 15, 0, 0, 5);
+    -fx-padding: 15px;
+    -fx-min-width: 500px;
+    -fx-min-height: 400px;
+}
