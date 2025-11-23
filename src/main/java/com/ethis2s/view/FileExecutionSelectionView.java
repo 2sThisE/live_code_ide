@@ -3,6 +3,7 @@ package com.ethis2s.view;
 import com.ethis2s.controller.ProjectController;
 import com.ethis2s.model.UserProjectsInfo;
 import com.ethis2s.util.ConfigManager;
+import com.ethis2s.util.MacosNativeUtil;
 
 import io.github.palexdev.materialfx.controls.MFXProgressSpinner;
 import javafx.application.Platform;
@@ -306,7 +307,8 @@ public class FileExecutionSelectionView {
             if (!suggestions.isEmpty()) {
                 suggestionsPopup.getItems().addAll(suggestions);
                 if (!suggestionsPopup.isShowing()) {
-                    suggestionsPopup.show(commandField, Side.BOTTOM, 0, 0);
+                    if((System.getProperty("os.name").toLowerCase()).contains("mac")) suggestionsPopup.show(commandField, Side.BOTTOM, 0, MacosNativeUtil.getTitleBarHeightOffset());
+                    else suggestionsPopup.show(commandField, Side.BOTTOM, 0, 0);
                 }
             } else {
                 suggestionsPopup.hide();
