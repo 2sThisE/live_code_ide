@@ -73,6 +73,7 @@ public class FileExecutionSelectionView {
     }
 
     private void initialize() {
+        
         view = new VBox(10);
         view.getStyleClass().add("file-execution-selection-view");
         view.setVisible(false);
@@ -211,9 +212,12 @@ public class FileExecutionSelectionView {
         );
 
         executeButton.setOnAction(e -> {
+            tableView.getStyleClass().removeIf(style -> style.equals("error"));
+            commandField.getStyleClass().removeIf(style -> style.equals("error"));
             // 파일 선택 확인
             if (selectedFile == null) {
                 System.out.println(">> 목록에서 실행할 파일(Main.java 등)을 클릭해주세요.");
+                tableView.getStyleClass().add("error");
                 return;
             }
             
@@ -221,6 +225,7 @@ public class FileExecutionSelectionView {
             String commandToRun = commandField.getText();
             if (commandToRun == null || commandToRun.trim().isEmpty()) {
                 System.out.println(">> 실행할 명령어가 없습니다.");
+                commandField.getStyleClass().add("error");
                 return;
             }
 
@@ -371,6 +376,9 @@ public class FileExecutionSelectionView {
     }
 
     public void setVisible(boolean visible) {
+        tableView.getStyleClass().removeIf(style -> style.equals("error"));
+        commandField.getStyleClass().removeIf(style -> style.equals("error"));
+        selectedFile=null;
         view.setVisible(visible);
         if (visible) {
             searchField.requestFocus();

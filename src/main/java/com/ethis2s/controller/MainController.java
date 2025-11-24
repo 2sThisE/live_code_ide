@@ -885,7 +885,6 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                         }
                     
                         Path filePath = runDirectory.resolve(fsPathStr);
-                        System.out.println("Writing server file to: " + filePath.toString());
                         Files.createDirectories(filePath.getParent());
                         Files.write(filePath, fileBytes);
                     

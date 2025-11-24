@@ -416,15 +416,6 @@
 }
 
 /* --- File Execution Selection View --- */
-.file-execution-selection-view {
-    -fx-background-color: #252526;
-    -fx-background-radius: 8px;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 10, 0, 0, 5);
-}
-
-
-
-
 /* --- 전체 뷰 스타일 --- */
 .file-execution-selection-view {
     -fx-background-color: #252526; /* VS Code 다크 테마 배경색 */
@@ -440,7 +431,16 @@
 /* --- 테이블 뷰(리스트) 스타일 --- */
 .file-execution-table {
     -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 1px;
 }
+
+.error {
+    -fx-border-color: #ff5555; /* 오류 항목의 경계선 색상 */
+    -fx-border-width: 1px;
+}
+
+
 
 /* 테이블 헤더 숨기기 */
 .file-execution-table .column-header-background {

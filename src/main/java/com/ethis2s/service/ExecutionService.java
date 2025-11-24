@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -83,6 +82,7 @@ public class ExecutionService {
 
                 // 4. 프로세스 종료 대기
                 int exitCode = currentProcess.waitFor();
+                closeProcessResources(); 
                 
                 // 모든 출력이 처리될 시간을 잠시 기다림 (Join)
                 if (outputReaderThread != null) outputReaderThread.join();
@@ -111,7 +111,8 @@ public class ExecutionService {
         if (processInputWriter != null) {
             new Thread(() -> {
                 try {
-                    processInputWriter.write(input);
+                    String cleanInput = input.replace("\n", "").replace("\r", "");
+                    processInputWriter.write(cleanInput);
                     processInputWriter.newLine();
                     processInputWriter.flush();
                 } catch (IOException e) {
@@ -177,6 +178,16 @@ public class ExecutionService {
                 processInputWriter.close();
             }
         } catch (IOException e) { /* 무시 */ }
+
+        if (currentProcess != null) {
+            try {
+                currentProcess.getInputStream().close();
+            } catch (IOException e) { /* 무시 */ }
+            
+            try {
+                currentProcess.getErrorStream().close();
+            } catch (IOException e) { /* 무시 */ }
+        }
         
         currentProcess = null;
         processInputWriter = null;
