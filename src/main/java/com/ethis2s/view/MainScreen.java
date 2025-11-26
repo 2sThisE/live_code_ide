@@ -1,6 +1,5 @@
 package com.ethis2s.view;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -17,7 +16,6 @@ import com.ethis2s.controller.MainController;
 import com.ethis2s.controller.ProjectController;
 import com.ethis2s.model.UserInfo;
 import com.ethis2s.model.UserProjectsInfo;
-import com.ethis2s.service.ExecutionService;
 import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.MacosNativeUtil;
 
@@ -25,13 +23,10 @@ import io.github.palexdev.materialfx.controls.MFXProgressSpinner;
 import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
-import javafx.beans.binding.Bindings;
-import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.ReadOnlyDoubleProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
-
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
@@ -49,23 +44,35 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
+import javafx.scene.image.Image;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.DataFormat;
+import javafx.scene.input.DragEvent;
+import javafx.scene.input.Dragboard;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.MouseEvent;
+import javafx.scene.input.TransferMode;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
-
+import javafx.scene.SnapshotParameters;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
 public class MainScreen {
 
+    private static final DataFormat FILE_TREE_DRAG_FORMAT =
+            new DataFormat("com.ethis2s.view.MainScreen.FileTreeItem");
+
     private TreeView<Object> fileExplorer;
     private TreeItem<Object> projectRoot;
     private BorderPane fileExplorerContainer;
     private final Set<String> expandedItemPaths = new HashSet<>();
+    private final Set<TreeItem<Object>> dragExpandedItems = new HashSet<>();
+    private String lastDragTargetParentPath = null;
     private Label connectionStatusLabel;
     private MFXProgressSpinner antlrIndicator; // ANTLR 분석 상태 인디케이터
     private UserProjectsInfo currentProjectForFileTree;
@@ -644,6 +651,50 @@ public class MainScreen {
             updateFileExplorerHeader(ViewType.FILE_TREE, userProjectsInfo, projectController, mainController);
             projectController.fileListRequest(userProjectsInfo);
             setFileTreeViewMouseHandler();
+            // 루트(빈 영역) 드롭 시 루트 폴더로 이동 처리
+            fileExplorer.setOnDragOver(event -> {
+                Dragboard db = event.getDragboard();
+                if (db.hasContent(FILE_TREE_DRAG_FORMAT)) {
+                    event.acceptTransferModes(TransferMode.MOVE);
+                }
+                event.consume();
+            });
+
+            fileExplorer.setOnDragDropped(event -> {
+                Dragboard db = event.getDragboard();
+                boolean success = false;
+                if (db.hasContent(FILE_TREE_DRAG_FORMAT) && currentProjectForFileTree != null) {
+                    String sourcePath = (String) db.getContent(FILE_TREE_DRAG_FORMAT);
+                    if (sourcePath != null && !sourcePath.isEmpty()) {
+                        String sourceName = Paths.get(sourcePath).getFileName().toString();
+                        String targetDirPath = "";
+                        String newFullPath = sourceName;
+
+                        if (!newFullPath.equals(sourcePath)) {
+                            JSONObject payload = new JSONObject();
+                            payload.put("owner", currentProjectForFileTree.getOwner());
+                            payload.put("path", sourcePath);
+                            payload.put("newParent", targetDirPath);
+
+                            boolean isDirectory = false;
+                            Object src = event.getGestureSource();
+                            if (src instanceof TreeCell<?> cell && cell.getItem() instanceof NodeType node) {
+                                isDirectory = "folder".equals(node.getType());
+                            }
+                            payload.put("isDirectory", isDirectory);
+
+                            projectController.fileLocationChangeRequest(payload, currentProjectForFileTree.getProjectID());
+                            projectController.fileListRequest(currentProjectForFileTree);
+                        }
+
+                        lastDragTargetParentPath = targetDirPath;
+                        success = true;
+                    }
+                }
+                event.setDropCompleted(success);
+                event.consume();
+            });
+
             fileExplorer.setOnKeyPressed(event -> {
                 if (event.getCode() == KeyCode.DELETE) {
                     TreeItem<Object> selectedItem = fileExplorer.getSelectionModel().getSelectedItem();
@@ -821,6 +872,28 @@ public class MainScreen {
         }
     }
 
+    private void finalizeDragExpansion() {
+        if (dragExpandedItems.isEmpty()) return;
+
+        Set<TreeItem<Object>> snapshot = new HashSet<>(dragExpandedItems);
+        for (TreeItem<Object> treeItem : snapshot) {
+            String itemPath = getItemPath(treeItem);
+            boolean keepExpanded = false;
+            if (lastDragTargetParentPath != null && !lastDragTargetParentPath.isEmpty()) {
+                if (itemPath.equals(lastDragTargetParentPath)
+                        || lastDragTargetParentPath.startsWith(itemPath + "/")) {
+                    keepExpanded = true;
+                }
+            }
+
+            if (!keepExpanded) {
+                treeItem.setExpanded(false);
+                dragExpandedItems.remove(treeItem);
+            }
+        }
+        lastDragTargetParentPath = null;
+    }
+
     private class EditableProjectCell extends TreeCell<Object> {
         private TextField textField;
         private final ProjectController projectController;
@@ -942,6 +1015,10 @@ public class MainScreen {
         private final String projectId;
         private final String owner;
         private UserProjectsInfo userProjectsInfo;
+        private PauseTransition dragExpandTimer;
+        private boolean isDragHovering;
+        private boolean renameMode = false;
+        private String originalPathForRename;
 
         public EditableFileTreeCell(ProjectController projectController, UserProjectsInfo userProjectsInfo, MainController mainController) {
             this.projectController = projectController;
@@ -949,26 +1026,59 @@ public class MainScreen {
             this.owner=userProjectsInfo.getOwner();
             this.mainController = mainController;
             this.userProjectsInfo=userProjectsInfo;
+            this.dragExpandTimer = new PauseTransition(Duration.seconds(2));
+            this.dragExpandTimer.setOnFinished(e -> {
+                if (isDragHovering && getItem() instanceof NodeType node && "folder".equals(node.getType())) {
+                    TreeItem<Object> treeItem = getTreeItem();
+                    if (treeItem != null && !treeItem.isExpanded()) {
+                        dragExpandedItems.add(treeItem);
+                        treeItem.setExpanded(true);
+                    }
+                }
+            });
         }
 
         @Override
         public void startEdit() {
-            super.startEdit();
             Object item = getItem();
-            if (item instanceof NodeType node && node.toString().isEmpty()) {
-                if (textField == null) {
-                    createTextField();
-                }
-                setText(null);
-                setGraphic(textField);
-                textField.requestFocus();
-                textField.selectAll();
+            if (!(item instanceof NodeType node)) {
+                super.startEdit();
+                return;
             }
+
+            boolean isNewItem = node.toString().isEmpty();
+            boolean isRename = renameMode;
+
+            if (!(isNewItem || isRename)) {
+                // 편집 모드는 새로 추가된 항목 또는 이름 바꾸기일 때만 사용
+                super.startEdit();
+                return;
+            }
+
+            super.startEdit();
+
+            if (textField == null) {
+                createTextField();
+            }
+
+            if (isRename) {
+                textField.setText(node.toString());
+            } else {
+                textField.setText("");
+                textField.setPromptText(node.getType().equals("file") ? "파일명" : "폴더명");
+            }
+
+            setText(null);
+            setGraphic(textField);
+            textField.requestFocus();
+            textField.selectAll();
         }
 
         @Override
         public void cancelEdit() {
             super.cancelEdit();
+            renameMode = false;
+            originalPathForRename = null;
             setText(getItem() != null ? getItem().toString() : null);
             setGraphic(null);
             if (getItem() instanceof NodeType node && node.toString().isEmpty()) {
@@ -987,13 +1097,23 @@ public class MainScreen {
                 setGraphic(null);
                 setContextMenu(null);
                 setOnMousePressed(null);
+                setOnDragDetected(null);
+                setOnDragOver(null);
+                setOnDragDropped(null);
+                setOnDragEntered(null);
+                setOnDragExited(null);
+                setStyle("");
             } else {
-                if (isEditing() && item instanceof NodeType node && node.toString().isEmpty()) {
+                if (isEditing() && item instanceof NodeType node && (node.toString().isEmpty() || renameMode)) {
                     if (textField == null) {
                         createTextField();
                     }
-                    textField.setText("");
-                    textField.setPromptText(node.getType().equals("file")?"파일명":"폴더명");
+                    if (renameMode) {
+                        textField.setText(node.toString());
+                    } else {
+                        textField.setText("");
+                        textField.setPromptText(node.getType().equals("file") ? "파일명" : "폴더명");
+                    }
                     setText(null);
                     setGraphic(textField);
                     setContextMenu(null);
@@ -1012,6 +1132,123 @@ public class MainScreen {
                         }
                     }
                 });
+
+                setOnDragDetected((MouseEvent event) -> {
+                    if (getItem() instanceof NodeType) {
+                        dragExpandedItems.clear();
+                        lastDragTargetParentPath = null;
+
+                        Dragboard db = startDragAndDrop(TransferMode.MOVE);
+                        ClipboardContent content = new ClipboardContent();
+                        String sourcePath = getItemPath(getTreeItem());
+                        content.put(FILE_TREE_DRAG_FORMAT, sourcePath);
+                        db.setContent(content);
+
+                        SnapshotParameters params = new SnapshotParameters();
+                        Image dragView = snapshot(params, null);
+                        db.setDragView(dragView, event.getX(), event.getY());
+                    }
+                    event.consume();
+                });
+
+                setOnDragOver((DragEvent event) -> {
+                    Dragboard db = event.getDragboard();
+                    if (!event.getGestureSource().equals(this)
+                            && db.hasContent(FILE_TREE_DRAG_FORMAT)
+                            && getItem() instanceof NodeType) {
+                        String sourcePath = (String) db.getContent(FILE_TREE_DRAG_FORMAT);
+                        String targetPath = getItemPath(getTreeItem());
+
+                        if (sourcePath != null && !sourcePath.isEmpty()) {
+                            if (!targetPath.equals(sourcePath)
+                                    && !targetPath.startsWith(sourcePath + "/")) {
+                                event.acceptTransferModes(TransferMode.MOVE);
+                            }
+                        }
+                    }
+                    event.consume();
+                });
+
+                setOnDragEntered((DragEvent event) -> {
+                    Dragboard db = event.getDragboard();
+                    if (db.hasContent(FILE_TREE_DRAG_FORMAT) && getItem() instanceof NodeType node) {
+                        isDragHovering = true;
+                        setStyle("-fx-background-color: rgba(255,255,255,0.08);");
+                        if ("folder".equals(node.getType())) {
+                            TreeItem<Object> treeItem = getTreeItem();
+                            if (treeItem != null && !treeItem.isExpanded()) {
+                                dragExpandTimer.stop();
+                                dragExpandTimer.playFromStart();
+                            }
+                        }
+                    }
+                    event.consume();
+                });
+
+                setOnDragExited((DragEvent event) -> {
+                    Dragboard db = event.getDragboard();
+                    if (db.hasContent(FILE_TREE_DRAG_FORMAT) && getItem() instanceof NodeType) {
+                        isDragHovering = false;
+                        dragExpandTimer.stop();
+                        setStyle("");
+                    }
+                    event.consume();
+                });
+
+                setOnDragDropped((DragEvent event) -> {
+                    Dragboard db = event.getDragboard();
+                    boolean success = false;
+                    if (db.hasContent(FILE_TREE_DRAG_FORMAT) && getItem() instanceof NodeType targetNode) {
+                        String sourcePath = (String) db.getContent(FILE_TREE_DRAG_FORMAT);
+                        if (sourcePath != null && !sourcePath.isEmpty()) {
+                            String sourceName = Paths.get(sourcePath).getFileName().toString();
+
+                            TreeItem<Object> targetItem = getTreeItem();
+                            String targetDirPath;
+                            if ("folder".equals(targetNode.getType())) {
+                                targetDirPath = getItemPath(targetItem);
+                            } else {
+                                TreeItem<Object> parent = targetItem != null ? targetItem.getParent() : null;
+                                targetDirPath = getItemPath(parent);
+                            }
+
+                            if (targetDirPath == null) {
+                                targetDirPath = "";
+                            }
+
+                            String newFullPath = targetDirPath.isEmpty()
+                                    ? sourceName
+                                    : targetDirPath + "/" + sourceName;
+
+                            // 위치가 실제로 바뀌지 않았다면 아무 것도 하지 않음
+                            if (!newFullPath.equals(sourcePath)) {
+                                JSONObject payload = new JSONObject();
+                                payload.put("owner", owner);
+                                payload.put("path", sourcePath);          // 기존 전체 상대 경로
+                                payload.put("newParent", targetDirPath);   // 새 부모 폴더 경로(루트면 "")
+
+                                boolean isDirectory = false;
+                                Object gestureSource = event.getGestureSource();
+                                if (gestureSource instanceof EditableFileTreeCell sourceCell
+                                        && sourceCell.getItem() instanceof NodeType srcNode) {
+                                    isDirectory = "folder".equals(srcNode.getType());
+                                }
+                                payload.put("isDirectory", isDirectory);
+
+                                projectController.fileLocationChangeRequest(payload, projectId);
+                                projectController.fileListRequest(userProjectsInfo);
+                            }
+                            lastDragTargetParentPath = targetDirPath;
+                            success = true;
+                        }
+                    }
+                    event.setDropCompleted(success);
+                    event.consume();
+                });
+
+                setOnDragDone(event -> {
+                    finalizeDragExpansion();
+                });
             }
         }
 
@@ -1023,18 +1260,37 @@ public class MainScreen {
                     case ENTER -> {
                         String newName = textField.getText().trim();
                         if (!newName.isEmpty() && getItem() instanceof NodeType node) {
-                            NodeType newNode = new NodeType(newName, node.getType());
-                            commitEdit(newNode);
-                            
-                            Path parentPath = Paths.get(getItemPath(getTreeItem().getParent()));
-                            Path fullPath = parentPath.resolve(newName);
-                            String pathString = fullPath.toString().replace('\\', '/');
+                            if (renameMode) {
+                                String originalPath = (originalPathForRename != null)
+                                        ? originalPathForRename
+                                        : getItemPath(getTreeItem());
+                                JSONObject payload = new JSONObject();
+                                payload.put("owner", owner);
+                                payload.put("path", originalPath);
+                                payload.put("newName", newName);
+                                payload.put("isDirectory", "folder".equals(node.getType()));
 
-                            if ("file".equals(node.getType())){
-                                projectController.addFileRequest(projectId, pathString, owner);
-                            }
-                            else if ("folder".equals(node.getType())){
-                                projectController.addFolderRequest(projectId, pathString, owner);
+                                projectController.fileNameChangeRequest(payload, projectId);
+                                projectController.fileListRequest(userProjectsInfo);
+
+                                NodeType newNode = new NodeType(newName, node.getType());
+                                commitEdit(newNode);
+                                renameMode = false;
+                                originalPathForRename = null;
+                            } else {
+                                NodeType newNode = new NodeType(newName, node.getType());
+                                commitEdit(newNode);
+
+                                Path parentPath = Paths.get(getItemPath(getTreeItem().getParent()));
+                                Path fullPath = parentPath.resolve(newName);
+                                String pathString = fullPath.toString().replace('\\', '/');
+
+                                if ("file".equals(node.getType())){
+                                    projectController.addFileRequest(projectId, pathString, owner);
+                                }
+                                else if ("folder".equals(node.getType())){
+                                    projectController.addFolderRequest(projectId, pathString, owner);
+                                }
                             }
                         } else {
                             cancelEdit();
@@ -1050,6 +1306,15 @@ public class MainScreen {
 
         private ContextMenu createFileContextMenu() {
             ContextMenu contextMenu = new ContextMenu();
+            MenuItem renameItem = new MenuItem("이름 바꾸기");
+            renameItem.setOnAction(e -> {
+                TreeItem<Object> treeItem = getTreeItem();
+                if (treeItem != null && treeItem.getValue() instanceof NodeType nodeType) {
+                    renameMode = true;
+                    originalPathForRename = getItemPath(treeItem);
+                    startEdit();
+                }
+            });
             MenuItem deleteItem = new MenuItem("삭제");
             deleteItem.setOnAction(e -> {
                 TreeItem<Object> treeItem = getTreeItem();
@@ -1066,7 +1331,7 @@ public class MainScreen {
                     }
                 }
             });
-            contextMenu.getItems().add(deleteItem);
+            contextMenu.getItems().addAll(renameItem, deleteItem);
             return contextMenu;
         }
     }

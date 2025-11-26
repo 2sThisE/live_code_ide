@@ -1,5 +1,11 @@
 package com.ethis2s.view;
 
+import java.lang.reflect.Type;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.ethis2s.util.ConfigManager;
 import com.google.common.reflect.TypeToken;
 import com.google.gson.Gson;
@@ -22,12 +28,6 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-
-import java.lang.reflect.Type;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class SettingsView {
 
@@ -179,25 +179,6 @@ public class SettingsView {
         }
         return settingsContainer;
     }
-    // private Node createStringSettingItem(Map<String, Object> settingMap, Map<String, TextField> fieldsMap) {
-    //     String key = (String) settingMap.get("key");
-    //     String labelText = (String) settingMap.get("label");
-    //     String descriptionText = (String) settingMap.get("description");
-    //     String value = settingMap.get("value").toString();
-    //     Label label = new Label(labelText);
-    //     label.getStyleClass().add("setting-item-label");
-    //     TextField textField = new TextField(value);
-    //     textField.getStyleClass().add("setting-item-textfield");
-    //     fieldsMap.put(key, textField);
-    //     HBox controlBox = new HBox(label, textField);
-    //     controlBox.getStyleClass().add("setting-item-control-box");
-    //     Label description = new Label(descriptionText);
-    //     description.getStyleClass().add("setting-item-description");
-    //     description.setWrapText(true);
-    //     VBox itemContainer = new VBox(5, controlBox, description);
-    //     itemContainer.getStyleClass().add("setting-item");
-    //     return itemContainer;
-    // } 기존 코드
     
 
     private Node createStringSettingItem(Map<String, Object> settingMap, Map<String, Node> fieldsMap) {

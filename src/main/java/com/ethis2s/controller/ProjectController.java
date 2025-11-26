@@ -215,6 +215,20 @@ public class ProjectController {
         });
     }
 
+    public void fileNameChangeRequest(JSONObject payload, String projectId){
+        if(userInfo==null) return;
+        payload.put("project_id",projectId);
+        payload.put("requester", userInfo.getId());
+        sendRequest(payload, ProtocolConstants.UF_CHANG_FILE_NAME_REQUEST);
+    }
+
+    public void fileLocationChangeRequest(JSONObject payload, String projectId){
+        if(userInfo==null) return;
+        payload.put("project_id",projectId);
+        payload.put("requester", userInfo.getId());
+        sendRequest(payload, ProtocolConstants.UF_CHANG_FILE_LOC_REQUEST);
+    }
+
     public void projectDeleteRequest(String projectId) {
         if (userInfo == null) return;
         JSONObject payload = new JSONObject();
