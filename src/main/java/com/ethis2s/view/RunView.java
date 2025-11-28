@@ -189,6 +189,14 @@ public class RunView {
         lastOutputEndIndex = consoleArea.getLength();
     }
 
+    /**
+     * 애플리케이션 종료 등으로 콘솔을 정리할 때 호출.
+     * 실행 중인 외부 프로세스를 강제로 종료하고 관련 쓰레드를 정리합니다.
+     */
+    public void shutdown() {
+        executionService.stopCurrentProcess();
+    }
+
     public void stopProcess() {
         executionService.stopCurrentProcess();
         appendStyledText("\n>> Stopped by user.\n", "system-msg");

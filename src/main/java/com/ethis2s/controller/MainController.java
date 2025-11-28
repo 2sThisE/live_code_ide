@@ -168,7 +168,12 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
     }
 
     public void shutdown() {
-        editorTabView.shutdownAllManagers();
+        if (editorTabView != null) {
+            editorTabView.shutdownAllManagers();
+        }
+        if (mainScreen != null && mainScreen.getRunView() != null) {
+            mainScreen.getRunView().shutdown();
+        }
     }
 
     public void setSocketManager(ClientSocketManager socketManager) {

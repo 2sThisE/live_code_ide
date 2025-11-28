@@ -165,15 +165,16 @@ public class EditorTabView {
                 String cleanFilePath = filePath.startsWith("/") ? filePath.substring(1) : filePath;
                 String tabId = "file-" + cleanFilePath;
                 String fileName = Paths.get(filePath).getFileName().toString();
+                boolean tabOpen = openFileStates.containsKey(tabId);
                 boolean isSelected;
-                if (openFileStates.containsKey(tabId)) {
+                if (tabOpen) {
                     // 탭이 열려 있으면, 해당 탭의 OT 상태를 따름 (OT가 활성화 상태여야 체크됨)
                     isSelected = !openFileStates.get(tabId).isOtPaused();
                 } else {
                     // 탭이 열려 있지 않으면, 무조건 체크된 상태로 간주
                     isSelected = true;
                 }
-                return new FileExecutionInfo(isSelected, fileName, filePath, tabId);
+                return new FileExecutionInfo(isSelected, fileName, filePath, tabId, tabOpen);
             })
             .collect(Collectors.toList());
             

@@ -150,9 +150,13 @@ public class FileExecutionSelectionView {
                     if (spinner != null) {
                         spinner.visibleProperty().bind(
                             Bindings.createBooleanBinding(
-                                () -> fileInfo.isProcessing() && !fileInfo.isCompleted(),
+                                () -> fileInfo.isProcessing()
+                                        && !fileInfo.isCompleted()
+                                        && (fileInfo.isSelected() || fileInfo.isTabOpen()),
                                 fileInfo.processingProperty(),
-                                fileInfo.completedProperty()
+                                fileInfo.completedProperty(),
+                                fileInfo.selectedProperty(),
+                                fileInfo.tabOpenProperty()
                             )
                         );
                         checkLabel.visibleProperty().bind(fileInfo.completedProperty());
@@ -400,12 +404,27 @@ public class FileExecutionSelectionView {
     }
 
     public void markFileAsCompleted(String filePath) {
+        String normalizedTargetPath = normalizePath(filePath);
         Platform.runLater(() -> {
             fileList.stream()
-                .filter(f -> f.getFilePath().equals(filePath))
+                .filter(f -> normalizePath(f.getFilePath()).equals(normalizedTargetPath))
                 .findFirst()
                 .ifPresent(fileInfo -> fileInfo.setCompleted(true));
         });
+    }
+
+    /**
+     * 파일 경로 비교 시 사용하기 위한 정규화 함수.
+     * - 선행 슬래시(/ 또는 \) 제거
+     * - 역슬래시를 슬래시로 통일
+     */
+    private String normalizePath(String path) {
+        if (path == null) return "";
+        String normalized = path.replace('\\', '/');
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        return normalized;
     }
     
 
@@ -414,14 +433,16 @@ public class FileExecutionSelectionView {
         private final SimpleStringProperty fileName;
         private final SimpleStringProperty filePath;
         private final String tabId;
+        private final SimpleBooleanProperty tabOpen;
         private final SimpleBooleanProperty processing;
         private final SimpleBooleanProperty completed;
 
-        public FileExecutionInfo(boolean selected, String fileName, String filePath, String tabId) {
+        public FileExecutionInfo(boolean selected, String fileName, String filePath, String tabId, boolean tabOpen) {
             this.selected = new SimpleBooleanProperty(selected);
             this.fileName = new SimpleStringProperty(fileName);
             this.filePath = new SimpleStringProperty(filePath);
             this.tabId = tabId;
+            this.tabOpen = new SimpleBooleanProperty(tabOpen);
             this.processing = new SimpleBooleanProperty(false);
             this.completed = new SimpleBooleanProperty(false);
         }
@@ -431,6 +452,8 @@ public class FileExecutionSelectionView {
         public String getFileName() { return fileName.get(); }
         public String getFilePath() { return filePath.get(); }
         public String getTabId() { return tabId; }
+        public boolean isTabOpen() { return tabOpen.get(); }
+        public SimpleBooleanProperty tabOpenProperty() { return tabOpen; }
         public boolean isProcessing() { return processing.get(); }
         public void setProcessing(boolean isProcessing) { this.processing.set(isProcessing); }
         public SimpleBooleanProperty processingProperty() { return processing; }
