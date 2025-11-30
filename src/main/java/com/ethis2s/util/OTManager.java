@@ -81,14 +81,15 @@ public class OTManager {
 
         if (pendingOp != null && pendingOp.isSentToServer() && myId.equals(requesterId)) {
             // This is a confirmation for an operation we sent.
-            if (pendingOp.getUniqId().equals(uniqId) && pendingOp.getExpectedVersion() == newVersion) {
-                // PREDICTION SUCCESS
+            // 예측 버전(expectedVersion)은 참고용으로만 두고,
+            // uniqId 가 일치하면 성공으로 처리한다.
+            if (pendingOp.getUniqId() != null && pendingOp.getUniqId().equals(uniqId)) {
                 unconfirmedOps.poll(); // Remove the confirmed operation
                 this.localVersion = newVersion;
                 sendNextPendingOperation(); // Send the next operation if any
             } else {
-                // PREDICTION FAILURE: Confirmation mismatch (version or uniqId
-                abortUnconfirmedOperations(serverOp, requesterId);
+                // uniqId 가 다르면, 우리가 이미 큐에서 제거한 오래된 op 에 대한 브로드캐스트일 수 있으므로
+                // 별도 재전송/abort 는 하지 않고 무시한다.
             }
         } else {
             // This is an operation from another user.
