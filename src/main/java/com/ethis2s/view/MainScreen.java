@@ -730,11 +730,12 @@ public class MainScreen {
             addBtn.getStyleClass().add("add-project-button");
             addBtn.setTooltip(new Tooltip("새 프로젝트 생성"));
             addBtn.setOnAction(e -> handleAddProject());
-            
+            addBtn.setMinWidth(Region.USE_PREF_SIZE);
             Button refreshBtn = new Button("↻");
             refreshBtn.getStyleClass().add("add-project-button");
             refreshBtn.setTooltip(new Tooltip("새로고침"));
             refreshBtn.setOnAction(e -> projectController.projectListRequest());
+            refreshBtn.setMinWidth(Region.USE_PREF_SIZE);
 
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -744,22 +745,26 @@ public class MainScreen {
             backButton.getStyleClass().add("add-project-button");
             backButton.setTooltip(new Tooltip("프로젝트 목록으로 돌아가기"));
             backButton.setOnAction(e -> showProjectListView(projectController, mainController));
+            backButton.setMinWidth(Region.USE_PREF_SIZE);
 
             Label label = new Label("  " + currentProject.getProjectName());
             Button addFileBtn = new Button("\uD83D\uDCC3");
             addFileBtn.getStyleClass().add("add-project-button");
             addFileBtn.setTooltip(new Tooltip("파일 추가"));
             addFileBtn.setOnAction(e -> handleAddItem("file"));
+            addFileBtn.setMinWidth(Region.USE_PREF_SIZE);
 
             Button addFolderBtn = new Button("\uD83D\uDCC1");
             addFolderBtn.getStyleClass().add("add-project-button");
             addFolderBtn.setTooltip(new Tooltip("폴더 추가"));
             addFolderBtn.setOnAction(e -> handleAddItem("folder"));
+            addFolderBtn.setMinWidth(Region.USE_PREF_SIZE);
 
             Button refreshBtn = new Button("↻");
             refreshBtn.getStyleClass().add("add-project-button");
             refreshBtn.setTooltip(new Tooltip("새로고침"));
             refreshBtn.setOnAction(e -> refreshCurrentFileTree(projectController));
+            refreshBtn.setMinWidth(Region.USE_PREF_SIZE);
 
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
