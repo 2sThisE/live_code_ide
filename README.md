@@ -3,6 +3,14 @@
 JavaFX 기반의 라이브 코드 IDE 클라이언트입니다.  
 서버와 TLS 소켓으로 통신하며, 여러 사용자가 동시에 같은 프로젝트/파일을 편집하고 실행할 수 있도록 설계되어 있습니다.
 
+## 배포용 실행 파일 (dist 브랜치)
+
+프로그램을 설치 없이 바로 실행해 보고 싶다면 GitHub에서 [**`dist` 브랜치**](https://github.com/2sThisE/live_code_ide/tree/dist)
+로 전환한 뒤,  
+`dist/` 폴더 안의 `Live Code IDE.jar` 와 `plugins/` 폴더를 내려받아 사용하면 됩니다.  
+Java 21 이상이 설치된 환경에서 `Live Code IDE.jar` 를 더블 클릭하면 클라이언트가 실행됩니다.
+
+
 ## 핵심 기능
 
 - **라이브 협업 편집**
