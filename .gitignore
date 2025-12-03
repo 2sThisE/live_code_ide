@@ -1,0 +1,30 @@
+# dist 전용 무시 규칙
+
+# 실행 설정/IDE용 런 구성 폴더
+.run/
+
+# OS 공통 불필요 파일
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+~$*
+
+# macOS
+.DS_Store
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE/툴에서 생기는 메타데이터
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+

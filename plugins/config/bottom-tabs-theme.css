@@ -1,0 +1,161 @@
+/* ================================================================== */
+/* Bottom Tabs Theme - Styles for the bottom Problems/Output tabs. */
+/* ================================================================== */
+
+.bottom-tab-pane {
+    -fx-tab-min-width: 0;
+}
+
+.bottom-tab-pane .tab-header-area {
+    -fx-padding: 0;
+}
+
+.bottom-tab-pane .tab-header-background {
+    -fx-background-color: #252526;
+}
+
+.bottom-tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 4px 12px;
+    -fx-border-width: 1px 0 0 0;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.bottom-tab-pane .tab:selected {
+    -fx-background-color: #1e1e1e;
+    -fx-border-color: #cccccc;
+    -fx-border-width: 1px 0 0 0;
+}
+
+.bottom-tab-pane .tab .tab-label {
+    -fx-text-fill: #999999;
+    -fx-padding: 0; /* Override for centering */
+}
+
+.bottom-tab-pane .tab:selected .tab-label {
+    -fx-text-fill: #ffffff;
+}
+
+/* ListView for Problems/Output */
+.tree-view {
+    -fx-background-color: #1e1e1e;
+}
+
+.tree-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #d4d4d4;
+    -fx-font-size: 14px;
+    -fx-padding: 8px 0px;
+    -fx-border-color: transparent;
+    -fx-border-width: 1px;
+}
+
+.tree-view .tree-cell:filled:hover {
+    -fx-background-color: #333333;
+}
+
+.tree-view .tree-cell:selected {
+    -fx-background-color: #333333;
+    -fx-border-color: transparent;
+    -fx-border-width: 1px;
+}
+
+.tree-view:focused .tree-cell:selected {
+    -fx-background-color: #04395E;
+    -fx-border-color: #0078D4;
+    -fx-border-width: 1px;
+}
+
+.tree-cell:empty {
+    -fx-background-color: transparent;
+}
+
+
+.problems-tree-cell {
+    -fx-font-size: 12px;
+    -fx-padding: 2px 8px;
+}
+
+
+.bottom-tab-pane .text-area {
+    -fx-background-color: transparent; /* 바깥 상자는 투명하게 */
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-effect: null;
+}
+
+.bottom-tab-pane .text-area .content {
+    -fx-background-color: #1e1e1e; /* 안쪽 상자에 배경색 적용 */
+    -fx-text-fill: #d4d4d4;
+    -fx-font-family: 'Consolas';
+    -fx-font-size: 12px;
+}
+
+.tab.tab-error .tab-label { -fx-text-fill: #ff6666!important; }
+
+
+
+
+/* === 진짜 터미널 느낌의 콘솔 스타일 === */
+
+/* 1. 전체 영역 배경 및 폰트 */
+.run-console-area {
+    -fx-font-family: "Consolas", "Monospaced", "Courier New"; /* 고정폭 폰트 필수 */
+    -fx-font-size: 14px;
+    -fx-background-color: #1e1e1e; /* VS Code 스타일 다크 배경 */
+    -fx-fill: #d4d4d4; /* 기본 글자색 (연한 회색) */
+    -fx-prompt-text-fill: #666666;
+}
+
+/* RichTextFX의 배경색은 별도로 지정해줘야 할 수 있음 */
+.run-console-area .content {
+    -fx-background-color: #1e1e1e;
+    -fx-cursor: text;
+}
+
+/* 2. 출력 종류별 색상 (형광펜 효과) */
+.standard-out {
+    -fx-fill: #cccccc; /* 표준 출력: 밝은 회색 */
+}
+
+.error-out {
+    -fx-fill: #f48771; /* 에러: 부드러운 빨간색 (너무 쨍하면 눈 아픔) */
+    -fx-font-weight: bold;
+}
+
+.system-msg {
+    -fx-fill: #4ec9b0; /* 시스템 메시지: 민트색 */
+    -fx-font-style: italic;
+}
+
+/* 3. ★ 블록 커서 만들기 ★ */
+.run-console-area .caret {
+    -fx-stroke: #ffffff; /* 커서 색상 */
+    -fx-stroke-width: 8px; /* 커서 두께 (글자 너비만큼) -> 블록처럼 보임 */
+    /* 깜빡임 효과는 JavaFX 기본 동작을 따름 */
+}
+
+/* 4. 드래그 선택 영역 색상 */
+.run-console-area .selection {
+    -fx-fill: #264f78;
+    -fx-stroke: #264f78;
+}
+
+.execution-popup-root {
+    -fx-background-color: #252526; /* VS Code 스타일 어두운 배경 */
+    -fx-border-color: #454545;
+    -fx-border-width: 1px;
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    /* 그림자 효과 */
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.5), 15, 0, 0, 5);
+    -fx-padding: 15px;
+    -fx-min-width: 500px;
+    -fx-min-height: 400px;
+}
