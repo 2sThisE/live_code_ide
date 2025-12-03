@@ -1,0 +1,22 @@
+# Maven/Java 빌드 결과
+target/
+*.class
+*.log
+
+# IDE 설정 파일
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+# OS/도구별 잡파일
+.DS_Store
+Thumbs.db
+
+# 보안 관련 파일 (실제 인증서/키/환경변수 파일은 절대 커밋 금지)
+server.jks
+*.jks
+*.p12
+.env
+
