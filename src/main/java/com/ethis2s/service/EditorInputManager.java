@@ -67,13 +67,8 @@ public class EditorInputManager {
         this.tabId = context.getTabId();
 
         this.lineLockDebouncer = new PauseTransition(Duration.millis(500));
-        this.lineLockDebouncer.setOnFinished(event -> {
-            int currentLine = codeArea.getCurrentParagraph();
-            if (currentLine != lastCaretLine) {
-                 manager.requestLineLock(currentLine + 1);
-                 lastCaretLine = currentLine;
-            }
-        });
+        // Line lock feature disabled: debouncer kept but no-op.
+        this.lineLockDebouncer.setOnFinished(event -> {});
     }
 
     public void resetInitiatorToUser() {
@@ -135,13 +130,6 @@ public class EditorInputManager {
             if(lastInitiator == ChangeInitiator.USER && !isProcessingServerChange){
                 codeArea.requestFollowCaret();
                 if (!isTyping) manager.cursorMoveRequest(newPos); //파일 연산에 의한 캐럿움직임은 전달하지 않음
-                
-                // 디바운싱
-                int currentLine = codeArea.getCurrentParagraph();
-                if (currentLine != lastCaretLine) {
-                    lineLockDebouncer.stop();
-                    lineLockDebouncer.play();
-                }
             }
         });
 
@@ -149,11 +137,6 @@ public class EditorInputManager {
             isTyping = true;
             ChangeInitiator initiator = this.lastInitiator;
             if (initiator == ChangeInitiator.USER) {
-                if (manager.isLineLockedByOther(codeArea.getCurrentParagraph())) {
-                    
-                    return;
-                }
-
                 Platform.runLater(() -> {
                     if (interpreter != null) {
                         List<Operation> ops = interpreter.interpret(change);
@@ -255,19 +238,6 @@ public class EditorInputManager {
     }
 
     private void handleKeyTyped(KeyEvent e) {
-        // Hybrid Debouncing: If a key is typed while the debouncer is waiting,
-        // cancel the wait and send the lock request immediately.
-        if (lineLockDebouncer.getStatus() == PauseTransition.Status.RUNNING) {
-            lineLockDebouncer.stop();
-            int currentLine = codeArea.getCurrentParagraph();
-            manager.requestLineLock(currentLine + 1);
-            lastCaretLine = currentLine;
-        }
-
-        if (manager.isLineLockedByOther(codeArea.getCurrentParagraph())) {
-            e.consume();
-            return;
-        }
         String typedChar = e.getCharacter();
         if (typedChar.isEmpty() || Character.isISOControl(typedChar.charAt(0))) {
             // 제어 문자가 입력되면 자동 완성을 시도하지 않고 바로 종료합니다.

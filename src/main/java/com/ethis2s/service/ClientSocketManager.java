@@ -319,29 +319,13 @@ public class ClientSocketManager {
                     callback.onAddFolderResponse(finalPacket.getPayload()[0] != 0);
                     break;
                 case ProtocolConstants.UF_LINE_LOCK_BROADCAST:
-                    {
-                        JSONObject lockJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
-                        String filePath = lockJson.getString("path");
-                        int line = lockJson.getInt("lineNumber");
-                        String lockOwner = lockJson.getString("lockOwner");
-                        callback.onLineLockUpdate(filePath, line, lockOwner, lockOwner);
-                    }
+                    // Line lock feature removed on client side; ignore broadcast.
                     break;
                 case ProtocolConstants.UF_LINE_UNLOCK_BROADCAST:
-                    {
-                        JSONObject unlockJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
-                        String filePath = unlockJson.getString("path");
-                        int line = unlockJson.getInt("lineNumber");
-                        // No owner means the lock is released.
-                        callback.onLineLockUpdate(filePath, line, null, null);
-                    }
+                    // Line unlock feature removed on client side; ignore broadcast.
                     break;
                 case ProtocolConstants.UF_LINE_LOCK_RESPONSE:
-                    JSONObject lockResponseJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));
-                    callback.onLineLockResponse(
-                        lockResponseJson.getBoolean("success"),
-                        lockResponseJson.getInt("lineNumber")
-                    );
+                    // Line lock responses are ignored.
                     break;
                 case ProtocolConstants.UF_CLIENT_ERROR:
                     JSONObject errorJson = new JSONObject(new String(finalPacket.getPayload(), StandardCharsets.UTF_8));

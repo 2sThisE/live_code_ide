@@ -35,6 +35,7 @@ public class EditorStateManager {
     private final Map<String, String> tabFileNames = new HashMap<>();
     private final Map<String, List<Integer>> searchResultsMap = new HashMap<>();
     private final Map<String, Integer> currentMatchIndexMap = new HashMap<>();
+    // Line lock tracking disabled; map kept only to preserve API shape.
     private final Map<String, Map<Integer, UserLockInfo>> lineLocks = new HashMap<>();
     private final Map<String, RemoteCursorManager> remoteCursorManagerMap = new HashMap<>();
     private final List<HybridManager> activeManagers = new ArrayList<>();
@@ -159,30 +160,17 @@ public class EditorStateManager {
     }
 
     public void updateLineLock(String tabId, int line, String userId, String userNickname) {
-        Map<Integer, UserLockInfo> locks = lineLocks.get(tabId);
-        if (locks == null) return;
-
-        if (userId == null || userId.isEmpty()) {locks.remove(line);}
-        else {locks.put(line, new UserLockInfo(userId, userNickname));}
+        // Line lock updates disabled on client side.
     }
 
     public Optional<UserLockInfo> getLineLockInfo(String tabId, int line) {
-        Map<Integer, UserLockInfo> locks = lineLocks.get(tabId);
-        if (locks == null) {
-            return Optional.empty();
-        }
-        return Optional.ofNullable(locks.get(line));
+        // Line lock info no longer maintained.
+        return Optional.empty();
     }
 
     public boolean isLineLockedByCurrentUser(String tabId, int line, String currentUserId) {
-        Map<Integer, UserLockInfo> locks = lineLocks.get(tabId);
-        
-        if (currentUserId == null || currentUserId.isEmpty()) {
-            return false;
-        }
-        return getLineLockInfo(tabId, line)
-                .map(lockInfo -> currentUserId.equals(lockInfo.userId))
-                .orElse(false);
+        // Line lock ownership checks disabled.
+        return false;
     }
 
     public Optional<String> getFileName(String tabId) {

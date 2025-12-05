@@ -8,7 +8,6 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -38,6 +37,7 @@ import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.Vocabulary;
 import org.antlr.v4.runtime.tree.ParseTree;
 
+import com.ethis2s.util.ConfigManager;
 import com.ethis2s.util.Tm4eSyntaxHighlighter.StyleToken;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -162,7 +162,7 @@ public class AntlrLanguageService {
     
     static {
         // 1. 'plugins/antlr' 폴더에서 .jar 파일들을 로드할 ClassLoader 생성
-        Path pluginDir = Paths.get(System.getProperty("user.dir"), "plugins", "antlr");
+        Path pluginDir = ConfigManager.getBaseDir().resolve("plugins").resolve("antlr").normalize();
         List<URL> jarUrls = new ArrayList<>();
         if (Files.isDirectory(pluginDir)) {
             try (Stream<Path> stream = Files.list(pluginDir)) {

@@ -205,7 +205,8 @@ public class HybridManager {
     // --- End of OTManager Delegation ---
 
     public void requestLineLock(int line) {
-        projectController.lineLockRequest(this.filePath, line);
+        // Line lock feature disabled on client side.
+        // Server-side validation will still enforce write permissions.
     }
 
     public void cursorMoveRequest(int cursorPosition) {
@@ -229,24 +230,13 @@ public class HybridManager {
     }
 
     public boolean isLineLockedByOther(int line) {
-        Optional<String> currentUserIdOpt = projectController.getCurrentUserId();
-        if (currentUserIdOpt.isEmpty()) {
-            return false; // Cannot determine current user, so don't block anything
-        }
-        String currentUserId = currentUserIdOpt.get();
-
-        return stateManager.getLineLockInfo("file-" + this.filePath, line + 1)
-                .map(lockInfo -> !lockInfo.userId.equals(currentUserId))
-                .orElse(false);
+        // Line lock checks are disabled on the client.
+        return false;
     }
 
     public boolean isLineLockedByCurrentUser(int line) {
-        Optional<String> currentUserIdOpt = projectController.getCurrentUserId();
-        if (currentUserIdOpt.isEmpty()) {
-            return false;
-        }
-        // Note: line numbers in stateManager are 1-based.
-        return stateManager.isLineLockedByCurrentUser("file-" + this.filePath, line + 1, currentUserIdOpt.get());
+        // Line lock ownership tracking is disabled on the client.
+        return false;
     }
 
     public void setFilePath(String filePath) {

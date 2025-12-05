@@ -708,32 +708,13 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
 
     @Override
     public void onLineLockUpdate(String filePath, int line, String userId, String userNickname) {
-        String tabId = "file-" + filePath;
-        Runnable updateAction = () -> editorTabView.updateLineLockIndicator(filePath, line, userId, userNickname);
-
-        if (editorTabView.getStateManager().isInitializing(tabId)) {
-            editorTabView.getStateManager().queueUpdate(tabId, updateAction);
-        } else {
-            Platform.runLater(updateAction);
-        }
+        // Line lock feature removed on client side.
+        // Server no longer accepts line lock requests; UI updates are skipped.
     }
 
     @Override
     public void onLineLockResponse(boolean success, int line) {
-        if (success) {
-            Platform.runLater(() -> {
-                if (userInfo == null) return;
-
-                // Find the file path of the currently active editor
-                editorTabView.getActiveCodeArea()
-                    .flatMap(activeArea -> editorTabView.getStateManager().findTabIdForCodeArea(activeArea))
-                    .ifPresent(tabId -> {
-                        String filePath = tabId.substring("file-".length());
-                        // Update the state manager with our own lock information
-                        editorTabView.updateLineLockIndicator(filePath, line, userInfo.getId(), userInfo.getNickname());
-                    });
-            });
-        }
+        // Line lock feature removed; responses are ignored.
     }
     @Override
     public void onFileEditBroadcast(String filePath, String type, int position, String text, int length, long newVersion, String uniqId, String requesterId, int cursorPosition) {
@@ -801,18 +782,9 @@ public class MainController implements ClientSocketManager.ClientSocketCallback 
                     alert.showAndWait();
                     break;
                 }
-                case ProtocolConstants.ERROR_CODE_LINE_LOCKED: {
-                    int lineNumber = errData.getInt("lineNumber");
-                    String lockOwnerId = errData.getString("lockOwner");
-                    String lockOwnerNickname = errData.optString("lockOwnerNickname", lockOwnerId);
-                    editorTabView.getActiveCodeArea()
-                        .flatMap(activeArea -> editorTabView.getStateManager().findTabIdForCodeArea(activeArea))
-                        .ifPresent(tabId -> {
-                            String filePath = tabId.substring("file-".length());
-                            editorTabView.updateLineLockIndicator(filePath, lineNumber, lockOwnerId, lockOwnerNickname);
-                        });
-                    break;
-                }
+                // case ProtocolConstants.ERROR_CODE_LINE_LOCKED:
+                //     // Line lock client-side handling removed.
+                //     break;
                 case ProtocolConstants.ERROR_CODE_SYNC_ERROR: {
                     editorTabView.getActiveCodeArea()
                         .flatMap(activeArea -> editorTabView.getStateManager().findTabIdForCodeArea(activeArea))

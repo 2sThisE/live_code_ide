@@ -40,7 +40,8 @@ public class Tm4eSyntaxHighlighter {
         return isSetup;
     }
     private static final Map<String, LanguageConfig> LANGUAGES = new HashMap<>();
-    private static final Path TM4E_PLUGIN_DIR = Paths.get(System.getProperty("user.dir"), "plugins", "tm4e");
+    private static final Path TM4E_PLUGIN_DIR =
+        ConfigManager.getBaseDir().resolve("plugins").resolve("tm4e").normalize();
     static {
         Path propsPath = TM4E_PLUGIN_DIR.resolve("languages.properties");
         if (Files.exists(propsPath)) {

@@ -243,13 +243,7 @@ public class EditorTabView {
     }
     
     public void updateLineLockIndicator(String filePath, int line, String userId, String userNickname) {
-        String tabId = "file-" + filePath;
-        stateManager.updateLineLock(tabId, line, userId, userNickname);
-
-        stateManager.getCodeArea(tabId).ifPresent(codeArea -> {
-            // Force the paragraph graphic factory to be re-applied, thus redrawing the line numbers
-            codeArea.setParagraphGraphicFactory(codeArea.getParagraphGraphicFactory());
-        });
+        // Line lock UI indicator disabled on client side.
     }
 
     public void updateUserCursor(String filePath, String userId, String userNickname, int position) {

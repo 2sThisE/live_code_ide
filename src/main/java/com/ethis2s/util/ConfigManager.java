@@ -8,6 +8,8 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
@@ -28,8 +30,45 @@ public class ConfigManager {
         return instance;
     }
 
+    private static Path resolveBaseDir() {
+        try {
+            Path codeSourcePath = Paths.get(
+                ConfigManager.class
+                    .getProtectionDomain()
+                    .getCodeSource()
+                    .getLocation()
+                    .toURI()
+            );
+
+            Path baseDir;
+            if (Files.isDirectory(codeSourcePath)) {
+                // 개발 환경: target/classes 기준으로 프로젝트 루트로 이동
+                baseDir = codeSourcePath.getParent() != null
+                    ? codeSourcePath.getParent().getParent()
+                    : codeSourcePath.toAbsolutePath();
+            } else {
+                // 배포 환경: JAR 파일이 있는 디렉터리 기준
+                baseDir = codeSourcePath.getParent();
+            }
+
+            return baseDir;
+        } catch (Exception e) {
+            // 실패 시 현재 작업 디렉터리 기준 사용
+            return Paths.get("").toAbsolutePath();
+        }
+    }
+
+    public static Path getBaseDir() {
+        return resolveBaseDir();
+    }
+
+    private static Path resolveConfigPath() {
+        return getBaseDir().resolve(CONFIG_FILE_PATH).normalize();
+    }
+
     public void loadConfig() {
-        try (FileReader reader = new FileReader(CONFIG_FILE_PATH)) {
+        Path configPath = resolveConfigPath();
+        try (FileReader reader = new FileReader(configPath.toFile())) {
             Type type = new TypeToken<List<Map<String, Object>>>() {}.getType();
             configData = new Gson().fromJson(reader, type);
         } catch (IOException e) {
@@ -38,7 +77,8 @@ public class ConfigManager {
     }
 
     public void saveConfig() {
-        try (FileWriter writer = new FileWriter(CONFIG_FILE_PATH)) {
+        Path configPath = resolveConfigPath();
+        try (FileWriter writer = new FileWriter(configPath.toFile())) {
             Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
             gson.toJson(configData, writer);
         } catch (IOException e) {
@@ -106,7 +146,8 @@ public class ConfigManager {
         String path = get(featureKey, settingKey, String.class, null);
         if (path == null) return null;
         try {
-            return Paths.get(path).toUri().toURL().toExternalForm();
+            Path themePath = getBaseDir().resolve(path).normalize();
+            return themePath.toUri().toURL().toExternalForm();
         } catch (Exception e) {
             e.printStackTrace();
             return null;
