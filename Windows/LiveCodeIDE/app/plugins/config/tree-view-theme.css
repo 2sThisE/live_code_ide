@@ -1,0 +1,55 @@
+/* ================================================================== */
+/* Tree View Theme - Styles for the file explorer. */
+/* ================================================================== */
+
+.tree-view {
+    -fx-background-color: #252526;
+}
+
+.tree-cell {
+    -fx-text-fill: #cccccc;
+    -fx-font-size: 14px;
+    -fx-padding: 3px;
+}
+
+.tree-cell:selected {
+    -fx-background-color: #444444;
+}
+
+.tree-view:focused .tree-cell:selected {
+    -fx-background-color: #444444;
+}
+
+.tree-cell:filled:hover {
+    -fx-background-color: #333333;
+}
+
+.file-explorer-header {
+    -fx-background-color: #252526;
+    -fx-padding: 5px;
+    -fx-border-width: 0;
+}
+
+.add-project-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #cccccc;
+    -fx-font-size: 16px;
+}
+
+.add-project-button:hover {
+    -fx-background-color: #444444;
+}
+
+.add-project-button:pressed {
+    -fx-background-color: #5e5e5e;
+}
+
+.shared-label {
+    -fx-font-size: 10px;
+    -fx-text-fill: #888888;
+    -fx-padding: 3 0 0 0;
+}
+
+.folder-tree-cell > .tree-disclosure-node {
+    -fx-opacity: 1;
+}

@@ -1,0 +1,30 @@
+{
+  "java": {
+    "lexer": "com.ethis2s.antlr.java.Java20Lexer",
+    "parser": "com.ethis2s.antlr.java.Java20Parser",
+    "visitor": "com.ethis2s.antlr.java.JavaSymbolVisitor",
+    "startRule": "compilationUnit",
+    "identifierRuleName": "Identifier"
+  },
+  "py": {
+    "lexer": "com.ethis2s.antlr.python.Python3Lexer",
+    "parser": "com.ethis2s.antlr.python.Python3Parser",
+    "visitor": "com.ethis2s.antlr.python.Python3SymbolVisitor",
+    "startRule": "file_input",
+    "identifierRuleName": "NAME"
+  },
+  "c": {
+    "lexer": "com.ethis2s.antlr.c.CLexer",
+    "parser": "com.ethis2s.antlr.c.CParser",
+    "visitor": "com.ethis2s.antlr.c.CSymbolVisitor",
+    "startRule": "compilationUnit",
+    "identifierRuleName": "Identifier"
+  },
+  "cpp": {
+    "lexer": "com.ethis2s.antlr.cpp.CPP14Lexer",
+    "parser": "com.ethis2s.antlr.cpp.CPP14Parser",
+    "visitor": "com.ethis2s.antlr.cpp.CppSymbolVisitor",
+    "startRule": "translationUnit",
+    "identifierRuleName": "Identifier"
+  }
+}
