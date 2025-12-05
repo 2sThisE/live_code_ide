@@ -315,12 +315,12 @@ public class ClientSessionHandler implements Runnable {
                             case ProtocolConstants.UF_FILE_CONTENT_REQUEST:
                                 handleFileContentRequest(finalPacket, out);
                                 break;
-                            case ProtocolConstants.UF_LINE_LOCK_REQUEST:
-                                handleLineLockRequest(finalPacket, out);
-                                break;
-                            case ProtocolConstants.UF_LINE_UNLOCK_REQUEST:
-                                handleLineUnlockRequest(finalPacket, out);
-                                break;
+                            // case ProtocolConstants.UF_LINE_LOCK_REQUEST:
+                            //     handleLineLockRequest(finalPacket, out);
+                            //     break;
+                            // case ProtocolConstants.UF_LINE_UNLOCK_REQUEST:
+                            //     handleLineUnlockRequest(finalPacket, out);
+                            //     break;
                             case ProtocolConstants.UF_FILE_EDIT_OPERATION:
                                 handleFileEditOperation(finalPacket, out);
                                 break;
@@ -500,19 +500,19 @@ public class ClientSessionHandler implements Runnable {
             }
 
             Operation operation = null;
-            int currentLine = session.getLineFromPosition(position);
-
-            if (session.isLineLocked(currentLine) && !userInfo.getId().equals(session.getLineLockOwner(currentLine))) {
-                JSONObject errorResponse = new JSONObject();
-                errorResponse.put("errorCode", ProtocolConstants.ERROR_CODE_LINE_LOCKED);
-                errorResponse.put("error", "Line locked by another user.");
-                errorResponse.put("lockOwner", session.getLineLockOwner(currentLine));
-                errorResponse.put("lineNumber", currentLine);
-                errorResponse.put("requestedPosition", position);
-                errorResponse.put("operationType", operationType);
-                writeByUnfragedJson(errorResponse, ProtocolConstants.UF_CLIENT_ERROR, out);
-                return;
-            }
+            // 라인 락 기능 비활성화로 인해 현재는 라인 락을 검사하지 않습니다.
+            // int currentLine = session.getLineFromPosition(position);
+            // if (session.isLineLocked(currentLine) && !userInfo.getId().equals(session.getLineLockOwner(currentLine))) {
+            //     JSONObject errorResponse = new JSONObject();
+            //     errorResponse.put("errorCode", ProtocolConstants.ERROR_CODE_LINE_LOCKED);
+            //     errorResponse.put("error", "Line locked by another user.");
+            //     errorResponse.put("lockOwner", session.getLineLockOwner(currentLine));
+            //     errorResponse.put("lineNumber", currentLine);
+            //     errorResponse.put("requestedPosition", position);
+            //     errorResponse.put("operationType", operationType);
+            //     writeByUnfragedJson(errorResponse, ProtocolConstants.UF_CLIENT_ERROR, out);
+            //     return;
+            // }
             int cursorPosition = payload.optInt("cursorPosition", -1);
             if ("INSERT".equals(operationType)) {
                 String text = payload.getString("text");
@@ -566,14 +566,13 @@ public class ClientSessionHandler implements Runnable {
                     errorResponse.put("errorCode", ProtocolConstants.ERROR_CODE_SYNC_ERROR);
                     errorResponse.put("error", "Content synchronization error.");
                     errorResponse.put("serverContentLength", session.getContent().length());
-                    errorResponse.put("lineNumber", currentLine);
                     errorResponse.put("requestedPosition", position);
                     errorResponse.put("operationType", operationType);
-                    errorResponse.put("lockOwner", "null");
-                    
+
                     writeByUnfragedJson(errorResponse, ProtocolConstants.UF_CLIENT_ERROR, out);
-                    System.err.println("동기화 오류 감지 (IndexOutOfBounds): 클라이언트 " + requester +
-                                       ", 라인: " + currentLine + ", 요청 위치: " + position + ", 서버 파일 길이: " + session.getContent().length());
+                    System.err.println("동기화 오류 감지 (IndexOutOfBounds): 클라이언트 " + requester
+                                    + ", 요청 위치: " + position
+                                    + ", 서버 파일 길이: " + session.getContent().length());
                 }
             } else {
                 sendStandardClientError(out, ProtocolConstants.ERROR_CODE_INVALID_OPERATION, "Invalid operation type or missing parameters.", null);
