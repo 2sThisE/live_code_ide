@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<jpackage-state version="23.0.2" platform="macOS">
+  <app-version>1.0</app-version>
+  <main-launcher>Live Code IDE</main-launcher>
+  <main-class>com.ethis2s.App</main-class>
+  <signed>false</signed>
+  <app-store>false</app-store></jpackage-state>

@@ -1,0 +1,80 @@
+[
+  {
+    "featureKey": "editor",
+    "featureLabel": "에디터",
+    "settings": [
+      {
+        "key": "fontFamily",
+        "label": "글꼴 (Font Family)",
+        "description": "코드 에디터에 사용될 글꼴을 지정합니다. 시스템에 설치된 글꼴만 사용할 수 있습니다.",
+        "value": "Consolas"
+      },
+      {
+        "key": "fontSize",
+        "label": "글자 크기 (Font Size)",
+        "description": "코드 에디터의 글자 크기를 조절합니다.",
+        "value": 14.0
+      },
+      {
+        "key": "tabSize",
+        "label": "탭 크기 (Tab Size)",
+        "description": "탭 문자를 몇 개의 공백으로 표시할지 결정합니다.",
+        "value": 4.0
+      }
+    ]
+  },
+  {
+    "featureKey": "design",
+    "featureLabel": "IDE 디자인",
+    "settings": [
+      {
+        "key": "mainTheme",
+        "label": "메인 테마",
+        "description": "IDE의 전반적인 색상 테마를 설정합니다.",
+        "value": "plugins/config/main-theme.css"
+      },
+      {
+        "key": "topTabsTheme",
+        "label": "상단 탭 테마",
+        "description": "에디터 탭(상단) 디자인의 경로를 설정합니다.",
+        "value": "plugins/config/top-tabs-theme.css"
+      },
+      {
+        "key": "bottomTabsTheme",
+        "label": "하단 탭 테마",
+        "description": "에디터 탭(하단) 디자인의 경로를 설정합니다.",
+        "value": "plugins/config/bottom-tabs-theme.css"
+      },
+      {
+        "key": "treeViewTheme",
+        "label": "프로젝트/파일리스트 탭 테마",
+        "description": "프로젝트/파일리스트 디자인의 경로를 설정합니다.",
+        "value": "plugins/config/tree-view-theme.css"
+      }
+    ]
+  },
+  {
+    "featureKey": "runConfig",
+    "featureLabel": "실행 구성",
+    "settings": [
+      {
+        "key": "factory",
+        "label": "실행 인자",
+        "description": "프로그램 실행 시 전달할 인자들을 설정합니다.",
+        "value": {
+          "{basedir}": "."
+        }
+      },
+      {
+        "key": "userCommands",
+        "label": "사용자 실행 명령어 (User Commands)",
+        "description": "사용자가 정의한 실행 명령어들을 설정합니다. 각 명령어는 이름과 실제 명령어로 구성됩니다.",
+        "value": {
+          "Run Selected File": "javac -encoding UTF-8 {file} && java -cp {basedir} {name}",
+          "Run Java": "javac -encoding UTF-8 {file} && java -cp {basedir} {name}",
+          "test": "java"
+        }
+      }
+    ]
+  }
+]

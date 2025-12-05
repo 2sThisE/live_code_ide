@@ -1,0 +1,485 @@
+/* ================================================================== */
+/* Main Theme - General styles for the main window and controls. */
+/* ================================================================== */
+
+.main-container {
+    -fx-background-color: #2c2c2c, #1a1a1a;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 8px;
+}
+
+.root-pane {
+    -fx-background-color: transparent;
+}
+
+.custom-title-bar {
+    -fx-background-color: #333333;
+    -fx-background-radius: 8px 8px 0 0;
+    -fx-border-color: #5a5a5a;
+    -fx-border-radius: 8px 8px 0 0;
+    -fx-border-width: 1px 1px 0 1px;
+    -fx-pref-height: 35px;
+    -fx-min-height: 35px;
+}
+
+.custom-title-bar.maximized {
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+}
+
+.status-bar {
+    -fx-background-color: #3c3c3c;
+    -fx-background-radius: 0 0 8px 8px;
+    -fx-padding: 3px 5px;
+    -fx-border-color: #5a5a5a;
+    -fx-border-radius: 0 0 8px 8px;
+    -fx-border-width: 0 1px 1px 1px;
+}
+
+.status-bar.maximized {
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+}
+
+.root {
+    -fx-base: #1e1e1e;
+    -fx-background: #1e1e1e;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-control-inner-background: #252526;
+    -fx-font-family: "Malgun Gothic", "Noto Sans KR", sans-serif;
+}
+
+
+
+.split-pane {
+    -fx-padding: 0;
+}
+
+.label, .text, .button, .menu-item .label, .menu .label {
+    -fx-text-fill: #cccccc;
+}
+
+.main-split-pane {
+    -fx-border-color: #5a5a5a;
+    -fx-border-width: 0 1px 0 1px;
+    -fx-background-color: transparent;
+}
+
+.text-field, .password-field {
+    -fx-background-color: #3c3c3c;
+    -fx-text-fill: #cccccc;
+    -fx-prompt-text-fill: #888888;
+    -fx-border-color: #3c3c3c;
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-insets: 0;
+    -fx-border-insets: 0;
+    -fx-background-radius: 8px;
+}
+
+.text-field:focused, .password-field:focused {
+    -fx-border-color: #007acc;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+}
+
+.button {
+    -fx-background-color: #0e639c;
+    -fx-text-fill: #ffffff;
+    -fx-background-radius: 2px;
+}
+
+.button:hover {
+    -fx-background-color: #1177bb;
+}
+
+.button:pressed {
+    -fx-background-color: #0b4575;
+}
+
+#welcome-text, #properties-title {
+    -fx-fill: #ffffff;
+    -fx-font-size: 24px;
+    -fx-font-weight: bold;
+}
+
+.split-pane-divider {
+    -fx-background-color: #333333;
+    -fx-padding: 0 1px 0 1px;
+}
+
+.status-bar .label {
+    -fx-text-fill: #ffffff;
+}
+
+.menu-bar {
+    -fx-background-color: transparent;
+}
+
+.menu:hover, .menu:showing {
+    -fx-background-color: #444444;
+    -fx-background-radius: 8px;
+}
+
+.menu-item {
+    -fx-background-color: #333333;
+}
+
+.menu-item:focused {
+    -fx-background-color: #007acc;
+}
+
+.menu-item:focused .label {
+    -fx-text-fill: #ffffff;
+}
+
+.context-menu {
+    -fx-background-color: #333333;
+    -fx-border-color: #444444;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-padding: 4px;
+}
+
+.menu-item {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+}
+
+.context-menu .separator {
+    -fx-padding: 5px 0px;
+}
+
+.context-menu .separator .line {
+    -fx-border-color: #555555;
+    -fx-border-width: 1px 0 0 0;
+}
+
+.window-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-padding: 8px 15px;
+    -fx-border-color: transparent;
+    -fx-border-width: 1px 0 0 0;
+    -fx-text-fill: #cccccc;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+}
+
+.window-button:hover {
+    -fx-background-color: #444444;
+    -fx-border-color: #444444;
+}
+
+.window-button:pressed {
+    -fx-background-color: #5e5e5e;
+    -fx-border-color: #5e5e5e;
+}
+
+.close-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #cccccc;
+    -fx-background-radius: 0 6px 0 0;
+    -fx-border-color: transparent;
+    -fx-border-radius: 0 0 6px 0;
+    -fx-border-width: 1px 1px 0 0;
+    -fx-text-fill: #cccccc;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 8px 15px;
+}
+
+.close-button:hover {
+    -fx-background-color: #e81123;
+    -fx-text-fill: #ffffff;
+    -fx-background-radius: 0 6px 0 0;
+}
+
+.close-button:pressed {
+    -fx-background-color: #9b111e;
+    -fx-text-fill: #ffffff;
+    -fx-background-radius: 0 6px 0 0;
+}
+
+.close-button.maximized{
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+}
+
+
+.scroll-bar {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-width: 0 0 0 1px; /* 상 우 하 좌 (공백으로 구분) */
+    -fx-border-color: rgb(26, 26, 26);
+}
+
+.scroll-bar .track {
+    -fx-background-color: transparent;
+    
+    
+    /* 만약을 위해 트랙의 배경 여백도 0으로 설정하여 꽉 채웁니다. */
+    -fx-background-insets: 0;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: #3838388e;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-background-color: #3d3d3d; 
+}
+
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-padding: 0;
+    -fx-font-size: 0;
+    -fx-min-width: 0;
+    -fx-max-width: 0;
+    -fx-pref-width: 0;
+    -fx-min-height: 0;
+    -fx-max-height: 0;
+    -fx-pref-height: 0;
+}
+
+/* ★★★ 핵심 해결책 ★★★ */
+.scroll-bar:vertical {
+    -fx-pref-width: 15px;
+    -fx-padding: 0;
+}
+
+/* 수평 스크롤바도 동일하게 처리하려면 추가합니다. */
+.scroll-bar:horizontal {
+    -fx-border-width: 1 0 0 0px; /* 상 우 하 좌 (공백으로 구분) */
+    -fx-border-color: rgb(26, 26, 26);
+    -fx-pref-height: 15px;
+    -fx-padding: 0;
+}
+
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-padding: 0;
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+}
+
+.scroll-bar .increment-arrow,
+.scroll-bar .decrement-arrow {
+    -fx-shape: "";
+    -fx-padding: 0;
+}
+
+.scroll-pane > .corner {
+    -fx-background-color: transparent;
+}
+
+.suggestion-item-selected .label {
+    -fx-text-fill: white!important;
+}
+.context-menu .menu-item.suggestion-item-selected {
+    -fx-background-color: #007acc!important;
+}
+
+.centered-search-field{
+    -fx-font-size: 13px;
+    -fx-padding: 1px 5px 1px 5px;
+    -fx-max-height: 10px;
+    -fx-border-width: 1px;
+    -fx-border-color: #535353;
+    -fx-background-radius: 5px;
+    -fx-border-radius: 5px;
+}
+.centered-search-field:hover{
+    -fx-background-color: #474747;
+}
+.centered-search-field:focused{
+    -fx-border-width: 1px;
+    -fx-background-radius: 5px;
+    -fx-border-radius: 5px;
+}
+
+.search-field-focused {
+    -fx-border-color: #007acc;
+}
+
+.transparent-textfield {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-prompt-text-fill: #888888;
+}
+
+.search-tool-button {
+    -fx-font-size: 12px;
+    -fx-padding: 0 4px;
+    -fx-min-height: 16px;
+    -fx-max-height: 16px;
+    -fx-background-color: transparent;
+    -fx-background-radius: 3px;
+}
+.search-tool-button .text{
+    -fx-fill: rgb(182, 182, 182);
+    -fx-font-weight: bold;
+}
+.search-tool-button:hover {
+    -fx-background-color: #64646491;
+}
+.search-tool-toggle-button .text{
+    -fx-fill: #b6b6b6;
+    -fx-font-weight: bold;
+}
+.search-tool-toggle-button {
+    -fx-font-size: 12px;
+    -fx-padding: 0 4px;
+    -fx-min-height: 16px;
+    -fx-max-height: 16px;
+    -fx-background-color: transparent; /* Default state */
+    -fx-background-radius: 3px;
+    -fx-border-width: 0; /* Ensure no extra border */
+}
+
+.search-tool-toggle-button:hover {
+    -fx-background-color: #64646491;
+}
+
+.search-tool-toggle-button:selected {
+    -fx-background-color: #666666; /* Selected state */
+    -fx-text-fill: white;
+}
+
+#suggestion-list-view {
+    -fx-background-color: #151515;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-border-color: #333333;
+    -fx-border-width: 1px;
+    -fx-padding: 0;
+}
+
+#suggestion-list-view .list-cell {
+    -fx-padding: 2px 12px;
+    -fx-background-radius: 0;
+    -fx-font-size: 13px;
+}
+
+#suggestion-list-view .list-cell:filled:hover {
+    -fx-background-color: #333333;
+}
+
+#suggestion-list-view .list-cell:selected {
+    -fx-background-color: #094771;
+    -fx-text-fill: white;
+}
+
+#suggestion-list-view:focused .list-cell:selected {
+    -fx-background-color: #007acc;
+}
+
+/* --- Drag and Drop Feedback Zones --- */
+.drop-zone {
+    -fx-background-color: transparent;
+}
+
+.drop-zone.active {
+    -fx-background-color: rgba(114, 114, 114, 0.3);
+    -fx-border-color: rgba(255, 255, 255, 0.589);
+    -fx-border-width: 1.5px;
+    -fx-border-style: dashed;
+}
+
+.run-button, .pause-ot-button {
+    -fx-alignment: center; 
+    -fx-padding: 4px;
+    -fx-background-color: transparent; /* Default state */
+    -fx-background-radius: 3px;
+    -fx-border-width: 0; /* Ensure no extra border */
+}
+.run-button:hover, .pause-ot-button:hover, .add-project-button:hover {
+    -fx-background-color: #64646491;
+}
+.run-button:clicked{
+    -fx-background-color: #363636;
+}
+
+.pause-ot-button:selected {
+    -fx-background-color: #666666; /* Selected state */
+    -fx-text-fill: white;
+}
+
+/* --- File Execution Selection View --- */
+/* --- 전체 뷰 스타일 --- */
+.file-execution-selection-view {
+    -fx-background-color: #252526; /* VS Code 다크 테마 배경색 */
+    -fx-background-radius: 8px;
+    -fx-border-color: #444444;
+    -fx-border-radius: 8px;
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.5), 20, 0.1, 0, 5);
+    -fx-padding: 10px;
+}
+
+
+/* --- 테이블 뷰(리스트) 스타일 --- */
+.file-execution-table {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 1px;
+}
+
+.error {
+    -fx-border-color: #ff5555; /* 오류 항목의 경계선 색상 */
+    -fx-border-width: 1px;
+}
+
+
+
+/* 테이블 헤더 숨기기 */
+.file-execution-table .column-header-background {
+    -fx-background-color: transparent;
+    -fx-max-height: 0;
+    -fx-pref-height: 0;
+    -fx-min-height: 0;
+}
+
+/* 테이블 셀(각 항목) 스타일 */
+.file-execution-table .table-cell {
+    -fx-background-color: transparent;
+    -fx-border-color: #333333; /* 각 항목의 하단 경계선 */
+    -fx-border-width: 0 0 1px 0;
+    -fx-padding: 5px;
+}
+
+/* 호버 효과 */
+.file-execution-table .table-row-cell:hover {
+    -fx-background-color: #303030;
+}
+
+/* 선택 효과 */
+.file-execution-table .table-row-cell:selected {
+    -fx-background-color: #444444;
+}
+
+/* --- 셀 내부 컴포넌트 스타일 --- */
+.file-icon {
+    -fx-font-size: 16px;
+    -fx-text-fill: #CCCCCC;
+}
+.file-name-label {
+    -fx-font-size: 14px;
+    -fx-text-fill: #D4D4D4; /* 파일 이름은 밝게 */
+    -fx-font-weight: bold;
+}
+.file-path-label {
+    -fx-font-size: 12px;
+    -fx-text-fill: #888888; /* 경로는 어둡게 */
+    -fx-alignment: CENTER_RIGHT;
+}
