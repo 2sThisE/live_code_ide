@@ -44,6 +44,38 @@ macOS에서 사용 방법
   - 현재 앱 번들은 **Apple Silicon(M1 이상) macOS** 환경을 기준으로 빌드되었으며,  
     Intel Mac 환경에서는 정상 동작을 보장하지 않습니다.
 
+### macOS 보안 경고(손상된 앱) 관련 안내
+
+GitHub 등에서 ZIP 파일로 다운로드한 뒤 `Live Code IDE.app` 을 처음 실행할 때,  
+macOS에서 아래와 같은 경고가 뜰 수 있습니다.
+
+> `'Live Code IDE.app'은(는) 손상되었기 때문에 열 수 없습니다. 해당 항목을 휴지통으로 이동해야 합니다.`
+
+이 메시지는 실제로 파일이 깨졌다는 뜻이 아니라,  
+이 앱이 **Apple 개발자 계정으로 서명/노타라이즈(Notarize)되지 않은 외부 앱**이기 때문에  
+Gatekeeper가 기본적으로 실행을 막는 것입니다.
+
+앱 자체는 정상이며, 아래 두 방법 중 하나로 한 번만 허용해 주면 이후부터는 정상 실행됩니다.
+
+#### 방법 A) Finder에서 수동으로 열기
+
+1. Finder에서 `Live Code IDE.app` 을 **우클릭**합니다.  
+2. 메뉴에서 **“열기”** 를 선택합니다.  
+3. 경고 창이 다시 뜨면 이번에는 **“열기” 버튼을 눌러** 실행을 허용합니다.  
+
+한 번 허용 절차를 거치고 나면, 이후에는 Dock/Launchpad에서 바로 실행할 수 있습니다.
+
+#### 방법 B) 터미널에서 quarantine 플래그 제거
+
+1. `Mac` 폴더가 있는 위치로 터미널에서 이동합니다.  
+2. 다음 명령어를 실행합니다.
+
+   ```bash
+   xattr -r -d com.apple.quarantine "Live Code IDE.app"
+   ```
+
+3. 이후에는 `Live Code IDE.app` 을 더블 클릭해서 바로 실행할 수 있습니다.
+
 **2) JAR + plugins 방식**  
 - `Mac/LiveCodeIDE.jar` 와 `Mac/plugins/` 폴더를 같은 디렉터리에 둡니다.
 - 터미널에서:
